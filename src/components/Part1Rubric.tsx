@@ -613,7 +613,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 onChange={(processingType) => setSettings({ ...settings, processingType })}
                 options={[
                   { value: ProcessingType.SINGLE, label: 'One rubric' },
-                  { value: ProcessingType.MULTIPLE, label: 'Several rubrics' },
+                  { value: ProcessingType.MULTIPLE, label: 'Multiple rubrics' },
                 ]}
               />
 
