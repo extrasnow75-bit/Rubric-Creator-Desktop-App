@@ -10,6 +10,7 @@ import { diagnoseCanvasError, CanvasDiagnosis } from '../utils/diagnoseCanvasErr
 import { CsvRepairPanel } from './CsvRepairPanel';
 import { useCopyAction } from '../hooks/useCopyAction';
 import { CsvSaveOptions } from './CsvSaveOptions';
+import { useSession } from '../contexts/SessionContext';
 import { isPinnedToBottom } from '../utils/followScroll';
 
 /**
@@ -98,6 +99,7 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
   const [elapsedMs, setElapsedMs] = useState(0);
   const [estimatedMs, setEstimatedMs] = useState(0);
   const { state: copyState, copy } = useCopyAction();
+  const { markDeployedToCanvas } = useSession();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [results, setResults] = useState<RubricResult[]>([]);
 
@@ -323,6 +325,9 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
         setResults([...finalResults]);
         const successCount = finalResults.filter((r) => r.status === 'success').length;
         const failCount = finalResults.filter((r) => r.status === 'failed').length;
+        // Latched on the session so Part 1's editing controls can say that changes made from
+        // here on will not reach the rubrics already in the course.
+        if (successCount > 0) markDeployedToCanvas();
         addLog(
           `Done — ${successCount} deployed successfully${failCount > 0 ? `, ${failCount} failed` : ''}.`,
           failCount === 0 ? 'success' : 'warning',

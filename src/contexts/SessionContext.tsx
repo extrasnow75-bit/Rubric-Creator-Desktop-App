@@ -25,6 +25,8 @@ const SessionContext = createContext<{
   setRubricMetadata: (metadata: RubricMeta | null) => void;
   /** Record how the rubrics just generated express their points. See SessionState.scoringMethod. */
   setScoringMethod: (method: 'ranges' | 'fixed') => void;
+  /** Latch on the first rubric to reach Canvas. See SessionState.deployedToCanvas. */
+  markDeployedToCanvas: () => void;
   setCsvOutput: (csv: string | null, fileName?: string) => void;
   setCanvasConfig: (config: CanvasConfig | null) => void;
   addBatchItem: (item: BatchItem) => void;
@@ -73,6 +75,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     activeRubricIndex: 0,
     rubricMetadata: null,
     scoringMethod: 'ranges',
+    deployedToCanvas: false,
     csvOutput: null,
     csvFileName: null,
     canvasConfig: null,
@@ -176,6 +179,11 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const setScoringMethod = useCallback((method: 'ranges' | 'fixed') => {
     setState((prev) => ({ ...prev, scoringMethod: method }));
+  }, []);
+
+  /** One way only, until the session is cleared. A later failed deploy does not un-deploy. */
+  const markDeployedToCanvas = useCallback(() => {
+    setState((prev) => (prev.deployedToCanvas ? prev : { ...prev, deployedToCanvas: true }));
   }, []);
 
   const setCsvOutput = useCallback((csv: string | null, fileName?: string) => {
@@ -343,6 +351,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       activeRubricIndex: 0,
       rubricMetadata: null,
       scoringMethod: 'ranges',
+      deployedToCanvas: false,
       csvOutput: null,
       csvFileName: null,
       canvasConfig: null,
@@ -386,6 +395,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       activeRubricIndex: 0,
       rubricMetadata: null,
       scoringMethod: 'ranges',
+      deployedToCanvas: false,
       csvOutput: null,
       csvFileName: null,
       batchItems: [],
@@ -600,6 +610,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     updateRubricAt,
     setRubricMetadata,
     setScoringMethod,
+    markDeployedToCanvas,
     setCsvOutput,
     setCanvasConfig,
     addBatchItem,

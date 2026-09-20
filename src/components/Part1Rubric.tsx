@@ -4,6 +4,7 @@ import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { AppMode, PointStyle, ProcessingType, GenerationSettings, RubricData } from '../types';
 import { generateCsvFromRubricObject } from '../utils/rubricCsv';
 import { CsvSaveOptions } from './CsvSaveOptions';
+import { RubricAdjustPanel } from './RubricAdjustPanel';
 import {
   generateRubricFromDescription,
   extractRubricFromDocument,
@@ -71,6 +72,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
    * rubric. A description with no separate parts never sets it.
    */
   const [plan, setPlan] = useState<RubricPlanRow[] | null>(null);
+  /**
+   * The checklist as it was last confirmed, kept so it can be brought back.
+   *
+   * `plan` is cleared once generation starts, which is right — leaving it up invites a second run
+   * of the thing already decided. But the rows carry the user's own names, points and tick boxes,
+   * and re-deriving them from the description would throw all three away. Held separately so
+   * "choose the parts again" restores exactly what was confirmed rather than a fresh guess.
+   */
+  const [lastPlan, setLastPlan] = useState<RubricPlanRow[] | null>(null);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -450,6 +460,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
             : undefined,
       })),
     );
+    setLastPlan(plan);
     setPlan(null);
   };
 
@@ -1228,6 +1239,31 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
               {/* Right column (or full width): rubric */}
               <div>
+                {/*
+                  The deliverables checklist, back in place without leaving the page.
+
+                  It is the pre-generation form, so it appears here only when the user has asked
+                  to choose the parts again — and confirming it replaces every rubric below. The
+                  rubrics stay rendered underneath rather than being hidden, so what is about to
+                  be replaced is visible while the choice is being made.
+                */}
+                {plan !== null && (
+                  <div className="mb-6 p-5 bg-white border-2 border-brand rounded-2xl shadow-md">
+                    <h3 className="text-lg font-black text-gray-900 mb-1">Choose the parts again</h3>
+                    <p className="text-sm text-gray-700 mb-4">
+                      Rename anything, change the points, tick or untick a part. Drafting replaces
+                      the {state.rubrics.length === 1 ? 'rubric' : `${state.rubrics.length} rubrics`} below.
+                    </p>
+                    <DeliverableChecklist
+                      rows={plan}
+                      onChange={setPlan}
+                      onConfirm={() => void handleConfirmPlan()}
+                      onCancel={() => setPlan(null)}
+                      busy={isGenerating}
+                    />
+                  </div>
+                )}
+
                 <RubricSwitcher
                   rubrics={state.rubrics}
                   activeIndex={state.activeRubricIndex}
@@ -1343,6 +1379,30 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 {!state.isGoogleAuthenticated && (
                   <p className="text-xs text-gray-600 text-center mb-3">Sign in with Google on the Dashboard to enable Add to Drive.</p>
                 )}
+
+                {/*
+                  Name and points, before the AI options rather than after them.
+
+                  Both used to be reachable only through Request Changes, which sends the whole
+                  rubric back to Gemini: ten seconds and a request to change a string, with no
+                  guarantee the model changed only what was asked. These do the two cheap things
+                  directly and leave Request Changes for what actually needs judgement.
+                */}
+                <RubricAdjustPanel
+                  rubric={state.rubric}
+                  rubricIndex={state.activeRubricIndex}
+                  onChange={(next) => {
+                    updateRubricAt(state.activeRubricIndex, next);
+                    // Any change to a rubric retires the readiness confirmation, the same as a
+                    // replacement upload or an applied change request. The tick says no further
+                    // revision is needed, and a rename is a revision.
+                    setReadyForCanvas(false);
+                    setShowDeployCard(false);
+                  }}
+                  onReplan={lastPlan ? () => setPlan(lastPlan) : undefined}
+                  deployedToCanvas={state.deployedToCanvas}
+                  busy={isGenerating || isApplyingChanges}
+                />
 
                 {/*
                   Request Changes, above the confirm and deploy controls rather than below them.
