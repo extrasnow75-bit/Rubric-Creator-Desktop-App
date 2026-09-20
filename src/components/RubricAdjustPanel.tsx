@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { AlertTriangle, Check, Info, Pencil, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Info, Pencil, RotateCcw } from 'lucide-react';
 import type { RubricData } from '../types';
 import { canvasTotal, rescaleRubric } from '../utils/rescaleRubric';
 
@@ -49,6 +49,17 @@ export const RubricAdjustPanel: React.FC<Props> = ({
 }) => {
   const nameId = useId();
   const pointsId = useId();
+  const panelId = useId();
+
+  /**
+   * Closed until asked for.
+   *
+   * It used to render open, which put two text fields between the save buttons and the deploy
+   * button on every visit — a standing invitation to change a name nobody had come here to
+   * change, and a lot of vertical space spent on the rarest thing on the screen. Most runs need
+   * no adjustment at all.
+   */
+  const [open, setOpen] = useState(false);
 
   /**
    * The name is held locally while it is being typed and written back on blur or Enter.
@@ -117,16 +128,39 @@ export const RubricAdjustPanel: React.FC<Props> = ({
   };
 
   return (
-    <div className="mb-4 p-5 bg-gray-50 border border-gray-200 rounded-2xl">
-      <div className="flex items-center gap-2 mb-1">
-        <Pencil className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
-        <h3 className="font-black text-gray-900">Adjust this rubric</h3>
-      </div>
-      <p className="text-sm text-gray-600 mb-4">
-        Changes here are instant and keep every word as written. No AI involved.
-      </p>
+    <div className="mb-4 bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden">
+      {/*
+        Heading wrapping the button, not the other way round: a <button> may hold phrasing
+        content only, so an <h3> inside one is invalid and drops out of the heading list that
+        screen-reader users navigate by. This is the ARIA accordion pattern.
+      */}
+      <h3 className="text-base font-bold text-gray-900">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={panelId}
+          className="w-full flex items-center gap-2 p-4 text-left hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+        >
+          {open ? (
+            <ChevronDown className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
+          )}
+          <Pencil className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
+          Adjust this rubric
+          <span className="text-sm font-normal text-gray-600 ml-1">
+            — rename it or change its points
+          </span>
+        </button>
+      </h3>
 
-      <div className="grid sm:grid-cols-[1fr_auto] gap-4 items-end">
+      {open && (
+        <div id={panelId} className="px-5 pb-5">
+          <p className="text-sm text-gray-600 mb-4">
+            Changes here are instant and keep every word as written. No AI involved.
+          </p>
+
+          <div className="grid sm:grid-cols-[1fr_auto] gap-4 items-end">
         <div>
           <label htmlFor={nameId} className="text-sm font-bold text-gray-900 block mb-2">
             Rubric name
@@ -282,6 +316,8 @@ export const RubricAdjustPanel: React.FC<Props> = ({
             </div>
           )}
         </div>
+      )}
+      </div>
       )}
     </div>
   );

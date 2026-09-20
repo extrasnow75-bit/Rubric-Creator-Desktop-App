@@ -1,58 +1,42 @@
-## What's new in v0.9.16
+## What's new in v0.9.17
 
-You can now rename a rubric and change what it is worth without waiting on the AI, and go back to
-the list of parts to draft a different set.
+A layout release. Phase 1's review screen now has a heading, deploying is a card of its own, and
+the Adjust panel stays out of the way until you want it.
 
-### Adjust a rubric without asking the AI
+### The review area has a heading
 
-There is an **Adjust this rubric** panel under the save buttons in Phase 1. It does two things,
-both instantly, and neither touches a word you or the AI wrote:
+Phase 1 is one card with two states. Before anything is generated it is headed **Create Draft
+Rubric**; afterwards it went straight into the list of rubrics with no heading at all. So the
+largest text on the screen was one rubric's own title, which made a single rubric look like the
+subject of the page rather than one of eight.
 
-- **Rubric name.** Type a new one and press Enter or click away. This is the name Canvas shows and
-  the name the CSV file takes.
-- **Total points.** Type a number and press **Rescale**. Every criterion keeps its share of the
-  total and its wording; only the numbers move.
+That half of the card is now headed **Review Your Draft Rubrics**, with a line underneath saying
+what to do there. The rubric's title and the panel headings below it step down in size to match,
+so the page reads in the order it is meant to.
 
-Until now both of these meant using **Request Changes**, which sends the whole rubric back to the
-AI and takes about ten seconds — to change a name, or do arithmetic. It also meant trusting the AI
-to change only the thing you asked about, which is not something it guarantees.
+### Deploying is a separate card
 
-Request Changes is still there, and is still the right tool when you want different criteria or
-different wording.
+The confirmation tick box, the deploy button, the **Save CSV files** link and the Canvas course
+box have moved out of the review card into their own card below it, headed **Deploy to Canvas**.
 
-### How rescaling divides the points
+They used to sit at the bottom of the review card, so the last thing inside "is this rubric
+right?" was "send it to Canvas". Two cards put the break where the decision is.
 
-A rubric worth 75 across five criteria of 15, rescaled to 100, gives five criteria of 20. When it
-does not divide evenly, the leftover points go to whichever criteria lost the most in the
-rounding, so the total always lands exactly on the number you asked for rather than a point or
-two under.
+### Adjust this rubric opens when you ask
 
-Ranges are kept as ranges. A rubric written as `25-20` stays in that form, and one written in
-Canvas's own `4 to >3 pts` notation stays in that one.
+The **Adjust this rubric** panel used to be open all the time, putting two text fields between the
+save buttons and the deploy button on every visit. It is now a single line you click to open —
+**Adjust this rubric — rename it or change its points** — and everything inside it works exactly
+as before.
 
-### Choose the parts again
+### Request Changes shows that it is open
 
-At the bottom of the Adjust panel, **Choose the parts again and re-draft** brings back the
-checklist of assignment parts — with your names, your point values and your tick boxes exactly as
-you left them. Change what you like and draft again.
+**Request Changes** and **Upload Replacement Rubric to App** now look pressed while their card is
+showing, and clicking either one again closes it. Previously the only way to close those cards
+was the small × in the corner, and nothing marked which button had opened them.
 
-This one does re-run the AI and **replaces every rubric on screen**, including any changes you
-have applied, so it asks you to confirm first and suggests saving your CSVs before you go ahead.
-Your rubrics stay visible underneath while you choose.
-
-### A warning once you have deployed
-
-Once you have sent rubrics to Canvas, the Adjust panel says so. Editing here does not change a
-rubric that is already in your course, and deploying a second time **adds another copy rather
-than replacing the first** — Canvas has no way for the app to update an existing rubric. If you
-redeploy after an edit, delete the old one in Canvas.
-
-### Smaller changes
-
-- Ticking **ready to proceed** and then adjusting a rubric now un-ticks it, the same as uploading
-  a replacement or applying a change request does. The tick says no further revision is needed,
-  and a rename is a revision.
-- The Help Center link is now labelled **Canvas Rubric Creator App — KB Article**.
+Note that the Request Changes card deliberately stays open when you move between rubrics — that
+is what lets you write a request for several rubrics and apply them in one run.
 
 ### Known limits
 
@@ -66,3 +50,5 @@ redeploy after an edit, delete the old one in Canvas.
   and choose File → Download → Comma-separated values.
 - **Rescaling rounds to whole points.** A criterion worth 15 in a 75-point rubric becomes 8 in a
   40-point one, not 8.5.
+- **Editing a rubric after deploying does not change it in Canvas.** Deploying again adds a second
+  copy; delete the old one in Canvas if you redeploy.

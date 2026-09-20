@@ -1224,6 +1224,24 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
           </>
         ) : (
           <>
+            {/*
+              The heading this half of the card never had.
+
+              This is one card with two states: before anything is generated it is headed "Create
+              Draft Rubric" with a line saying what to do, and afterwards it simply began with the
+              rubric switcher. So everything below — the list, the table, the save buttons, the
+              adjust and request-changes panels, the deploy button — sat under no heading at all,
+              and the biggest text in the area was the rubric's own title, which made a single
+              rubric look like the subject of the page rather than one of eight.
+
+              h1 at the scale DESIGN_SYSTEM.md sets, matching the other state's heading, which
+              also puts the rubric title back down to h2 where it belongs.
+            */}
+            <h2 className="text-2xl font-black text-gray-900 mb-2">Review Your Draft Rubrics</h2>
+            <p className="text-gray-600 font-medium mb-8">
+              Check each rubric, make any changes, then send them to Canvas.
+            </p>
+
             {/* Display Generated Rubric — comparison layout */}
             <div className={showComparison ? 'grid grid-cols-2 gap-8' : ''}>
 
@@ -1270,7 +1288,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   onOpen={openRubric}
                   pending={[...queuedIndexes, ...unsettledIndexes]}
                 />
-                <h3 className="text-xl font-black text-gray-900 mb-2">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
                   {state.rubric.title}
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">
@@ -1357,16 +1375,43 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                     {savingLocal ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                     {savingLocal ? 'Saving\u2026' : 'Save to this computer'}
                   </button>
+                  {/*
+                    Both of these open a card below, and both are toggles rather than one-way
+                    switches.
+
+                    The card they open is deliberately not closed by moving between rubrics —
+                    writing a request for each and applying them in one run is the whole point of
+                    it. The cost of that is a card which, several rubrics later, looks like part
+                    of the page rather than something switched on earlier; so the button that
+                    opened it says that it did, carries aria-expanded for anyone not looking at
+                    the colour, and closes it again when pressed.
+                  */}
                   <button
-                    onClick={() => { setShowReplaceCard(true); setShowRequestChangesCard(false); }}
-                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-900 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setShowReplaceCard((open) => !open);
+                      setShowRequestChangesCard(false);
+                    }}
+                    aria-expanded={showReplaceCard}
+                    className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
+                      showReplaceCard
+                        ? 'bg-brand/10 text-brand border-2 border-brand'
+                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200 border-2 border-transparent'
+                    }`}
                   >
                     <RotateCw className="w-4 h-4" />
                     Upload Replacement Rubric to App
                   </button>
                   <button
-                    onClick={() => { setShowRequestChangesCard(true); setShowReplaceCard(false); }}
-                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-900 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setShowRequestChangesCard((open) => !open);
+                      setShowReplaceCard(false);
+                    }}
+                    aria-expanded={showRequestChangesCard}
+                    className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
+                      showRequestChangesCard
+                        ? 'bg-brand/10 text-brand border-2 border-brand'
+                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200 border-2 border-transparent'
+                    }`}
                   >
                     <RotateCw className="w-4 h-4" />
                     Request Changes
@@ -1418,7 +1463,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                       {/* The heading names the rubric because the card is identical for all of
                           them, and the only other thing saying which one you are editing is the
                           switcher further up the page. */}
-                      <h3 className="text-base font-black text-gray-900">
+                      <h3 className="text-base font-bold text-gray-900">
                         Request Changes — {state.rubric.title}
                       </h3>
                       <button
@@ -1492,226 +1537,252 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                     {unsettledIndexes.map((i) => state.rubrics[i]?.title).filter(Boolean).join(', ')}.
                   </p>
                 )}
-
-                {/* Ready confirmation checkbox */}
-                {onAnalyzeDeploy && (
-                  /*
-                    This is the only thing standing between the user and the deploy button, and
-                    as a bare 16px check box under grey 14px text it did not look like one — the
-                    button below reads as broken rather than waiting. So the box asks for
-                    something, and the panel carries the brand border until it is ticked,
-                    at which point it turns green and stops asking for attention. Brand is a
-                    border and text here, never a fill: this is a gate, not a button.
-                  */
-                  <label
-                    className={`flex items-start gap-4 mb-3 p-5 rounded-2xl border-2 cursor-pointer select-none transition-all ${
-                      readyForCanvas
-                        ? 'bg-green-50 border-green-400'
-                        : 'bg-white border-brand ring-4 ring-brand/15 shadow-md hover:bg-gray-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={readyForCanvas}
-                      onChange={(e) => {
-                        setReadyForCanvas(e.target.checked);
-                        if (!e.target.checked) setShowDeployCard(false);
-                      }}
-                      className="mt-0.5 w-6 h-6 accent-green-600 flex-shrink-0"
-                    />
-                    <span>
-                      <span
-                        className={`block text-base font-black ${
-                          readyForCanvas ? 'text-green-800' : 'text-brand'
-                        }`}
-                      >
-                        {readyForCanvas
-                          ? 'Ready to proceed'
-                          : 'Tick this box when you are ready to proceed'}
-                      </span>
-                      {/* Written when a run made one rubric. With eight, confirming "the rubric
-                          currently displayed" while the button deploys all of them is a tick box
-                          that does not describe what it authorises. */}
-                      <span className="block text-sm text-gray-700 mt-1">
-                        {state.rubrics.length > 1
-                          ? `No further revision is needed. All ${state.rubrics.length} rubrics are ready for Canvas.`
-                          : 'No further revision is needed. The rubric above is ready for Canvas.'}
-                      </span>
-                    </span>
-                  </label>
-                )}
-
-                {/* Deploy Action — bottom */}
-                <button
-                  onClick={() => {
-                    if (onAnalyzeDeploy) {
-                      setShowDeployCard(true);
-                    } else {
-                      handleContinue();
-                    }
-                  }}
-                  disabled={!!(onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas))}
-                  aria-describedby={
-                    onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas)
-                      ? 'deploy-blocked-reason'
-                      : undefined
-                  }
-                  className={`w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed ${showDeployCard ? 'opacity-50 pointer-events-none' : ''}`}
-                >
-                  <ArrowRight className="w-5 h-5" />
-                  {onAnalyzeDeploy
-                    ? state.rubrics.length > 1
-                      ? `Deploy All ${state.rubrics.length} Rubrics to Canvas`
-                      : 'Deploy Displayed Rubric to Canvas'
-                    : 'Continue to Part 2: Convert to CSV'}
-                </button>
-
-                {/*
-                  A disabled button with no stated reason is indistinguishable from a broken one.
-                  Say which of the two gates is closed; aria-describedby ties it to the button so
-                  a screen reader reads the reason when focus lands there.
-                */}
-                {onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas) && (
-                  <p id="deploy-blocked-reason" className="text-xs text-gray-600 mt-2 text-center">
-                    {!canAnalyzeDeploy
-                      ? 'Add your Gemini API key and Canvas token in Initial Setup to deploy.'
-                      : 'Tick the box above to confirm the rubric is ready.'}
-                  </p>
-                )}
-
-                {/*
-                  The CSVs, before anything is sent to Canvas.
-
-                  They exist already — or rather, they cost nothing to make: converting a rubric
-                  object to Canvas CSV is a local string build with no AI call behind it (see
-                  utils/rubricCsv.ts), so the files offered here are byte-for-byte the ones the
-                  deploy will push. The deploy panel offered them only on the way out, which is
-                  the wrong end for the case that needs them most: if Canvas rejects the upload,
-                  or the token has expired, the work is still recoverable from a CSV you already
-                  have. Saving one first costs a click and removes that whole class of loss.
-
-                  A link rather than a second button: there is one primary action on this screen
-                  and it is the one above.
-                */}
-                {onAnalyzeDeploy && state.rubrics.length > 0 && !showDeployCard && (
-                  <div className="mt-3">
-                    <CsvSaveOptions
-                      csvs={csvsForRubrics}
-                      prompt={
-                        state.rubrics.length > 1
-                          ? `Keep a copy of all ${state.rubrics.length} CSVs?`
-                          : 'Keep a copy of the CSV?'
-                      }
-                      footnote="These are the same files the deploy sends to Canvas. Saving them here changes nothing about the deploy."
-                    />
-                  </div>
-                )}
-
-                {/* Inline Canvas Course URL card */}
-                {showDeployCard && onAnalyzeDeploy && (
-                  <div className={`mt-4 bg-white rounded-2xl border-2 p-6 shadow-sm transition-all duration-300 ${
-                    deployCourseVerified
-                      ? 'border-green-400 ring-2 ring-green-300 ring-offset-1 shadow-green-100'
-                      : 'border-gray-200'
-                  }`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Link className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                      <h3 className="font-black text-lg text-gray-900">Target Canvas Course</h3>
-                      {deployCourseVerified && <Check className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" />}
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3">Enter the homepage URL of the Canvas course you want to deploy this rubric to.</p>
-                    <input
-                      type="url"
-                      value={deployUrlInput}
-                      onChange={(e) => {
-                        deployUrlTouched.current = true;
-                        setDeployUrlInput(e.target.value);
-                        setDeployCourseName(null);
-                      }}
-                      placeholder="https://canvas.institution.edu/courses/12345"
-                      aria-invalid={!!((deployUrlInput && !deployUrlValid) || deployNameError)}
-                      aria-describedby={deployNameError ? 'deploy-course-status' : undefined}
-                      className={`w-full px-4 py-3 border-2 rounded-xl text-sm focus:outline-none transition-all ${
-                        (deployUrlInput && !deployUrlValid) || deployNameError
-                          ? 'border-red-300 focus:border-red-400'
-                          : deployCourseVerified
-                          ? 'border-green-400 focus:border-green-500'
-                          : 'border-gray-200 focus:border-blue-400'
-                      }`}
-                    />
-                    {deployUrlInput && !deployUrlValid && (
-                      <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
-                        <X className="w-3 h-3" /> URL must include a /courses/&lt;ID&gt; path
-                      </p>
-                    )}
-                    {/*
-                      Mounted unconditionally rather than rendered on demand: a live region that
-                      appears with its text already inside it is announced unreliably. It
-                      collapses to sr-only when there is nothing to say.
-                    */}
-                    <div
-                      id="deploy-course-status"
-                      role="status"
-                      aria-live="polite"
-                      className={
-                        deployCourseNameLoading || deployCourseName || deployNameError
-                          ? 'mt-3 flex items-center gap-2 min-h-[1.5rem]'
-                          : 'sr-only'
-                      }
-                    >
-                      {deployCourseNameLoading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 text-gray-400 animate-spin" aria-hidden="true" />
-                          <span className="text-sm text-gray-600">Checking this course…</span>
-                        </>
-                      ) : deployCourseName ? (
-                        <>
-                          <Check className="w-4 h-4 text-green-600 flex-shrink-0" aria-hidden="true" />
-                          <span className="text-sm font-bold text-green-700">
-                            <span className="sr-only">Course found: </span>
-                            {deployCourseName}
-                          </span>
-                        </>
-                      ) : deployNameError ? (
-                        <span className="text-xs text-red-700">{deployNameError}</span>
-                      ) : null}
-                    </div>
-                    <div className="flex gap-3 mt-5">
-                      <button
-                        onClick={() => setShowDeployCard(false)}
-                        className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-2xl font-bold hover:bg-gray-200 transition-all text-sm"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (!deployUrlValid) return;
-                          // Awaited, and checked. setCourseUrl is an IPC round trip that writes
-                          // settings.json, and main will only send the Canvas token to the host
-                          // recorded there. Firing this without waiting started the deployment
-                          // before the write landed, so every rubric failed with "No Canvas
-                          // course is saved yet" while the URL on screen was perfectly correct.
-                          const pinned = await setCourseUrl(deployUrlInput.trim());
-                          if (!pinned.ok) {
-                            setDeployNameError(pinned.message ?? 'Could not use this Canvas course.');
-                            return;
-                          }
-                          handleContinue();
-                        }}
-                        disabled={!deployUrlValid}
-                        className="flex-[2] py-3 px-6 bg-brand text-white rounded-2xl font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-lg flex items-center justify-center gap-2 text-sm disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed"
-                      >
-                        <ArrowRight className="w-4 h-4" />
-                        Deploy Now
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </>
         )}
       </div>
+
+      {/*
+        Deploying is its own card.
+
+        It used to sit at the bottom of the review card, inside the same column as the rubric
+        table — so the confirmation tick, the deploy button and the CSV link read as more of the
+        reviewing rather than as the thing reviewing leads to. Two cards put the seam where the
+        decision is: everything above is "is this rubric right?", everything here is "send it".
+
+        Rendered as a sibling of the review card, which is how the Upload Replacement card
+        already works, and kept at max-w-2xl so it does not stretch when the comparison view
+        widens the card above it.
+      */}
+      {state.rubric && (
+        <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl mt-6">
+          <h2 className="text-2xl font-black text-gray-900 mb-2">
+            {onAnalyzeDeploy ? 'Deploy to Canvas' : 'Continue to Part 2'}
+          </h2>
+          <p className="text-gray-600 font-medium mb-6">
+            {onAnalyzeDeploy
+              ? state.rubrics.length > 1
+                ? `Send all ${state.rubrics.length} rubrics to your Canvas course.`
+                : 'Send this rubric to your Canvas course.'
+              : 'Turn the rubric into a Canvas CSV in Part 2.'}
+          </p>
+        {/* Ready confirmation checkbox */}
+        {onAnalyzeDeploy && (
+          /*
+            This is the only thing standing between the user and the deploy button, and
+            as a bare 16px check box under grey 14px text it did not look like one — the
+            button below reads as broken rather than waiting. So the box asks for
+            something, and the panel carries the brand border until it is ticked,
+            at which point it turns green and stops asking for attention. Brand is a
+            border and text here, never a fill: this is a gate, not a button.
+          */
+          <label
+            className={`flex items-start gap-4 mb-3 p-5 rounded-2xl border-2 cursor-pointer select-none transition-all ${
+              readyForCanvas
+                ? 'bg-green-50 border-green-400'
+                : 'bg-white border-brand ring-4 ring-brand/15 shadow-md hover:bg-gray-50'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={readyForCanvas}
+              onChange={(e) => {
+                setReadyForCanvas(e.target.checked);
+                if (!e.target.checked) setShowDeployCard(false);
+              }}
+              className="mt-0.5 w-6 h-6 accent-green-600 flex-shrink-0"
+            />
+            <span>
+              <span
+                className={`block text-base font-black ${
+                  readyForCanvas ? 'text-green-800' : 'text-brand'
+                }`}
+              >
+                {readyForCanvas
+                  ? 'Ready to proceed'
+                  : 'Tick this box when you are ready to proceed'}
+              </span>
+              {/* Written when a run made one rubric. With eight, confirming "the rubric
+                  currently displayed" while the button deploys all of them is a tick box
+                  that does not describe what it authorises. */}
+              <span className="block text-sm text-gray-700 mt-1">
+                {state.rubrics.length > 1
+                  ? `No further revision is needed. All ${state.rubrics.length} rubrics are ready for Canvas.`
+                  : 'No further revision is needed. The rubric above is ready for Canvas.'}
+              </span>
+            </span>
+          </label>
+        )}
+
+        {/* Deploy Action — bottom */}
+        <button
+          onClick={() => {
+            if (onAnalyzeDeploy) {
+              setShowDeployCard(true);
+            } else {
+              handleContinue();
+            }
+          }}
+          disabled={!!(onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas))}
+          aria-describedby={
+            onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas)
+              ? 'deploy-blocked-reason'
+              : undefined
+          }
+          className={`w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed ${showDeployCard ? 'opacity-50 pointer-events-none' : ''}`}
+        >
+          <ArrowRight className="w-5 h-5" />
+          {onAnalyzeDeploy
+            ? state.rubrics.length > 1
+              ? `Deploy All ${state.rubrics.length} Rubrics to Canvas`
+              : 'Deploy Displayed Rubric to Canvas'
+            : 'Continue to Part 2: Convert to CSV'}
+        </button>
+
+        {/*
+          A disabled button with no stated reason is indistinguishable from a broken one.
+          Say which of the two gates is closed; aria-describedby ties it to the button so
+          a screen reader reads the reason when focus lands there.
+        */}
+        {onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas) && (
+          <p id="deploy-blocked-reason" className="text-xs text-gray-600 mt-2 text-center">
+            {!canAnalyzeDeploy
+              ? 'Add your Gemini API key and Canvas token in Initial Setup to deploy.'
+              : 'Tick the box above to confirm the rubric is ready.'}
+          </p>
+        )}
+
+        {/*
+          The CSVs, before anything is sent to Canvas.
+
+          They exist already — or rather, they cost nothing to make: converting a rubric
+          object to Canvas CSV is a local string build with no AI call behind it (see
+          utils/rubricCsv.ts), so the files offered here are byte-for-byte the ones the
+          deploy will push. The deploy panel offered them only on the way out, which is
+          the wrong end for the case that needs them most: if Canvas rejects the upload,
+          or the token has expired, the work is still recoverable from a CSV you already
+          have. Saving one first costs a click and removes that whole class of loss.
+
+          A link rather than a second button: there is one primary action on this screen
+          and it is the one above.
+        */}
+        {onAnalyzeDeploy && state.rubrics.length > 0 && !showDeployCard && (
+          <div className="mt-3">
+            <CsvSaveOptions
+              csvs={csvsForRubrics}
+              prompt={
+                state.rubrics.length > 1
+                  ? `Keep a copy of all ${state.rubrics.length} CSVs?`
+                  : 'Keep a copy of the CSV?'
+              }
+              footnote="These are the same files the deploy sends to Canvas. Saving them here changes nothing about the deploy."
+            />
+          </div>
+        )}
+
+        {/* Inline Canvas Course URL card */}
+        {showDeployCard && onAnalyzeDeploy && (
+          <div className={`mt-4 bg-white rounded-2xl border-2 p-6 shadow-sm transition-all duration-300 ${
+            deployCourseVerified
+              ? 'border-green-400 ring-2 ring-green-300 ring-offset-1 shadow-green-100'
+              : 'border-gray-200'
+          }`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Link className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              <h3 className="font-black text-lg text-gray-900">Target Canvas Course</h3>
+              {deployCourseVerified && <Check className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" />}
+            </div>
+            <p className="text-sm text-gray-600 mb-3">Enter the homepage URL of the Canvas course you want to deploy this rubric to.</p>
+            <input
+              type="url"
+              value={deployUrlInput}
+              onChange={(e) => {
+                deployUrlTouched.current = true;
+                setDeployUrlInput(e.target.value);
+                setDeployCourseName(null);
+              }}
+              placeholder="https://canvas.institution.edu/courses/12345"
+              aria-invalid={!!((deployUrlInput && !deployUrlValid) || deployNameError)}
+              aria-describedby={deployNameError ? 'deploy-course-status' : undefined}
+              className={`w-full px-4 py-3 border-2 rounded-xl text-sm focus:outline-none transition-all ${
+                (deployUrlInput && !deployUrlValid) || deployNameError
+                  ? 'border-red-300 focus:border-red-400'
+                  : deployCourseVerified
+                  ? 'border-green-400 focus:border-green-500'
+                  : 'border-gray-200 focus:border-blue-400'
+              }`}
+            />
+            {deployUrlInput && !deployUrlValid && (
+              <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                <X className="w-3 h-3" /> URL must include a /courses/&lt;ID&gt; path
+              </p>
+            )}
+            {/*
+              Mounted unconditionally rather than rendered on demand: a live region that
+              appears with its text already inside it is announced unreliably. It
+              collapses to sr-only when there is nothing to say.
+            */}
+            <div
+              id="deploy-course-status"
+              role="status"
+              aria-live="polite"
+              className={
+                deployCourseNameLoading || deployCourseName || deployNameError
+                  ? 'mt-3 flex items-center gap-2 min-h-[1.5rem]'
+                  : 'sr-only'
+              }
+            >
+              {deployCourseNameLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 text-gray-400 animate-spin" aria-hidden="true" />
+                  <span className="text-sm text-gray-600">Checking this course…</span>
+                </>
+              ) : deployCourseName ? (
+                <>
+                  <Check className="w-4 h-4 text-green-600 flex-shrink-0" aria-hidden="true" />
+                  <span className="text-sm font-bold text-green-700">
+                    <span className="sr-only">Course found: </span>
+                    {deployCourseName}
+                  </span>
+                </>
+              ) : deployNameError ? (
+                <span className="text-xs text-red-700">{deployNameError}</span>
+              ) : null}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setShowDeployCard(false)}
+                className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-2xl font-bold hover:bg-gray-200 transition-all text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!deployUrlValid) return;
+                  // Awaited, and checked. setCourseUrl is an IPC round trip that writes
+                  // settings.json, and main will only send the Canvas token to the host
+                  // recorded there. Firing this without waiting started the deployment
+                  // before the write landed, so every rubric failed with "No Canvas
+                  // course is saved yet" while the URL on screen was perfectly correct.
+                  const pinned = await setCourseUrl(deployUrlInput.trim());
+                  if (!pinned.ok) {
+                    setDeployNameError(pinned.message ?? 'Could not use this Canvas course.');
+                    return;
+                  }
+                  handleContinue();
+                }}
+                disabled={!deployUrlValid}
+                className="flex-[2] py-3 px-6 bg-brand text-white rounded-2xl font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-lg flex items-center justify-center gap-2 text-sm disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed"
+              >
+                <ArrowRight className="w-4 h-4" />
+                Deploy Now
+              </button>
+            </div>
+          </div>
+        )}
+        </div>
+      )}
 
       {/* Upload Replacement Rubric card — appears below main card */}
       {showReplaceCard && state.rubric && (
