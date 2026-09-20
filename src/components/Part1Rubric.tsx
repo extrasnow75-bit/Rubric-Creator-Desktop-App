@@ -1357,16 +1357,43 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                     {savingLocal ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                     {savingLocal ? 'Saving\u2026' : 'Save to this computer'}
                   </button>
+                  {/*
+                    Both of these open a card below, and both are toggles rather than one-way
+                    switches.
+
+                    The card they open is deliberately not closed by moving between rubrics —
+                    writing a request for each and applying them in one run is the whole point of
+                    it. The cost of that is a card which, several rubrics later, looks like part
+                    of the page rather than something switched on earlier; so the button that
+                    opened it says that it did, carries aria-expanded for anyone not looking at
+                    the colour, and closes it again when pressed.
+                  */}
                   <button
-                    onClick={() => { setShowReplaceCard(true); setShowRequestChangesCard(false); }}
-                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-900 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setShowReplaceCard((open) => !open);
+                      setShowRequestChangesCard(false);
+                    }}
+                    aria-expanded={showReplaceCard}
+                    className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
+                      showReplaceCard
+                        ? 'bg-brand/10 text-brand border-2 border-brand'
+                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200 border-2 border-transparent'
+                    }`}
                   >
                     <RotateCw className="w-4 h-4" />
                     Upload Replacement Rubric to App
                   </button>
                   <button
-                    onClick={() => { setShowRequestChangesCard(true); setShowReplaceCard(false); }}
-                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-900 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setShowRequestChangesCard((open) => !open);
+                      setShowReplaceCard(false);
+                    }}
+                    aria-expanded={showRequestChangesCard}
+                    className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
+                      showRequestChangesCard
+                        ? 'bg-brand/10 text-brand border-2 border-brand'
+                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200 border-2 border-transparent'
+                    }`}
                   >
                     <RotateCw className="w-4 h-4" />
                     Request Changes
