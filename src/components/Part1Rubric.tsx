@@ -37,6 +37,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     setRubric,
     setRubrics,
     openRubric,
+    updateRubricAt,
     setIsLoading,
     setError,
     newBatch,
@@ -98,7 +99,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
   // Request Changes card
   const [showRequestChangesCard, setShowRequestChangesCard] = useState(false);
-  const [requestChangesText, setRequestChangesText] = useState('');
+  /**
+   * What the user wants changed, per rubric, keyed by index into `state.rubrics`.
+   *
+   * One shared box was a way to corrupt a rubric quietly: the text stayed put when you switched
+   * rubrics, and the button applied it to whichever one was showing — so a request written for
+   * Part 1 could be applied to Part 2, producing a plausible rubric nobody asked for.
+   */
+  const [changeDrafts, setChangeDrafts] = useState<Record<number, string>>({});
+  /** Which rubrics' requests the user has marked as settled and ready to run. */
+  const [changeSettled, setChangeSettled] = useState<Record<number, boolean>>({});
   const [isApplyingChanges, setIsApplyingChanges] = useState(false);
 
   // Rubric source — controls which success banner to show
@@ -638,21 +648,102 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     }
   };
 
+  const activeDraft = changeDrafts[state.activeRubricIndex] ?? '';
+  const activeSettled = changeSettled[state.activeRubricIndex] ?? false;
+
+  /** Rubrics with a settled, non-empty request — what "Apply changes" will actually run. */
+  const queuedIndexes = state.rubrics
+    .map((_, i) => i)
+    .filter((i) => (changeSettled[i] ?? false) && (changeDrafts[i] ?? '').trim() !== '');
+
+  /**
+   * Rubrics with text typed but not ticked.
+   *
+   * Named rather than silently skipped: writing a request and forgetting to tick it would
+   * otherwise mean the run quietly leaves that rubric alone, and the user discovers it by
+   * reading a document that did not change.
+   */
+  const unsettledIndexes = state.rubrics
+    .map((_, i) => i)
+    .filter((i) => !(changeSettled[i] ?? false) && (changeDrafts[i] ?? '').trim() !== '');
+
+  const setDraft = (index: number, text: string) =>
+    setChangeDrafts((prev) => ({ ...prev, [index]: text }));
+  const setSettled = (index: number, settled: boolean) =>
+    setChangeSettled((prev) => ({ ...prev, [index]: settled }));
+
+  /**
+   * Run every settled request, one rubric at a time.
+   *
+   * Batched rather than applied as each is written, so eight revisions are one wait instead of
+   * eight. Each is its own AI call — applyRubricChanges takes one rubric — so this is the same
+   * shape as generation, and one failing costs only itself.
+   */
   const handleApplyChanges = async () => {
-    if (!state.rubric || !requestChangesText.trim()) return;
+    if (queuedIndexes.length === 0) return;
+
     setIsApplyingChanges(true);
     setError(null);
+    startProgress(queuedIndexes.length, true);
+
+    const revised: number[] = [];
+    const failed: string[] = [];
+
     try {
-      const signal = getAbortSignal();
-      const updated = await applyRubricChanges(state.rubric, requestChangesText, signal);
-      setRubric(updated);
-      setRubricSource('revised');
-      setShowRequestChangesCard(false);
-      setRequestChangesText('');
-      setReadyForCanvas(false);
-      setShowDeployCard(false);
-    } catch (err: any) {
-      setError(`Failed to apply changes: ${err.message}`);
+      for (let n = 0; n < queuedIndexes.length; n++) {
+        const index = queuedIndexes[n];
+        const signal = getAbortSignal();
+        if (signal.aborted) break;
+
+        const target = state.rubrics[index];
+        if (!target) continue;
+
+        setProgress({
+          currentStep:
+            queuedIndexes.length === 1
+              ? 'Applying your changes...'
+              : `Revising "${target.title}" (${n + 1} of ${queuedIndexes.length})...`,
+          percentage: n / queuedIndexes.length,
+          itemsProcessed: n,
+        });
+
+        try {
+          const updated = await applyRubricChanges(target, changeDrafts[index] ?? '', signal);
+          updateRubricAt(index, updated);
+          revised.push(index);
+        } catch (err: any) {
+          if (signal.aborted) break;
+          failed.push(target.title);
+        }
+      }
+
+      if (revised.length > 0) {
+        // Clear only what was actually applied, so a failed request is still there to retry.
+        setChangeDrafts((prev) => {
+          const next = { ...prev };
+          for (const i of revised) delete next[i];
+          return next;
+        });
+        setChangeSettled((prev) => {
+          const next = { ...prev };
+          for (const i of revised) delete next[i];
+          return next;
+        });
+        setRubricSource('revised');
+        setReadyForCanvas(false);
+        setShowDeployCard(false);
+        setProgress({ percentage: 1, itemsProcessed: revised.length });
+      }
+
+      if (failed.length > 0) {
+        setError(
+          `Revised ${revised.length} of ${queuedIndexes.length}. Could not change ${failed.join(', ')}.`,
+        );
+      } else if (revised.length > 0) {
+        setShowRequestChangesCard(false);
+      }
+
+      setTimeout(() => stopProgress(), 500);
     } finally {
       setIsApplyingChanges(false);
     }
@@ -1064,6 +1155,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   rubrics={state.rubrics}
                   activeIndex={state.activeRubricIndex}
                   onOpen={openRubric}
+                  pending={[...queuedIndexes, ...unsettledIndexes]}
                 />
                 <h3 className="text-xl font-black text-gray-900 mb-2">
                   {state.rubric.title}
@@ -1175,6 +1267,95 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   <p className="text-xs text-gray-600 text-center mb-3">Sign in with Google on the Dashboard to enable Add to Drive.</p>
                 )}
 
+                {/*
+                  Request Changes, above the confirm and deploy controls rather than below them.
+                  It used to render after the deploy button, so opening it put "describe your
+                  changes" underneath "deploy to Canvas" — the reading order of the page said to
+                  deploy first and revise afterwards. Placing it here makes deploy the last thing
+                  on the screen, which is where the one irreversible action belongs, and needs no
+                  controls that move about depending on state.
+                */}
+                {showRequestChangesCard && state.rubric && (
+                  <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-5">
+                    <div className="flex items-start justify-between gap-4 mb-1">
+                      {/* The heading names the rubric because the card is identical for all of
+                          them, and the only other thing saying which one you are editing is the
+                          switcher further up the page. */}
+                      <h3 className="text-base font-black text-gray-900">
+                        Request Changes — {state.rubric.title}
+                      </h3>
+                      <button
+                        onClick={() => setShowRequestChangesCard(false)}
+                        aria-label="Close request changes"
+                        className="text-gray-600 hover:text-gray-900 transition-colors flex-shrink-0"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      {state.rubrics.length > 1
+                        ? 'Describe what should change in this rubric. Nothing is rewritten yet — tick the box below, move to another rubric if you want, and apply them all together.'
+                        : 'Describe what should change. Tick the box below, then apply.'}
+                    </p>
+
+                    <textarea
+                      value={activeDraft}
+                      onChange={(e) => setDraft(state.activeRubricIndex, e.target.value)}
+                      aria-label={`Changes for ${state.rubric.title}`}
+                      placeholder="e.g. Add a criterion for Peer Collaboration worth 10 points. Rename 'Communication' to 'Written Communication'."
+                      className="w-full h-32 p-4 border border-gray-300 rounded-2xl focus:border-brand focus:outline-none resize-none text-sm"
+                    />
+
+                    <label className="flex items-start gap-3 mt-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={activeSettled}
+                        disabled={activeDraft.trim() === ''}
+                        onChange={(e) => setSettled(state.activeRubricIndex, e.target.checked)}
+                        className="mt-0.5 w-4 h-4 accent-brand flex-shrink-0 disabled:opacity-40"
+                      />
+                      <span className="text-sm text-gray-700">
+                        These are the changes I want for <strong>{state.rubric.title}</strong>.
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                {/*
+                  The run button sits outside the card on purpose. Inside a card headed with one
+                  rubric's name it would read as "apply to this rubric", and it applies to every
+                  one that has been ticked — the same confusion of scope the shared text box used
+                  to cause. So it names its own count instead.
+                */}
+                {showRequestChangesCard && queuedIndexes.length > 0 && (
+                  <button
+                    onClick={handleApplyChanges}
+                    disabled={isApplyingChanges}
+                    className="w-full py-3 mb-3 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    {isApplyingChanges && <Loader2 className="w-5 h-5 animate-spin" />}
+                    {isApplyingChanges
+                      ? 'Applying changes...'
+                      : queuedIndexes.length === 1
+                        ? 'Apply changes to 1 rubric'
+                        : `Apply changes to ${queuedIndexes.length} rubrics`}
+                  </button>
+                )}
+
+                {/* Only alongside the run button. With nothing queued there is no run for these
+                    to be left out of, and "will be left alone" would read as an error when the
+                    user has simply not finished typing yet. */}
+                {showRequestChangesCard &&
+                  queuedIndexes.length > 0 &&
+                  unsettledIndexes.length > 0 &&
+                  !isApplyingChanges && (
+                  <p className="text-xs text-amber-700 mb-3">
+                    {unsettledIndexes.length === 1 ? 'One rubric has' : `${unsettledIndexes.length} rubrics have`}{' '}
+                    changes typed but not ticked, and will be left alone:{' '}
+                    {unsettledIndexes.map((i) => state.rubrics[i]?.title).filter(Boolean).join(', ')}.
+                  </p>
+                )}
+
                 {/* Ready confirmation checkbox */}
                 {onAnalyzeDeploy && (
                   <label className="flex items-start gap-3 mb-3 cursor-pointer select-none">
@@ -1187,8 +1368,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                       }}
                       className="mt-0.5 w-4 h-4 accent-green-600 flex-shrink-0"
                     />
+                    {/* Written when a run made one rubric. With eight, confirming "the rubric
+                        currently displayed" while the button deploys all of them is a tick box
+                        that does not describe what it authorises. */}
                     <span className="text-sm text-gray-700">
-                      No further revision is needed. The rubric currently displayed above is ready for Canvas.
+                      {state.rubrics.length > 1
+                        ? `No further revision is needed. All ${state.rubrics.length} rubrics are ready for Canvas.`
+                        : 'No further revision is needed. The rubric above is ready for Canvas.'}
                     </span>
                   </label>
                 )}
@@ -1406,47 +1592,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
           >
             {isProcessingReplacement && <Loader2 className="w-5 h-5 animate-spin" />}
             {isProcessingReplacement ? 'Processing Rubric...' : 'Use This Rubric'}
-          </button>
-        </div>
-      )}
-
-      {/* Request Changes card — appears below main card */}
-      {showRequestChangesCard && state.rubric && (
-        <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl mt-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xl font-black text-gray-900">Request Changes</h3>
-            <button
-              onClick={() => { setShowRequestChangesCard(false); setRequestChangesText(''); setError(null); }}
-              aria-label="Close request changes"
-              className="text-gray-600 hover:text-gray-900 transition-colors flex-shrink-0 ml-4"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          <p className="text-sm text-gray-600 mb-6">
-            Describe the changes you'd like made to the rubric above. The AI will apply your changes and update the displayed rubric.
-          </p>
-
-          <textarea
-            value={requestChangesText}
-            onChange={(e) => setRequestChangesText(e.target.value)}
-            placeholder="e.g. Add a new category for Peer Collaboration worth 10 points. Rename 'Communication' to 'Written Communication'. Increase the Exemplary threshold for Problem Analysis to 24-22 pts."
-            className="w-full h-40 p-4 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none resize-none mb-4 text-sm"
-          />
-
-          {state.error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-2xl mb-4">
-              <p className="text-sm text-red-700 font-bold">{state.error}</p>
-            </div>
-          )}
-
-          <button
-            onClick={handleApplyChanges}
-            disabled={isApplyingChanges || !requestChangesText.trim()}
-            className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 flex items-center justify-center gap-2"
-          >
-            {isApplyingChanges && <Loader2 className="w-5 h-5 animate-spin" />}
-            {isApplyingChanges ? 'Applying Changes...' : 'Apply Changes'}
           </button>
         </div>
       )}

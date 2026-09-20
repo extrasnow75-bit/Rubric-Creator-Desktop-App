@@ -35,6 +35,18 @@ export const DeliverableChecklist: React.FC<Props> = ({
   const problems = planProblems(rows);
   const chosen = selectedRows(rows).length;
   const found = rows.filter((r) => r.kind === 'deliverable').length;
+  const allChosen = chosen === rows.length;
+
+  /**
+   * Ticks everything, or clears everything when it is already all ticked.
+   *
+   * Wording and placement copied from Canvas Extractor Tools, which puts "N of M selected —
+   * Toggle all" at the right of its list header. The same people have both apps open, so a
+   * control that does the same job should look the same in both rather than each inventing its
+   * own. The count is worth having on its own: it is the only place the screen says what is
+   * selected without reading the button.
+   */
+  const toggleAll = () => onChange(rows.map((r) => ({ ...r, selected: !allChosen })));
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
@@ -53,7 +65,19 @@ export const DeliverableChecklist: React.FC<Props> = ({
         </div>
       </div>
 
-      <ul className="mt-5 divide-y divide-gray-200 border-y border-gray-200">
+      <div className="mt-5 flex items-center justify-end gap-3 text-xs">
+        <span className="font-bold text-gray-600 tabular-nums">
+          {chosen} of {rows.length} selected
+        </span>
+        <button
+          onClick={toggleAll}
+          className="font-bold text-brand hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded"
+        >
+          Toggle all
+        </button>
+      </div>
+
+      <ul className="mt-2 divide-y divide-gray-200 border-y border-gray-200">
         {rows.map((row) => (
           <li key={row.id} className="py-3 flex items-start gap-3">
             <input

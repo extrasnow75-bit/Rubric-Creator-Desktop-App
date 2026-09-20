@@ -1,63 +1,51 @@
-## What's new in v0.9.11
+## What's new in v0.9.12
 
-### You choose what gets a rubric, before anything is written
+### Each rubric keeps its own change request
 
-Paste an assignment description and press Generate, and the app now reads it first and tells you
-what it found. If the assignment has separate parts — Part 1, Part 2, a table of deliverables —
-you get a list of them, and you tick which ones should get a rubric of their own.
+**This fixes a way of quietly rewriting the wrong rubric.** There was one Request Changes box
+shared by every rubric in a run, and the button applied whatever was in it to whichever rubric
+happened to be on screen. Type a request while Part 1 was showing, switch to Part 2, press the
+button — and Part 2 was rewritten using instructions meant for Part 1. The result looked like a
+perfectly good rubric, and nothing told you what had happened.
 
-Nothing is generated until you press the button on that list. The app has only read the
-description at that point, so a part it identified wrongly costs you a tick box rather than a
-rubric you have to throw away.
+Every rubric now has its own box, kept as you move between them, and the card names the rubric
+it belongs to. If you had changes queued in an earlier version, check that they landed where you
+meant them to.
 
-Each row has a name and a points box, both editable:
+### Ask for all your changes, then apply them once
 
-- **The name is what appears in Canvas.** Fix it here rather than in Canvas afterwards, because
-  deploying adds a rubric rather than replacing one, so a name corrected later means deleting the
-  first one by hand.
-- **Points start at the total you entered** and can differ per rubric.
+Work through the rubrics writing what you want changed in each, tick each one off, and apply
+them all together. Eight revisions used to be eight separate waits; now it is one run with a
+progress bar, and the button says how many it is about to change.
 
-Only the whole-assignment row starts ticked, so confirming without touching anything gives you
-one rubric, exactly as before. Ticking more is a deliberate choice, and each one is its own
-request — the list tells you how many and roughly how long.
+Anything you typed but did not tick is named before the run rather than quietly skipped — that
+is the sort of thing you would otherwise only notice by reading a document that had not changed.
 
-**An assignment with no separate parts skips all of this** and goes straight to its single
-rubric. Most assignments are one piece of work, and a one-row list with a foregone answer is not
-worth stopping for.
+The list of rubrics at the top marks the ones carrying a request you have not applied yet, so
+you can see where you are without clicking through all of them.
 
-### "How many rubrics?" is gone from the settings
+### Deploying is now the last thing on the screen
 
-That question is now answered after the description has been read instead of before, which is
-the only point at which it can be answered. The setting also never worked: it asked the AI for
-several rubrics through a form with room for exactly one, and what came back was a single thin
-rubric. That is fixed by removing the question, not by patching it.
+Opening Request Changes used to put the box **underneath** the deploy button, so the page read
+as "deploy to Canvas, then describe your changes". The revision card now sits above the confirm
+tick and the deploy button, which is where the one action you cannot undo belongs.
 
-### Rubrics stopped collapsing into one criterion
+### Rubric titles are real headings again
 
-A seven-part assignment could come back as a single criterion worth all 100 points, with neatly
-short rating descriptions. The instruction to keep descriptions brief, added in v0.9.8, was being
-read as "make the rubric smaller" rather than "make the sentences shorter".
+In a document holding several rubrics, only the first title came through as a Heading 1 — the
+rest arrived as ordinary bold text. Every title is now a proper heading, which also means the
+document outline in Google Docs lists all of them, so you can jump between rubrics from the
+sidebar instead of scrolling.
 
-The AI is now told explicitly that brevity applies to the wording inside a box and never to the
-number of criteria. It is also told how to decide that number: cover what the assignment says it
-is assessing — its learning outcomes, objectives, or list of required elements — and use four to
-seven criteria when the description states none. A rubric with a single criterion holding the
-whole total is refused outright, because it cannot show a student which part of the work cost
-them the marks.
+### Select all on the deliverables list
 
-**A rubric read from your document or a screenshot is unaffected.** That is copied word for
-word, as it always has been.
+A **Toggle all** control, next to a count of what is selected, for ticking or clearing
+everything at once. Same place and wording as the one in Canvas Extractor Tools.
 
-### Deploying from Part 1 sends all of them
+### Also fixed
 
-If a run produced eight rubrics, the deploy button now says **Deploy All 8 Rubrics to Canvas**
-and sends all eight. It used to send only the one on screen. Deploying a whole document was
-already sending everything in it; this brings the other route into line.
-
-### Saving gives you one document
-
-Several rubrics save as a single Google Doc or .html file, each rubric its own table starting on
-its own page — one thing to open, and one attachment to send an FD.
+- The confirmation tick above the deploy button said "the rubric currently displayed above is
+  ready for Canvas" while the button deployed all of them. It now names the number it covers.
 
 ### Known limits
 

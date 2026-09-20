@@ -20,6 +20,8 @@ const SessionContext = createContext<{
   setRubrics: (rubrics: RubricData[]) => void;
   /** Open one of `rubrics` in the editor. Out-of-range indexes are ignored. */
   openRubric: (index: number) => void;
+  /** Replace one entry of `rubrics` without opening it. */
+  updateRubricAt: (index: number, rubric: RubricData) => void;
   setRubricMetadata: (metadata: RubricMeta | null) => void;
   setCsvOutput: (csv: string | null, fileName?: string) => void;
   setCanvasConfig: (config: CanvasConfig | null) => void;
@@ -137,6 +139,24 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       rubric: rubrics[0] ?? null,
       activeRubricIndex: 0,
     }));
+  }, []);
+
+  /**
+   * Replace one rubric in the set without making it the open one.
+   *
+   * `setRubric` can only ever write to whichever rubric is on screen, which is right for the
+   * editor but wrong for a run that revises several in a row: switching the view to each one as
+   * it finished would make the page jump about while the user is reading it.
+   */
+  const updateRubricAt = useCallback((index: number, rubric: RubricData) => {
+    setState((prev) => {
+      if (index < 0 || index >= prev.rubrics.length) return prev;
+      return {
+        ...prev,
+        rubrics: prev.rubrics.map((r, i) => (i === index ? rubric : r)),
+        rubric: index === prev.activeRubricIndex ? rubric : prev.rubric,
+      };
+    });
   }, []);
 
   const openRubric = useCallback((index: number) => {
@@ -564,6 +584,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     setRubric,
     setRubrics,
     openRubric,
+    updateRubricAt,
     setRubricMetadata,
     setCsvOutput,
     setCanvasConfig,
