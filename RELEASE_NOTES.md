@@ -1,49 +1,38 @@
-## What's new in v0.9.9
+## What's new in v0.9.10
 
-### Deploying no longer scrolls the app away from you
+### There is a Start Over button
 
-This is the one worth installing for. While a deploy was running, the blue title bar and the
-white ribbon beneath it were pushed off the top of the window, and there was no way to scroll
-them back — no scrollbar, and the mouse wheel did nothing. What was left sat squashed into the
-top of the screen with empty space below it.
+You can now abandon a run and go back to the beginning without closing the app. It is in the
+ribbon at the top, next to the text size control, and it is always there.
 
-It was the deployment log doing it. Every new line asked the browser to bring the newest entry
-into view, and that request did not stop at the log box: it scrolled everything containing it,
-including the whole window, until that line sat at the very top. A document of forty rubrics
-asked for it about eighty times.
+It was supposed to be there already. The button existed in the code but was shown only when a
+flag was set, and nothing in the app ever set that flag — so it never appeared once, for anyone,
+at any window size. The only way back to the start was the "would you like to start over?" card
+that appears after a deployment finishes, which is no help at all if what you want is to abandon
+a rubric halfway through. That flag has been removed rather than fixed, so nothing can hide the
+button again.
 
-The log now scrolls itself and nothing else.
+Start Over clears the rubric, the CSV and anything in progress, and returns you to the first
+screen. Your Gemini key, Canvas token, Google sign-in and the last course URL are all kept —
+it starts the work over, not the setup. Rubrics already deployed to Canvas stay in Canvas.
 
-If you hit this, the control that suffered most was **text size**, which lives in that ribbon —
-once the ribbon was off-screen there was no visible way to reach it. It is back where it belongs.
-Ctrl + and Ctrl − work whether or not you can see it.
+If there is unsaved work, it asks first. If there is nothing to lose it just does it, because a
+confirmation you always click through is not protecting anything.
 
-### The log stays where you put it
+### The top bar no longer runs off the edge
 
-Scroll up in the deployment timeline to read why something failed and it now stays there. It
-used to jump back to the newest line every time one arrived, which on a long run meant you could
-not read anything that had already scrolled past. Scroll back to the bottom and it resumes
-following on its own.
+The row holding text size, Start Over and Help Center could not wrap, so at a narrow window its
+controls ran off the right-hand side with no way to reach them. It now wraps onto a second line
+instead.
 
-The panel can also be scrolled with the keyboard now — Tab to it, then the arrow keys.
+### Known limits
 
-### Rubrics can be saved to My Drive itself
-
-The Drive folder picker would only let you choose a folder *inside* My Drive. My Drive itself
-never appeared in its own list, so at the top level the **Choose** button simply sat there greyed
-out with nothing explaining why, and every rubric had to go into a subfolder whether you wanted
-one or not.
-
-Open the **My Drive** tab and the button now reads **Choose My Drive**.
-
-### Also
-
-- "Several rubrics" is now "Multiple rubrics" in Part 1.
-
-### Known limits, unchanged
-
-- **"Multiple rubrics" still produces one rubric.** The setting does not work yet — a fix is in
-  progress, and it will ask you to confirm which deliverables it found before writing anything.
+- **"Multiple rubrics" still produces one rubric.** Being replaced by something better: the app
+  will find the deliverables in your assignment description, show you the list, and let you
+  choose which ones get a rubric and how many points each is worth.
+- **A generated rubric can come back with too few criteria** — sometimes only one, holding all
+  the points. Being worked on now. A rubric read from a document or screenshot is unaffected;
+  that is copied as written.
 - **The AI's suggested fix can be plausible and wrong.** It is checked for whether Canvas will
   accept it, not for whether it is what you meant.
 - **Google sign-in asks you to sign in again about once a week.** A Google restriction on apps

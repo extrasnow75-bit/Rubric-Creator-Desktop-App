@@ -4,6 +4,8 @@ import { AppMode } from '../types';
 import { ZoomControl } from './ZoomControl';
 import { HelpCircle, ChevronLeft, Camera, Lightbulb, RotateCcw } from 'lucide-react';
 import UpdateBanner from './UpdateBanner';
+import { StartOverDialog } from './StartOverDialog';
+import { hasUnsavedWork } from '../utils/sessionWork';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -67,7 +69,25 @@ const CanvasLogo = () => (
 
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { state, setCurrentStep, setHelpOpen, clearSession, setHasDraftRubric } = useSession();
+  const { state, setCurrentStep, setHelpOpen, clearSession } = useSession();
+  const [confirmingStartOver, setConfirmingStartOver] = useState(false);
+
+  /**
+   * Start Over, and why it is not behind a condition.
+   *
+   * It used to be, on `state.hasDraftRubric !== null` — and nothing in the app ever set that to
+   * anything but null, so the button never rendered once, at any window size or zoom. The flag is
+   * gone now. This is the second ribbon control someone has gone looking for and failed to find,
+   * so this one is always here: a way out of a half-finished run is exactly what you need when
+   * the screen is not behaving, which is when a clever visibility rule is least likely to agree
+   * with you.
+   *
+   * The confirm is only raised when clearing would destroy something — see `hasUnsavedWork`.
+   */
+  const startOver = () => {
+    if (hasUnsavedWork(state)) setConfirmingStartOver(true);
+    else clearSession();
+  };
 
   /**
    * Whether a newer version exists on GitHub, checked once at launch.
@@ -212,29 +232,36 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         {update && !updateDismissed ? `Version ${update.version} is available.` : ''}
       </div>
 
-      {/* White Ribbon Bar */}
-      <div className="bg-white border-b border-gray-200 py-3 px-8 sm:px-12 flex items-center justify-between shadow-sm z-40">
+      {/*
+        White Ribbon Bar.
+
+        `flex-wrap` because this row now always carries four controls — text size, Start Over,
+        Help Center and, off the Dashboard, the return button — and it had no overflow handling
+        at all: at a narrow window they would have run off the right edge with no scrollbar to
+        reach them. Wrapping to a second line costs a few pixels of height and keeps every
+        control reachable, which matters more here than elsewhere, since this is the row people
+        come to when something has gone wrong.
+      */}
+      <div className="bg-white border-b border-gray-200 py-3 px-8 sm:px-12 flex flex-wrap items-center justify-between gap-y-3 shadow-sm z-40">
         {/* Left Side: Workflow Sequence */}
         <div className="hidden sm:flex">
           {getRibbonContent()}
         </div>
 
         {/* Right Side: Text size, Help & Return Button */}
-        <div className="flex items-center gap-6 ml-auto">
+        <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-3 ml-auto">
           {/* First in the group, as in Canvas Extractor Tools. Always present: it is the control
               someone reaches for when they cannot read the screen, so it must not be behind a
               conditional or inside the Help Center. */}
           <ZoomControl />
 
-          {state.hasDraftRubric !== null && (
-            <button
-              onClick={() => { clearSession(); setHasDraftRubric(null); }}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-red-50 hover:border-red-200 hover:text-red-700 text-gray-700 rounded-xl transition-all font-bold text-sm border border-gray-200 active:scale-95"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Clear Work & Start Over</span>
-            </button>
-          )}
+          <button
+            onClick={startOver}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-red-50 hover:border-red-200 hover:text-red-700 text-gray-700 rounded-xl transition-all font-bold text-sm border border-gray-200 active:scale-95"
+          >
+            <RotateCcw className="w-4 h-4" aria-hidden="true" />
+            <span>Start Over</span>
+          </button>
           <button
             onClick={() => setHelpOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all font-bold text-sm border border-gray-200 active:scale-95"
@@ -269,6 +296,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 bg-gray-50/50">
         {children}
       </main>
+
+      <StartOverDialog
+        isOpen={confirmingStartOver}
+        onCancel={() => setConfirmingStartOver(false)}
+        onConfirm={() => {
+          setConfirmingStartOver(false);
+          clearSession();
+        }}
+      />
     </div>
   );
 };

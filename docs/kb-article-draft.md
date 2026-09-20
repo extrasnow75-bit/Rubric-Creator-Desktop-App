@@ -380,13 +380,20 @@ Google sign-in needs a **Desktop app** OAuth client. A web client will not work 
 
 1. **Bump `version` in `package.json`.**
 2. Rewrite `RELEASE_NOTES.md` as a "What's new in vX.Y.Z" list, written for the people installing the app — what they will see differently, not file names. `git log vPREV..HEAD` is the source. **The release job refuses to publish unless this file names the tag being released**, so a stale list cannot ship under a new heading.
-3. Commit, then tag it: `git tag v1.1.0` and `git push origin v1.1.0`.
-4. Pushing the tag triggers `.github/workflows/release.yml`, which runs the typecheck and the tests, builds the Windows installer and both macOS disk images, renames them to the friendly names users see, splices `RELEASE_NOTES.md` into the release notes, and publishes all three on one release. Takes about five minutes.
-5. **Confirm the run actually started**, not merely that a run exists — open the Actions tab and check it has jobs in it. Then check the release page.
+3. **Get it onto `master` first.** Open the pull request, merge it, and only then tag. A tag names one commit, and the one you want is the merge commit — not the head of your branch and not whatever `master` held before.
+4. Tag it: `git tag v1.1.0` and `git push origin v1.1.0`.
+5. Pushing the tag triggers `.github/workflows/release.yml`, which runs the typecheck and the tests, builds the Windows installer and both macOS disk images, renames them to the friendly names users see, splices `RELEASE_NOTES.md` into the release notes, and publishes all three on one release. Takes about five minutes.
+6. **Confirm the run actually started**, not merely that a run exists — open the Actions tab and check it has jobs in it. Then check the release page.
 
 If you cannot push a tag from wherever you are working, the same thing can be done from the web: **Releases → Draft a new release → Choose a tag → type the new tag → "Create new tag: … on publish" → Target: `master` → Publish.**
 
-**Do not skip step 1.** It is the one mistake here that does not announce itself. Tag a release without bumping `version` and everything appears to work — the build passes, the release publishes, the installer downloads and installs. But every copy already out there compares its own version against the newest release, sees the same number, concludes it is current, and never shows the update banner. The fix reaches nobody and nothing reports an error.
+**Do not skip step 3.** Tagging before the merge lands is the easy mistake, because both halves of the release look done: the branch is pushed, the version is bumped, the notes are written. But the tag is created from `master`, and until the merge `master` is still the *previous* release. The build then runs against the previous version's code — it passes, because that code is fine — and what you would install is the app you already had, carrying the old version number.
+
+The change-list check catches it. The tagged commit's `RELEASE_NOTES.md` still names the previous version, the grep fails, the release job stops, and no installers are attached. That is the check earning its place: it fires on a stale change list whatever the cause, and tagging the wrong commit produces one.
+
+Recovery is more work than the mistake, so it is worth not making. The tag has to move, and a tag cannot be repointed from the web. Delete the release, delete the tag, then create both again with **Target: `master`** — GitHub confirms with "this tag will be created from the target when you publish". Creating the tag through the Releases page also publishes an empty release page immediately, before any workflow runs, so a mis-tagged release is publicly visible for as long as it takes to notice.
+
+**Do not skip step 1 either.** It is the one mistake here that does not announce itself at all. Tag a release without bumping `version` and everything appears to work — the build passes, the release publishes, the installer downloads and installs. But every copy already out there compares its own version against the newest release, sees the same number, concludes it is current, and never shows the update banner. The fix reaches nobody and nothing reports an error.
 
 **A workflow file GitHub cannot parse fails in a way that looks like nothing went wrong.** Nothing built between v0.9.1 and the fix, and the cause was a shell comment. A `run:` block contained an empty `${{ }}` as an illustration of the syntax it was warning you not to use; GitHub scans `run:` blocks for template expansions and does not care that the line is a comment, so it rejected the entire file. Three things about that failure are worth knowing, because not one of them points at the cause:
 

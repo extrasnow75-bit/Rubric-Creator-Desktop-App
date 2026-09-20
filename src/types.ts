@@ -258,7 +258,17 @@ export interface SessionState {
 
   // V.2 fields
   courseUrl: string | null;
-  hasDraftRubric: 'yes' | 'no' | null;
+
+  /**
+   * Bumped by `clearSession`, and used as a React key on whichever screen is showing.
+   *
+   * Clearing the session resets this context, but each screen also keeps its own local state —
+   * the Dashboard alone holds the uploaded-file queue, the chosen Phase 1 mode and the answer to
+   * the draft-rubric question. None of that is reachable from here, so a clear left the screen
+   * looking exactly as it did. Changing the key remounts the screen, which resets all of it at
+   * once and cannot fall out of date as screens gain new state.
+   */
+  sessionKey: number;
 
   /**
    * Google sign-in.
