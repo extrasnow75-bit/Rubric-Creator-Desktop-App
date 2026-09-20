@@ -521,8 +521,18 @@ export async function validateAssignmentDescription(
  * This applies only where the model is the author. Extraction — from a document, from a
  * screenshot — copies the instructor's wording verbatim, because that rubric is already written
  * and already approved, and quietly rewriting it changes what students are graded against.
+ *
+ * The first line of the rule exists because the rule without it caused real damage. Told only to
+ * be brief, the model shortened the wrong thing: a seven-criterion rubric came back as a single
+ * criterion worth the whole hundred points, with tidy fifteen-word ratings. It had read "be
+ * brief" as being about the rubric rather than about the sentences. The length of a cell and the
+ * number of criteria are unrelated decisions, and this rule governs only the first — the second
+ * belongs to CRITERIA_COVERAGE_RULE.
  */
 const RATING_BREVITY_RULE = `WRITING THE DESCRIPTIONS — be brief:
+    - This rule governs the WORDING INSIDE one cell and nothing else. It is never a reason to
+      write fewer criteria, to merge two criteria into one, or to drop a rating level. You are
+      being asked to shorten the sentences, not the rubric.
     - One sentence per rating, 20 words maximum. Aim for 10 to 15.
     - State the observable difference and stop: what the work has, lacks, or does inconsistently.
     - Cut throat-clearing openers ("The student...", "This submission...", "Work at this level
@@ -533,6 +543,36 @@ const RATING_BREVITY_RULE = `WRITING THE DESCRIPTIONS — be brief:
       sentence four times with "excellent / good / fair / poor" swapped in.
     - Criterion descriptions follow the same rule: one short line, and none at all when the
       criterion name already says it.`;
+
+/**
+ * How many criteria a generated rubric has, and what they are.
+ *
+ * Coverage decides the count, not a target number. An assignment that states its learning
+ * outcomes has already said what it is assessing, so the rubric's job is to have a row for each
+ * of the ones it is responsible for; inventing a quota on top of that would either pad a short
+ * assignment or clip a long one. The 4-to-7 range is only the fallback for a description that
+ * states nothing to cover.
+ *
+ * The explicit ban on a single criterion holding the whole total is there because that is what
+ * the app actually produced. It is worth stating as its own rule rather than trusting the range
+ * to imply it: a rubric with one row cannot tell a student which part of the work cost them the
+ * marks, so it fails at the thing a rubric is for while still looking like a rubric.
+ */
+const CRITERIA_COVERAGE_RULE = `CHOOSING THE CRITERIA — how many, and what they are:
+    - Start from what the assignment says it assesses. If the description states learning
+      outcomes, objectives, a purpose, or a list of what the work must contain or do, then every
+      one of those that this rubric is responsible for must be covered by a criterion. Coverage
+      decides how many criteria there are. Do not choose a number first.
+    - Cover only what this rubric is for. A rubric for one part of a larger assignment covers
+      that part's outcomes, not the whole assignment's.
+    - If the description states no outcomes, objectives or required elements, write 4 to 7
+      criteria drawn from what the work actually involves.
+    - Never return a single criterion holding the entire point total unless the assignment
+      genuinely assesses one single thing. A rubric with one row cannot show a student which part
+      of the work cost them marks.
+    - Each criterion must name something that can be judged separately from the others. If two
+      criteria would always be given the same rating, they are one criterion.
+    - Weight the points towards what the assignment emphasises.`;
 
 export async function generateRubricFromDescription(
   assignmentDescription: string,
@@ -573,6 +613,8 @@ export async function generateRubricFromDescription(
     - Break down the ${settings.totalPoints} points across logical categories/criteria.
     - For each category, describe specific observable behaviours or qualities for each of the
       four ratings.
+
+    ${CRITERIA_COVERAGE_RULE}
 
     ${RATING_BREVITY_RULE}
 
