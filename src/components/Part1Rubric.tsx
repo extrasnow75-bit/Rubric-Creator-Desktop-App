@@ -2,6 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { AppMode, PointStyle, ProcessingType, GenerationSettings, RubricData } from '../types';
+import { generateCsvFromRubricObject } from '../utils/rubricCsv';
+import { CsvSaveOptions } from './CsvSaveOptions';
 import {
   generateRubricFromDescription,
   extractRubricFromDocument,
@@ -40,6 +42,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     updateRubricAt,
     setIsLoading,
     setError,
+    setScoringMethod,
     newBatch,
     startProgress,
     stopProgress,
@@ -121,6 +124,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
   // Inline deploy card
   const [showDeployCard, setShowDeployCard] = useState(false);
+  /** Whether the "keep a copy of the CSVs" panel under the deploy button is open. */
+  const [showCsvSave, setShowCsvSave] = useState(false);
   const [deployUrlInput, setDeployUrlInput] = useState(() => state.courseUrl || '');
 
   /**
@@ -520,6 +525,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
       if (made.length > 0) {
         setProgress({ currentStep: 'Finalizing...', percentage: 0.95 });
         setRubrics(made);
+        /*
+          Recorded with the rubrics, not read off the control later. The deploy panel builds the
+          Canvas CSV and needs to know whether these rubrics state their points as ranges
+          ("10 to >8") or single values, because that decides the Criteria Enable Range column.
+          Nothing carried the choice between the two screens before, so every rubric deployed as
+          TRUE however the user had set it.
+        */
+        setScoringMethod(settings.pointStyle === PointStyle.RANGE ? 'ranges' : 'fixed');
         setRubricSource('generated');
         setProgress({ percentage: 1, itemsProcessed: made.length });
         setShowReplaceCard(false);
@@ -680,6 +693,30 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
   const activeDraft = changeDrafts[state.activeRubricIndex] ?? '';
   const activeSettled = changeSettled[state.activeRubricIndex] ?? false;
+
+  /**
+   * The Canvas CSV for each rubric on screen, built on demand for the save panel.
+   *
+   * Free to compute: generateCsvFromRubricObject is a pure formatter over data already in
+   * memory, so eight rubrics is eight string builds and no requests. Memoised only so the
+   * strings keep their identity between renders while the panel is open.
+   *
+   * `settings.pointStyle` rather than `state.scoringMethod` because these are the rubrics as
+   * they stand right now, including one generated as ranges and then regenerated as single
+   * values without a deploy in between; the two agree in every case where they can disagree
+   * that matters, since generating is what writes `state.scoringMethod`.
+   */
+  const csvsForRubrics = React.useMemo(
+    () =>
+      state.rubrics.map((rubric) => ({
+        name: rubric.title,
+        csvContent: generateCsvFromRubricObject(
+          rubric,
+          settings.pointStyle === PointStyle.RANGE ? 'ranges' : 'fixed',
+        ),
+      })),
+    [state.rubrics, settings.pointStyle],
+  );
 
   /** Rubrics with a settled, non-empty request — what "Apply changes" will actually run. */
   const queuedIndexes = state.rubrics
@@ -1474,6 +1511,49 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                       ? 'Add your Gemini API key and Canvas token in Initial Setup to deploy.'
                       : 'Tick the box above to confirm the rubric is ready.'}
                   </p>
+                )}
+
+                {/*
+                  The CSVs, before anything is sent to Canvas.
+
+                  They exist already — or rather, they cost nothing to make: converting a rubric
+                  object to Canvas CSV is a local string build with no AI call behind it (see
+                  utils/rubricCsv.ts), so the files offered here are byte-for-byte the ones the
+                  deploy will push. The deploy panel offered them only on the way out, which is
+                  the wrong end for the case that needs them most: if Canvas rejects the upload,
+                  or the token has expired, the work is still recoverable from a CSV you already
+                  have. Saving one first costs a click and removes that whole class of loss.
+
+                  A link rather than a second button: there is one primary action on this screen
+                  and it is the one above.
+                */}
+                {onAnalyzeDeploy && state.rubrics.length > 0 && !showDeployCard && (
+                  <div className="mt-3">
+                    {!showCsvSave ? (
+                      <button
+                        onClick={() => setShowCsvSave(true)}
+                        className="mx-auto block text-sm font-bold text-brand hover:text-brand-dark underline underline-offset-2"
+                      >
+                        Save CSV files
+                      </button>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+                        <CsvSaveOptions
+                          csvs={csvsForRubrics}
+                          prompt={
+                            state.rubrics.length > 1
+                              ? `Keep a copy of all ${state.rubrics.length} CSVs?`
+                              : 'Keep a copy of the CSV?'
+                          }
+                          onDismiss={() => setShowCsvSave(false)}
+                        />
+                        <p className="text-xs text-gray-600 mt-3">
+                          These are the same files the deploy sends to Canvas. Saving them here
+                          changes nothing about the deploy.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Inline Canvas Course URL card */}

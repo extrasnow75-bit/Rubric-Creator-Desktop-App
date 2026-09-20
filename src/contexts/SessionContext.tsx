@@ -23,6 +23,8 @@ const SessionContext = createContext<{
   /** Replace one entry of `rubrics` without opening it. */
   updateRubricAt: (index: number, rubric: RubricData) => void;
   setRubricMetadata: (metadata: RubricMeta | null) => void;
+  /** Record how the rubrics just generated express their points. See SessionState.scoringMethod. */
+  setScoringMethod: (method: 'ranges' | 'fixed') => void;
   setCsvOutput: (csv: string | null, fileName?: string) => void;
   setCanvasConfig: (config: CanvasConfig | null) => void;
   addBatchItem: (item: BatchItem) => void;
@@ -70,6 +72,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     rubrics: [],
     activeRubricIndex: 0,
     rubricMetadata: null,
+    scoringMethod: 'ranges',
     csvOutput: null,
     csvFileName: null,
     canvasConfig: null,
@@ -169,6 +172,10 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const setRubricMetadata = useCallback((metadata: RubricMeta | null) => {
     setState((prev) => ({ ...prev, rubricMetadata: metadata }));
+  }, []);
+
+  const setScoringMethod = useCallback((method: 'ranges' | 'fixed') => {
+    setState((prev) => ({ ...prev, scoringMethod: method }));
   }, []);
 
   const setCsvOutput = useCallback((csv: string | null, fileName?: string) => {
@@ -335,6 +342,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       rubrics: [],
       activeRubricIndex: 0,
       rubricMetadata: null,
+      scoringMethod: 'ranges',
       csvOutput: null,
       csvFileName: null,
       canvasConfig: null,
@@ -377,6 +385,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       rubrics: [],
       activeRubricIndex: 0,
       rubricMetadata: null,
+      scoringMethod: 'ranges',
       csvOutput: null,
       csvFileName: null,
       batchItems: [],
@@ -586,6 +595,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     openRubric,
     updateRubricAt,
     setRubricMetadata,
+    setScoringMethod,
     setCsvOutput,
     setCanvasConfig,
     addBatchItem,

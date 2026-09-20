@@ -1289,6 +1289,7 @@ export const Dashboard: React.FC = () => {
                     : []
                 : []
             }
+            scoringMethod={state.scoringMethod}
             uploadedFiles={analyzeRubricSource === 'yes' ? uploadedFiles : undefined}
             courseUrl={analyzeRubricSource === 'no' ? (state.courseUrl || courseUrlInput) : courseUrlInput}
             onStartOver={() => {

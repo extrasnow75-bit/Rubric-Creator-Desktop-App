@@ -239,6 +239,18 @@ export interface SessionState {
 
   rubricMetadata: RubricMeta | null;
 
+  /**
+   * How the rubrics in `rubrics` express their rating points, set when they are generated.
+   *
+   * Part 1 asks the user for this ("Ranges" 10 to >8, or "Single" 10, 8, 6) and it decides the
+   * `Criteria Enable Range` column of the Canvas CSV. It has to live here because the screen that
+   * asks is not the screen that converts: Part 1 holds the choice, the deploy panel builds the
+   * CSV, and nothing carried it between them — so every rubric deployed as TRUE regardless of
+   * what was chosen. Recorded at generation time rather than read live, because it describes the
+   * rubrics that exist, not what the control happens to say now.
+   */
+  scoringMethod: 'ranges' | 'fixed';
+
   // CSV output (from Part 2)
   csvOutput: string | null;
   csvFileName: string | null;
