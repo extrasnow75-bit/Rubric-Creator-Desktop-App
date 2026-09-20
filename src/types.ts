@@ -215,7 +215,28 @@ export interface SessionState {
   currentStep: AppMode;
 
   // Rubric data (persists across steps)
+
+  /**
+   * The rubric currently open in the editor.
+   *
+   * Every screen below Part 1 reads this and nothing else, which is why a run that produces
+   * several rubrics still has it: `rubrics` is the set, this is the one being looked at, and
+   * `setRubric` keeps the two in step. The editor, the AI revision and the replacement upload
+   * therefore needed no changes when multiple rubrics arrived — they still edit "the rubric".
+   */
   rubric: RubricData | null;
+
+  /**
+   * Every rubric this run produced, in the order they were asked for.
+   *
+   * A single-rubric run holds one entry rather than none, so saving and deploying never need a
+   * separate path for "just the one".
+   */
+  rubrics: RubricData[];
+
+  /** Which entry of `rubrics` is open. Always a valid index while `rubrics` is non-empty. */
+  activeRubricIndex: number;
+
   rubricMetadata: RubricMeta | null;
 
   // CSV output (from Part 2)

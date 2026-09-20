@@ -16,7 +16,7 @@ import { checkRepair } from './ipc/csvRepair'
 import { signIn, getStatus, clearTokens } from './ipc/googleAuth'
 import { withJob, cancelJob } from './ipc/jobs'
 import * as gemini from './ipc/gemini'
-import { buildRubricHtml, rubricFileName } from './ipc/rubricHtml'
+import { buildRubricSetHtml, rubricFileName } from './ipc/rubricHtml'
 import type { Attachment, GenerationSettings, RubricData } from './ipc/geminiTypes'
 import {
   listFiles,
@@ -382,9 +382,17 @@ ipcMain.handle(
 
 ipcMain.handle(
   'gemini:generateRubricFromDescription',
-  (_e, a: { assignmentDescription: string; settings: GenerationSettings; jobId?: string }) =>
+  (
+    _e,
+    a: {
+      assignmentDescription: string
+      settings: GenerationSettings
+      jobId?: string
+      target?: { title: string; focus: string }
+    },
+  ) =>
     withJob(a.jobId, (s) =>
-      gemini.generateRubricFromDescription(a.assignmentDescription, a.settings, s),
+      gemini.generateRubricFromDescription(a.assignmentDescription, a.settings, s, a.target),
     ),
 )
 
@@ -481,11 +489,14 @@ ipcMain.handle(
 /** Build the rubric as a Google Doc in the user's Drive, and open it in their browser. */
 ipcMain.handle(
   'rubric:exportToDrive',
-  async (_e, args: { rubric: RubricData; folderId?: string }) => {
+  async (_e, args: { rubrics: RubricData[]; documentTitle?: string; folderId?: string }) => {
+    if (args.rubrics.length === 0) {
+      return { ok: false as const, message: 'There is no rubric to save.' }
+    }
     try {
       const { fileId, webViewLink } = await uploadToDrive({
-        content: buildRubricHtml(args.rubric),
-        name: args.rubric.title || 'Rubric',
+        content: buildRubricSetHtml(args.rubrics, args.documentTitle),
+        name: args.documentTitle?.trim() || args.rubrics[0].title || 'Rubric',
         sourceMimeType: 'text/html',
         targetMimeType: GOOGLE_DOC_MIME,
         folderId: args.folderId,
@@ -504,20 +515,32 @@ ipcMain.handle(
  * Opens the dialog and writes in one call, rather than handing the path back to the renderer to
  * pass in again. Fewer moving parts, and the path never leaves the main process.
  */
-ipcMain.handle('rubric:saveHtml', async (_e, args: { rubric: RubricData }) => {
-  const { filePath } = await dialog.showSaveDialog({
-    defaultPath: rubricFileName(args.rubric, 'html'),
-    filters: [{ name: 'Web page', extensions: ['html'] }],
-  })
-  if (!filePath) return { ok: false as const, cancelled: true as const }
+ipcMain.handle(
+  'rubric:saveHtml',
+  async (_e, args: { rubrics: RubricData[]; documentTitle?: string }) => {
+    if (args.rubrics.length === 0) {
+      return { ok: false as const, message: 'There is no rubric to save.' }
+    }
+    const named = args.documentTitle?.trim()
+      ? ({ ...args.rubrics[0], title: args.documentTitle } as RubricData)
+      : args.rubrics[0]
+    const { filePath } = await dialog.showSaveDialog({
+      defaultPath: rubricFileName(named, 'html'),
+      filters: [{ name: 'Web page', extensions: ['html'] }],
+    })
+    if (!filePath) return { ok: false as const, cancelled: true as const }
 
-  try {
-    await writeFile(filePath, Buffer.from(buildRubricHtml(args.rubric), 'utf-8'))
-    return { ok: true as const, path: filePath }
-  } catch (e) {
-    return { ok: false as const, message: e instanceof Error ? e.message : String(e) }
-  }
-})
+    try {
+      await writeFile(
+        filePath,
+        Buffer.from(buildRubricSetHtml(args.rubrics, args.documentTitle), 'utf-8'),
+      )
+      return { ok: true as const, path: filePath }
+    } catch (e) {
+      return { ok: false as const, message: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
 
 /** Save arbitrary generated text — a CSV, or the zip of them — to a file the user picks. */
 ipcMain.handle(

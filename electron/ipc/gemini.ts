@@ -679,6 +679,14 @@ export async function generateRubricFromDescription(
   assignmentDescription: string,
   settings: GenerationSettings,
   signal?: AbortSignal,
+  /**
+   * Narrow the rubric to one deliverable of a larger assignment.
+   *
+   * Omitted, the rubric covers the whole description — which is what it always did. Supplied,
+   * the model still gets the entire description, because a rubric for Part 4 needs to know what
+   * Parts 1 to 3 established; it is the rubric's *scope* that narrows, not its reading.
+   */
+  target?: { title: string; focus: string },
 ): Promise<RubricData> {
   await throttle(signal);
 
@@ -686,19 +694,30 @@ export async function generateRubricFromDescription(
     if (signal?.aborted) throw new Error('Request cancelled');
     const ai = getClient();
 
-    const processingInstruction = settings.processingType === ProcessingType.MULTIPLE
-      ? `The assignment description may contain MULTIPLE distinct assignments or components.
-      Generate a SEPARATE rubric for each distinct assignment or component found in the description.
-      Each rubric should have its own title, criteria, and point distribution.
-      The total points constraint applies to EACH individual rubric.`
-      : `Generate a SINGLE rubric that covers the entire assignment description.`;
+    /*
+     * One rubric per call, always.
+     *
+     * This used to branch on a "multiple rubrics" setting whose instruction told the model to
+     * "generate a SEPARATE rubric for each distinct component" — while the response schema below
+     * has room for exactly one. The model resolved that contradiction by picking a component and
+     * returning a thin rubric for it, which is how a seven-part assignment came back as one
+     * criterion worth a hundred points. Several rubrics now means several calls, each with its
+     * own target, decided by the user in the checklist before any of them are made.
+     */
+    const scopeInstruction = target
+      ? `This rubric is for ONE PART of a larger assignment: "${target.title}"${
+          target.focus ? ` — ${target.focus}` : ''
+        }.
+    Grade only that part. The rest of the description is context, and is there so you understand
+    where this part sits; do not write criteria for work that belongs to another part.
+    Title the rubric exactly: ${target.title}`
+      : `Generate a SINGLE rubric covering the assignment description as a whole.`;
 
     const prompt = `
     Act as an expert in instructional design and assessment.
     Based on the following assignment description, create a professional rubric.
 
-    PROCESSING MODE: ${settings.processingType === ProcessingType.MULTIPLE ? 'MULTIPLE RUBRICS' : 'SINGLE RUBRIC'}
-    ${processingInstruction}
+    ${scopeInstruction}
 
     ASSIGNMENT DESCRIPTION:
     ${assignmentDescription}

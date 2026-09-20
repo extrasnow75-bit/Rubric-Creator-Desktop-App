@@ -56,13 +56,19 @@ declare global {
       }
       rubric: {
         /** Creates a Google Doc in Drive and opens it. Needs a Google sign-in. */
+        /**
+         * One document holding every rubric passed, each as its own table on its own page.
+         * A single-rubric run passes an array of one, so there is no separate path for it.
+         */
         exportToDrive(args: {
-          rubric: RubricData
+          rubrics: RubricData[]
+          documentTitle?: string
           folderId?: string
         }): Promise<{ ok: boolean; fileId?: string; webViewLink?: string; message?: string }>
-        /** Saves the same rubric as .html. Works with no Google account. */
+        /** The same document as .html. Works with no Google account. */
         saveHtml(args: {
-          rubric: RubricData
+          rubrics: RubricData[]
+          documentTitle?: string
         }): Promise<{ ok: boolean; path?: string; cancelled?: boolean; message?: string }>
       }
       google: {
@@ -137,6 +143,8 @@ declare global {
           assignmentDescription: string
           settings: GenerationSettings
           jobId?: string
+          /** Narrows the rubric to one deliverable. Omitted, it covers the whole description. */
+          target?: { title: string; focus: string }
         }): Promise<RubricData>
         generateRubricFromScreenshot(a: {
           imageData: { data: string; mimeType: string }

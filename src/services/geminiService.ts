@@ -172,13 +172,20 @@ export const validateAssignmentDescription = (
     window.api.gemini.validateAssignmentDescription({ text, jobId }),
   );
 
+/** `target` narrows the rubric to one deliverable; omit it for the assignment as a whole. */
 export const generateRubricFromDescription = (
   assignmentDescription: string,
   settings: GenerationSettings,
   signal?: AbortSignal,
+  target?: { title: string; focus: string },
 ): Promise<RubricData> =>
   withCancellation(signal, (jobId) =>
-    window.api.gemini.generateRubricFromDescription({ assignmentDescription, settings, jobId }),
+    window.api.gemini.generateRubricFromDescription({
+      assignmentDescription,
+      settings,
+      jobId,
+      target,
+    }),
   );
 
 export const generateRubricFromScreenshot = (

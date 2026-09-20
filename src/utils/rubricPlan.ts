@@ -67,6 +67,25 @@ export function buildPlan(opts: {
   ];
 }
 
+/**
+ * A name for the whole-assignment rubric, taken from the description.
+ *
+ * The first non-empty line is the title in nearly every assignment document, and it is the name
+ * that will appear in the Canvas rubric list, so it matters that it reads like one. A first line
+ * long enough to be a paragraph is not a title: rather than truncate it into something nobody
+ * would recognise, this returns nothing and lets `buildPlan` fall back. The user can rename the
+ * row either way.
+ */
+export function describedAssignmentTitle(description: string): string {
+  for (const line of description.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    if (trimmed.length > 120) return '';
+    return trimmed.replace(/\s+/g, ' ');
+  }
+  return '';
+}
+
 /** Points a row is worth, or null when the box does not hold a usable number. */
 export function parsePlanPoints(raw: string): number | null {
   const trimmed = raw.trim();
