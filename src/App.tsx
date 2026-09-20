@@ -23,6 +23,15 @@ const AppContent: React.FC = () => {
     stopProgress,
   } = useSession();
 
+  /**
+   * `key` is what makes Start Over actually start over.
+   *
+   * Each screen keeps local state this context cannot see — the Dashboard alone holds the
+   * uploaded-file queue, the chosen Phase 1 mode and the answer to the draft-rubric question.
+   * Clearing the session reset the context and left every one of those untouched, so the screen
+   * carried on looking exactly as it had. Remounting on a changed key resets all of it at once,
+   * and keeps working as screens gain state nobody remembered to list here.
+   */
   const renderContent = () => {
     switch (state.currentStep) {
       case AppMode.DASHBOARD:
@@ -70,7 +79,7 @@ const AppContent: React.FC = () => {
   return (
     <>
       <Layout>
-        {renderContent()}
+        <React.Fragment key={state.sessionKey}>{renderContent()}</React.Fragment>
         <HelpCenter isOpen={state.helpOpen} onClose={() => setHelpOpen(false)} />
       </Layout>
       <ProgressDisplay progress={state.progress} onStop={stopProgress} />

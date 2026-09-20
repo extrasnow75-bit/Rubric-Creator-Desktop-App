@@ -43,7 +43,6 @@ const SessionContext = createContext<{
   // V.2 fields
   /** Validated and pinned in the main process; resolves with why it was refused. */
   setCourseUrl: (url: string | null) => Promise<{ ok: boolean; message?: string }>;
-  setHasDraftRubric: (value: 'yes' | 'no' | null) => void;
   // Google Auth methods
   /** Opens the system browser. Pass true to force Google's account chooser. */
   startGoogleAuth: (useAnotherAccount?: boolean) => Promise<void>;
@@ -90,7 +89,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     canvasTokenStatus: null,
     // V.2 fields
     courseUrl: null,
-    hasDraftRubric: null,
+    sessionKey: 0,
     // Google Authentication
     isGoogleAuthenticated: false,
     googleUser: null,
@@ -293,11 +292,13 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
         totalItems: 0,
         canCancel: false,
       },
+      // Remount the visible screen, discarding the local state this context cannot reach.
+      sessionKey: prev.sessionKey + 1,
+
       // Preserve credentials and V.2 setup across session clears
       geminiKeyStatus: prev.geminiKeyStatus,
       canvasTokenStatus: prev.canvasTokenStatus,
       courseUrl: prev.courseUrl,
-      hasDraftRubric: prev.hasDraftRubric,
       isGoogleAuthenticated: prev.isGoogleAuthenticated,
       googleUser: prev.googleUser,
       googleAuthError: null,
@@ -345,10 +346,6 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       setState((prev) => ({ ...prev, courseUrl: url }));
     }
     return result;
-  }, []);
-
-  const setHasDraftRubric = useCallback((value: 'yes' | 'no' | null) => {
-    setState((prev) => ({ ...prev, hasDraftRubric: value }));
   }, []);
 
   /**
@@ -540,7 +537,6 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     setUserGeminiApiKey,
     setUserCanvasApiToken,
     setCourseUrl,
-    setHasDraftRubric,
     startGoogleAuth,
     signOutGoogle,
     extractGoogleDocText,
