@@ -10,6 +10,7 @@ import JSZip from 'jszip';
 import { diagnoseCanvasError, CanvasDiagnosis } from '../utils/diagnoseCanvasError';
 import { CsvRepairPanel } from './CsvRepairPanel';
 import { useCopyAction } from '../hooks/useCopyAction';
+import { isPinnedToBottom } from '../utils/followScroll';
 
 /**
  * How long to wait before the single retry.
@@ -118,16 +119,36 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
   const abortRef = useRef<AbortController>(new AbortController());
   const startTimeRef = useRef<number>(Date.now());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const logsEndRef = useRef<HTMLDivElement>(null);
+  const logBoxRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether new lines should pull the log down.
+   *
+   * A ref rather than state: it is read inside an effect and never rendered, so making it state
+   * would re-render the whole panel on every wheel notch during a run that is already busy.
+   */
+  const followLogs = useRef(true);
   const hasStarted = useRef(false);
 
   const addLog = (message: string, type: LogEntry['type'] = 'info') => {
     setLogs((prev) => [...prev, { timestamp: now(), message, type }]);
   };
 
-  // Auto-scroll logs
+  /**
+   * Keep the newest line in view — and move nothing but this box.
+   *
+   * This used to call `scrollIntoView` on a sentinel at the end of the list. That scrolls the log
+   * box and then carries on up, scrolling every scrollable ancestor until the target sits at the
+   * top of each. The app shell is `h-screen overflow-hidden`, and `overflow: hidden` stops the
+   * user scrolling an element, not the browser — so each log line pushed the title bar and the
+   * ribbon off the top of the window, with no scrollbar to get them back. The zoom control lives
+   * in that ribbon, which is how a deploy could leave someone unable to find it.
+   *
+   * Assigning `scrollTop` cannot reach an ancestor. It is also instant: eighty queued smooth
+   * scrolls during a 39-rubric deploy were part of why the panel was hard to read.
+   */
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const box = logBoxRef.current;
+    if (box && followLogs.current) box.scrollTop = box.scrollHeight;
   }, [logs]);
 
   // Start timer
@@ -415,7 +436,14 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
     await copy(header + logs.map((l) => `[${l.timestamp}] ${l.message}`).join('\n'));
   };
 
-  const handleClearLogs = () => setLogs([]);
+  /**
+   * Clearing also resumes following. Clearing while scrolled up would otherwise leave the panel
+   * refusing to follow an empty log, and nothing afterwards would look like the cause.
+   */
+  const handleClearLogs = () => {
+    followLogs.current = true;
+    setLogs([]);
+  };
 
   const successCount = results.filter((r) => r.status === 'success').length;
   const failCount = results.filter((r) => r.status === 'failed').length;
@@ -707,7 +735,21 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
             panel is 2.6:1 — the design system's warning that the light-background greys "do not
             carry over" to dark ones, landing exactly as described. #9ca3af is 7.6:1, which keeps
             timestamps visibly quieter than the messages beside them while still being readable. */}
-        <div className="bg-[#0d0d1a] p-4 h-56 overflow-y-auto font-mono text-xs space-y-1">
+        {/* tabIndex makes the box scrollable by keyboard. A region that scrolls but cannot be
+            reached with Tab is the same fault as the file inputs that were hidden with
+            `display: none` — fine with a mouse, unusable without one. No `role="log"`: that
+            implies a live region, and this screen already has one, so every line would be
+            announced twice. */}
+        <div
+          ref={logBoxRef}
+          onScroll={() => {
+            const box = logBoxRef.current;
+            if (box) followLogs.current = isPinnedToBottom(box);
+          }}
+          tabIndex={0}
+          aria-label="Deployment timeline"
+          className="bg-[#0d0d1a] p-4 h-56 overflow-y-auto font-mono text-xs space-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
+        >
           {logs.length === 0 ? (
             <p className="text-gray-400 italic">No activity yet.</p>
           ) : (
@@ -730,7 +772,6 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
               </div>
             ))
           )}
-          <div ref={logsEndRef} />
         </div>
       </div>
 

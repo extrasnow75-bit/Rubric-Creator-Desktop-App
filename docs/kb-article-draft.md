@@ -249,6 +249,8 @@ Each one is load-bearing, and removing any of them fails **silently** — the ap
 
 **5\. Keychain or nothing.** If `safeStorage.isEncryptionAvailable()` returns false, the app refuses to store the credential and says so. There is no plaintext fallback, and there must never be one that looks like success.
 
+One consequence of rule 1 is worth spelling out, because it is not obvious. Since the renderer never sees the token, it cannot tell you whether the token **works** — only that one is stored. "Token saved" meant nothing more than "a string reached the keychain," and a revoked or mistyped token looked exactly like a good one until the first deploy failed. `verifyToken` closes that by having main *use* the token at launch against the remembered course; a successful course lookup is the proof, because that request carries the token. Any future "is this credential still good?" question has to be answered the same way — in main, by using it — not by handing the secret to the UI so it can check for itself.
+
 ## The AI rule: it proposes, a deterministic check disposes
 
 `electron/ipc/csvRepair.ts` is the one place where AI output can reach Canvas, and it is built on the assumption that a model asked to fix a rubric CSV will always return something that *looks* like a fixed rubric CSV. The failure that matters is not an obvious mess — it is a file that deploys cleanly and quietly grades students differently from the one the author wrote.
@@ -262,6 +264,32 @@ So nothing in that file asks the model what it changed. Everything is computed:
 **These gates run in the main process on purpose.** A proposal that fails one never crosses IPC, so there is no path by which the renderer can display — let alone deploy — a repair that was not checked. If you move any of this into `src/`, you have removed the guarantee.
 
 Point-value changes are separated out in the UI for the same reason. A structural fix costs nothing if it is wrong — Canvas either accepts the file or it doesn't. A changed number changes a grade, and no amount of validation can tell whether it is the number the author meant.
+
+## What the model writes, and what it only copies
+
+Two different jobs share one word — "AI" — and confusing them is the easiest way to do real damage here.
+
+**Drafting is authorship.** The model is handed an assignment description and writes rubric language that did not exist before. `RATING_BREVITY_RULE` in `electron/ipc/gemini.ts` governs that language: one sentence per rating, twenty words at most and ten to fifteen aimed for, with every level unmistakably different from the ones directly above and below it. It is attached to exactly two prompts — `generateRubricFromDescription` and `applyRubricChanges`.
+
+**Extraction is transcription.** A rubric read out of a Word document, a PDF or a screenshot is already written and already approved by whoever teaches the course. It is copied **verbatim**, and none of the brevity instructions go anywhere near those prompts.
+
+**Do not tidy this up by applying the brevity rule everywhere.** It reads like an oversight — the same constant is missing from the extraction prompts beside it, which otherwise look much the same — and adding it there would make the app quietly shorten an instructor's own rubric on the way through. Nothing would error. The document would convert, the CSV would deploy, Canvas would accept it, and the language students are graded against would no longer be the language the author wrote. The rule is a named constant with a comment saying this, so that its absence looks deliberate when you find it.
+
+The word budget itself is a judgement rather than a standard: twenty words is roughly what a Canvas rating column shows without scrolling. If eCampus settles on a different house style, it is two numbers in that one constant.
+
+## Why conversion happens in groups of eight
+
+`BATCH_RUBRIC_LIMIT = 8` in `src/services/geminiService.ts` is what makes a large document work, and it is squeezed from both sides.
+
+**From above — the output ceiling.** A model response is capped at 64k tokens, shared with its thinking tokens, and a batch extraction is all-or-nothing: one truncated reply loses every rubric in it, including the ones that had already finished inside it. A 26-rubric document demonstrated that by failing four minutes in with `Unterminated string in JSON at position 126176`. Raising the limit makes that failure likelier and costs a whole group each time it happens.
+
+**From below — every request carries the whole document.** The cost driver is the number of calls, not the number of rubrics. Converting one rubric at a time means sending the entire file once per rubric: a 26-rubric document sent itself 27 times, with a six-second pause between each, which is where those four minutes went. The same document now takes four calls.
+
+Both screens go through one orchestrator, `generateCsvsChunked`. That is not tidiness. Part 2 used to carry its own copy of the conversion loop and never batched at all, even for small documents — a three-rubric document took four calls where two would do — and it looked correct the whole time, because it produced correct CSVs. A second copy of this loop is how that comes back.
+
+**`alignByTitle` refuses to guess, and that is the point.** A group asks for eight rubrics by name and gets some number of rubrics back. Pairing them up wrongly is the worst thing this app could do: a CSV filed under the wrong title deploys cleanly, looks right in Canvas, and grades students against somebody else's criteria. So it matches by normalised title; it falls back to document order **only** when nothing matched by title *and* the counts are equal, which is the signature of a model that returned the right rubrics with reworded headings; and in every other case it leaves a `null`, which costs one extra call for that one rubric and is never ambiguous. A *partial* title match deliberately does not fall back to position — a partial match means the two lists disagree about their contents, so position proves nothing.
+
+That matching lives in `src/utils/rubricBatching.ts`, apart from the orchestration, for one reason: the orchestration cannot be tested without a live Gemini key and an Electron bridge, and the matching can. `rubricBatching.test.ts` pins it, including the "only some names matched" case. If you change the matching, change that test first and watch it fail.
 
 ## Two bugs that shaped the code — read before touching either
 
@@ -289,11 +317,20 @@ Point-value changes are separated out in the UI for the same reason. A structura
 * **Every `file://` URL has the origin `"null"`.** In dev the UI is served over `http://localhost` and has a normal origin; in the packaged app it is loaded from disk, so its origin is the literal string `"null"` — and so is every other local file's. A navigation guard that compares origins protects nothing in production while passing every test in dev. `isOwnPage()` compares the full file path instead.
 * **Anything loaded from a CDN will not load.** Tailwind, the Inter font and the pdf.js worker are all bundled for this reason. If you add a library, bundle it.
 
+## Interface patterns that look like style and are not
+
+Three things in `src/` read as fussy or redundant and are load-bearing. They fail as silently as the security rules do: the app keeps working for anyone using a mouse and a screen, and stops working for anyone who is not.
+
+* **A file input is hidden with `opacity-0` and stretched over its drop zone — never with `display: none`.** `display: none` takes an element out of the tab order, so a "drop a file here, or click to browse" area hidden that way cannot be reached by keyboard at all: Tab goes straight past it and there is no way to load a document. The real input sits on top of the zone as `absolute inset-0 w-full h-full opacity-0`, carries the visible wording as its `aria-label`, and gets Enter and Space for free because it is a genuine `<input type="file">`. Do not replace it with a `<div onClick>` or a wrapping `<label>`; both look identical on screen and neither is focusable.
+* **A live region is mounted empty and stays mounted for the whole run.** `role="status" aria-live="polite"` announces *changes* to an element the screen reader is already watching. An element that appears with its text already inside it is a new node rather than a change, and is often not announced — the failure that looks most like success, because the correct markup is right there in the DOM. Each of the three long-running screens keeps one empty `sr-only` span for the duration of a run and writes into it when there is something to say.
+* **A dialog's close callback is held in a ref, not in the effect's dependency list** (`src/hooks/useDialogFocus.ts`). Callers pass an inline arrow — `onCancel={() => settle(null)}` is one — which is a new function on every render of the parent. An effect that depends on it tears down and re-runs on every one of those renders, and this effect's teardown **restores focus to whatever opened the dialog**. That throws focus out of the panel mid-keystroke, repeatedly, with nothing visibly wrong in the render output. The ref is what stops the effect from having an opinion about that identity.
+
 ## Where to change things
 
 | If you want to change... | Start here |
 | :---- | :---- |
 | What the AI is asked for — rubric drafting, screenshot reading, CSV conversion, repair | `electron/ipc/gemini.ts` |
+| How many rubrics go in one conversion call, and which returned CSV belongs to which rubric | `src/services/geminiService.ts`, `src/utils/rubricBatching.ts` |
 | How a CSV becomes a Canvas rubric, and which point notations are understood | `electron/ipc/canvasUtils.ts` |
 | The Canvas requests themselves | `electron/ipc/canvas.ts` |
 | The gates on an AI repair | `electron/ipc/csvRepair.ts` |
@@ -304,6 +341,7 @@ Point-value changes are separated out in the UI for the same reason. A structura
 | Which hosts a link may open | `electron/ipc/externalLinks.ts` |
 | Help Center text, and the KB article link | `src/components/HelpCenter.tsx` |
 | Initial Setup — keys, token, course URL | `src/components/Dashboard.tsx` |
+| Focus, Escape and Tab behaviour in any dialog or drawer | `src/hooks/useDialogFocus.ts` |
 | Colours, buttons, contrast rules | `.claude/DESIGN_SYSTEM.md` — read it before changing a colour |
 | The app icon | Edit `resources/icon.svg`, then re-run `make-icon.py` |
 | This article | `docs/kb-article-draft.md` — then regenerate the Google Docs copy (below) |
@@ -344,11 +382,19 @@ Google sign-in needs a **Desktop app** OAuth client. A web client will not work 
 2. Rewrite `RELEASE_NOTES.md` as a "What's new in vX.Y.Z" list, written for the people installing the app — what they will see differently, not file names. `git log vPREV..HEAD` is the source. **The release job refuses to publish unless this file names the tag being released**, so a stale list cannot ship under a new heading.
 3. Commit, then tag it: `git tag v1.1.0` and `git push origin v1.1.0`.
 4. Pushing the tag triggers `.github/workflows/release.yml`, which runs the typecheck and the tests, builds the Windows installer and both macOS disk images, renames them to the friendly names users see, splices `RELEASE_NOTES.md` into the release notes, and publishes all three on one release. Takes about five minutes.
-5. Check the release page afterwards.
+5. **Confirm the run actually started**, not merely that a run exists — open the Actions tab and check it has jobs in it. Then check the release page.
 
 If you cannot push a tag from wherever you are working, the same thing can be done from the web: **Releases → Draft a new release → Choose a tag → type the new tag → "Create new tag: … on publish" → Target: `master` → Publish.**
 
 **Do not skip step 1.** It is the one mistake here that does not announce itself. Tag a release without bumping `version` and everything appears to work — the build passes, the release publishes, the installer downloads and installs. But every copy already out there compares its own version against the newest release, sees the same number, concludes it is current, and never shows the update banner. The fix reaches nobody and nothing reports an error.
+
+**A workflow file GitHub cannot parse fails in a way that looks like nothing went wrong.** Nothing built between v0.9.1 and the fix, and the cause was a shell comment. A `run:` block contained an empty `${{ }}` as an illustration of the syntax it was warning you not to use; GitHub scans `run:` blocks for template expansions and does not care that the line is a comment, so it rejected the entire file. Three things about that failure are worth knowing, because not one of them points at the cause:
+
+* The tag still published a **release page with no installers on it** — GitHub creates the release from the tag whether or not any workflow runs.
+* A rejected file has no jobs to fail, so runs finished in the same second they started and the Actions list showed a duration of **−1s**. **A run with zero jobs is the signature.**
+* GitHub could not read the triggers either, so it created a failed run on **every push to every branch**, for a workflow that only fires on tags. Fifteen red runs, none of which reached a runner.
+
+So: never put `${{` inside a `run:` block, not even in a comment, and after pushing a tag open the run and confirm it has jobs before you walk away from it.
 
 Two things about the release page that are already settled, so nobody re-litigates them:
 
@@ -358,6 +404,8 @@ Two things about the release page that are already settled, so nobody re-litigat
 ## Known gaps and open items
 
 * **The Canvas round trip is proven.** A ten-rubric Word document was converted and deployed to a live Canvas course in full on 18 September 2026 (v0.9.3). Everything before that release had only unit tests behind it.
+* **Grouped conversion has not been run by a human against an installed build.** The grouping and the title matching are covered by unit tests, and the 26-rubric document that prompted them predates the fix. Converting a document of more than eight rubrics in an installed copy — and watching what happens to a rubric the group does not answer for — is the next thing to test.
+* **The rating word budget has not been checked against eCampus's own standards.** Twenty words maximum, ten to fifteen aimed for, was set against the width of a Canvas rating column. Whether it reads right to an instructional designer is a judgement nobody has made yet.
 * **Builds are unsigned** on both platforms, hence the SmartScreen warning and the `xattr` line. Removing those needs a paid Apple Developer identity and a Windows code-signing certificate.
 * **`HELP_CENTER_ARTICLE_URL` points at the Google Doc draft**, not the published Confluence page. See above.
 * **The Firebase project from the web version** (`updated-rubric-creator`) can be deleted once this app is in use — nothing in the desktop app touches it.

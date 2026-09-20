@@ -20,7 +20,8 @@ export interface PickedFile {
 }
 
 export interface PickedFolder {
-  folderId: string;
+  /** Absent when the destination is My Drive itself, which is Drive's default parent. */
+  folderId?: string;
   folderName: string;
 }
 

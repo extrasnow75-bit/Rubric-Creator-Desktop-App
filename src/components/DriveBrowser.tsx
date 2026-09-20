@@ -50,7 +50,14 @@ interface DriveBrowserProps {
   title?: string;
   onCancel: () => void;
   onPickFile?: (file: { fileId: string; name: string; mimeType: string }) => void;
-  onPickFolder?: (folder: { folderId: string; folderName: string }) => void;
+  /**
+   * `folderId` is absent when the chosen destination is My Drive itself.
+   *
+   * That is not a missing value to work around: Drive's own default parent for a new file is the
+   * user's root, so every call down this path already omits `parents` when no folder id is given.
+   * Inventing an id for the root would mean special-casing a sentinel in main instead.
+   */
+  onPickFolder?: (folder: { folderId?: string; folderName: string }) => void;
 }
 
 type Scope = 'recent' | 'myDrive' | 'sharedWithMe';
@@ -104,6 +111,19 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
   const requestSeq = useRef(0);
 
   const currentFolder = trail.length > 0 ? trail[trail.length - 1] : null;
+
+  /**
+   * Sitting at the top of My Drive, which is a real destination and used to be unreachable.
+   *
+   * Choosing a folder needed either a selected row or a folder drilled into, and My Drive itself
+   * is neither — it is never a row in its own listing. So the only way to save anything was into
+   * a subfolder, and the Choose button simply sat disabled with nothing explaining why.
+   *
+   * Not offered on Recent or Shared with me: neither has a root you could write to, and a search
+   * is global, so "the top of this list" means nothing there.
+   */
+  const atMyDriveRoot =
+    mode === 'folder' && scope === 'myDrive' && trail.length === 0 && !activeSearch;
 
   const load = useCallback(async () => {
     const seq = ++requestSeq.current;
@@ -389,9 +409,11 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
         {/* Footer */}
         <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0 bg-gray-50">
           <p className="text-xs text-gray-600">
-            {mode === 'folder'
-              ? 'Open a folder to go inside it, or select one and choose it.'
-              : 'Select a file and choose it below, or double-click it.'}
+            {mode !== 'folder'
+              ? 'Select a file and choose it below, or double-click it.'
+              : atMyDriveRoot
+                ? 'Open a folder to go inside it, select one, or choose My Drive itself.'
+                : 'Open a folder to go inside it, or select one and choose it.'}
           </p>
           <div className="flex items-center gap-3">
             <button
@@ -403,17 +425,24 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
             <button
               disabled={
                 mode === 'folder'
-                  ? !selected && trail.length === 0
+                  ? !selected && !currentFolder && !atMyDriveRoot
                   : !selected || selected.isFolder
               }
               onClick={() => {
                 if (mode === 'folder') {
                   // Selecting nothing while inside a folder means "this one" — the folder the
-                  // user has navigated into and is looking at.
-                  const target = selected ?? (currentFolder
-                    ? { id: currentFolder.id, name: currentFolder.name }
-                    : null);
-                  if (target) onPickFolder?.({ folderId: target.id, folderName: target.name });
+                  // user has navigated into and is looking at. Selecting nothing at the top of
+                  // My Drive means My Drive, which carries no id (see `onPickFolder` above).
+                  if (selected) {
+                    onPickFolder?.({ folderId: selected.id, folderName: selected.name });
+                  } else if (currentFolder) {
+                    onPickFolder?.({
+                      folderId: currentFolder.id,
+                      folderName: currentFolder.name,
+                    });
+                  } else if (atMyDriveRoot) {
+                    onPickFolder?.({ folderName: 'My Drive' });
+                  }
                 } else if (selected && !selected.isFolder) {
                   onPickFile?.({
                     fileId: selected.id,
@@ -424,13 +453,15 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
               }}
               className="px-5 py-2 rounded-xl font-bold text-sm bg-brand text-white hover:bg-brand-dark transition-all disabled:bg-gray-300 disabled:text-gray-400"
             >
-              {mode === 'folder'
-                ? selected
+              {mode !== 'folder'
+                ? 'Choose file'
+                : selected
                   ? `Choose “${selected.name}”`
                   : currentFolder
-                  ? `Choose “${currentFolder.name}”`
-                  : 'Choose folder'
-                : 'Choose file'}
+                    ? `Choose “${currentFolder.name}”`
+                    : atMyDriveRoot
+                      ? 'Choose My Drive'
+                      : 'Choose folder'}
             </button>
           </div>
         </div>

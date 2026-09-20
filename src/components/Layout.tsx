@@ -255,8 +255,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50/50">
+      {/*
+        Main Content Area.
+
+        `min-h-0` is load-bearing, not tidying. A flex item defaults to `min-height: auto`, which
+        means it will not shrink below its content — so without it this element grows past the
+        window instead of scrolling inside it, its own `overflow-y-auto` never engages, and the
+        overflow lands on the shell above, which is `overflow-hidden` and therefore clips it with
+        no scrollbar. With `min-h-0` this is a real scroll container, which also means anything
+        calling `scrollIntoView` scrolls *this* — a panel the user can scroll back — rather than
+        the shell, which they cannot.
+      */}
+      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 bg-gray-50/50">
         {children}
       </main>
     </div>
