@@ -1211,7 +1211,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   className={`w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed ${showDeployCard ? 'opacity-50 pointer-events-none' : ''}`}
                 >
                   <ArrowRight className="w-5 h-5" />
-                  {onAnalyzeDeploy ? 'Deploy Displayed Rubric to Canvas' : 'Continue to Part 2: Convert to CSV'}
+                  {onAnalyzeDeploy
+                    ? state.rubrics.length > 1
+                      ? `Deploy All ${state.rubrics.length} Rubrics to Canvas`
+                      : 'Deploy Displayed Rubric to Canvas'
+                    : 'Continue to Part 2: Convert to CSV'}
                 </button>
 
                 {/*
@@ -1224,20 +1228,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                     {!canAnalyzeDeploy
                       ? 'Add your Gemini API key and Canvas token in Initial Setup to deploy.'
                       : 'Tick the box above to confirm the rubric is ready.'}
-                  </p>
-                )}
-
-                {/*
-                  Deploy sends the rubric on screen, one at a time. Said plainly because a run
-                  that produced eight rubrics gives no other sign of it: the button deploys, the
-                  timeline reports success, and seven rubrics quietly stay behind. Saving is the
-                  other way round — that writes all of them into one document — so the two
-                  buttons beside each other do not mean the same thing by "the rubric".
-                */}
-                {onAnalyzeDeploy && state.rubrics.length > 1 && (
-                  <p className="text-xs text-gray-600 mt-2 text-center">
-                    This deploys the rubric shown above. Switch between them at the top to deploy
-                    the others; saving covers all {state.rubrics.length} at once.
                   </p>
                 )}
 

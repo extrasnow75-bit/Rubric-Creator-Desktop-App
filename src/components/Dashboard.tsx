@@ -1280,7 +1280,15 @@ export const Dashboard: React.FC = () => {
         >
           <AnalyzeDeploySection
             onOpenSetup={handleOpenSetup}
-            phase1Rubric={analyzeRubricSource === 'no' ? (state.rubric ?? undefined) : undefined}
+            phase1Rubrics={
+              analyzeRubricSource === 'no'
+                ? state.rubrics.length > 0
+                  ? state.rubrics
+                  : state.rubric
+                    ? [state.rubric]
+                    : []
+                : []
+            }
             uploadedFiles={analyzeRubricSource === 'yes' ? uploadedFiles : undefined}
             courseUrl={analyzeRubricSource === 'no' ? (state.courseUrl || courseUrlInput) : courseUrlInput}
             onStartOver={() => {
