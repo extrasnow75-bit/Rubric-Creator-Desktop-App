@@ -198,3 +198,28 @@ describe('buildRubricSetHtml', () => {
     expect(buildRubricSetHtml([rubric])).not.toContain('page-break-before')
   })
 })
+
+describe('buildRubricSetHtml heading structure', () => {
+  const second: RubricData = { ...rubric, title: 'Presentation Rubric' }
+
+  /**
+   * Google Docs imported only the first rubric's title as Heading 1. The later ones sat inside
+   * `<div style="page-break-before:always;">`, and Docs flattens a styled block container and
+   * loses the heading mapping of its contents. A heading wrapped in a styled div is the shape
+   * that caused it, so it is the shape pinned against.
+   */
+  it('never wraps a heading in a styled container', () => {
+    const html = buildRubricSetHtml([rubric, second])
+    expect(html).not.toMatch(/<div[^>]*style[^>]*>\s*<h1/)
+  })
+
+  it('carries the page break on the heading itself', () => {
+    const html = buildRubricSetHtml([rubric, second])
+    expect(html).toMatch(/<h1 style="page-break-before:always;/)
+  })
+
+  it('gives every rubric an h1', () => {
+    const html = buildRubricSetHtml([rubric, second, { ...rubric, title: 'Third' }])
+    expect((html.match(/<h1/g) ?? []).length).toBe(3)
+  })
+})

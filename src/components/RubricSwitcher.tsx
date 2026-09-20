@@ -16,9 +16,17 @@ interface Props {
   rubrics: RubricData[];
   activeIndex: number;
   onOpen: (index: number) => void;
+  /**
+   * Indexes carrying a change request that has not been applied yet.
+   *
+   * Marked because writing requests across eight rubrics otherwise means clicking through all
+   * of them to remember which ones you have already done.
+   */
+  pending?: number[];
 }
 
-export const RubricSwitcher: React.FC<Props> = ({ rubrics, activeIndex, onOpen }) => {
+export const RubricSwitcher: React.FC<Props> = ({ rubrics, activeIndex, onOpen, pending = [] }) => {
+  const pendingSet = new Set(pending);
   if (rubrics.length < 2) return null;
 
   return (
@@ -29,6 +37,7 @@ export const RubricSwitcher: React.FC<Props> = ({ rubrics, activeIndex, onOpen }
       <ul className="flex flex-wrap gap-2">
         {rubrics.map((rubric, i) => {
           const active = i === activeIndex;
+          const hasRequest = pendingSet.has(i);
           return (
             <li key={`${rubric.title}-${i}`}>
               <button
@@ -39,9 +48,23 @@ export const RubricSwitcher: React.FC<Props> = ({ rubrics, activeIndex, onOpen }
                     ? 'bg-brand text-white border-brand'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                 }`}
-                title={rubric.title}
+                title={
+                  hasRequest ? `${rubric.title} — changes requested` : rubric.title
+                }
               >
+                {/* A dot rather than a count: what matters is which rubrics you have written
+                    something for, not how much. The title attribute carries it for anyone who
+                    cannot see the dot. */}
+                {hasRequest && (
+                  <span
+                    aria-hidden="true"
+                    className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle ${
+                      active ? 'bg-white' : 'bg-amber-500'
+                    }`}
+                  />
+                )}
                 {rubric.title}
+                {hasRequest && <span className="sr-only"> — changes requested</span>}
               </button>
             </li>
           );
