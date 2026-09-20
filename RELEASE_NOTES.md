@@ -1,51 +1,50 @@
-## What's new in v0.9.12
+## What's new in v0.9.13
 
-### Each rubric keeps its own change request
+A small release: four things that testing v0.9.12 turned up, all of them in the first screen of
+Phase 1.
 
-**This fixes a way of quietly rewriting the wrong rubric.** There was one Request Changes box
-shared by every rubric in a run, and the button applied whatever was in it to whichever rubric
-happened to be on screen. Type a request while Part 1 was showing, switch to Part 2, press the
-button — and Part 2 was rewritten using instructions meant for Part 1. The result looked like a
-perfectly good rubric, and nothing told you what had happened.
+### Phase 1 opens on Google Drive
 
-Every rubric now has its own box, kept as you move between them, and the card names the rubric
-it belongs to. If you had changes queued in an earlier version, check that they landed where you
-meant them to.
+The assignment description tabs open on **From Google Drive**, and that tab is now first in the
+row. Uploading from your computer is still there, one tab to the right — it is the fallback
+rather than the usual case.
 
-### Ask for all your changes, then apply them once
+If you are not signed in, the Drive tab shows the sign-in prompt and **From Local Drive** sits
+beside it, so nothing about being signed out blocks you from getting a rubric made.
 
-Work through the rubrics writing what you want changed in each, tick each one off, and apply
-them all together. Eight revisions used to be eight separate waits; now it is one run with a
-progress bar, and the button says how many it is about to change.
+Note that the box for pasting an assignment description as plain text lives under **From Local
+Drive**, so pasting now takes one click first.
 
-Anything you typed but did not tick is named before the run rather than quietly skipped — that
-is the sort of thing you would otherwise only notice by reading a document that had not changed.
+### The first button says what it does
 
-The list of rubrics at the top marks the ones carrying a request you have not applied yet, so
-you can see where you are without clicking through all of them.
+It used to say **Generate Rubric**, which described the wrong step. Pressing it does not write
+anything — it reads the assignment description, works out which deliverables are in it, and
+hands you a checklist to confirm. Only after you tick rows and press the confirm button does any
+rubric get written.
 
-### Deploying is now the last thing on the screen
+It now says **Analyze Description**, and the line underneath says what happens next instead of
+promising a rubric in under a minute.
 
-Opening Request Changes used to put the box **underneath** the deploy button, so the page read
-as "deploy to Canvas, then describe your changes". The revision card now sits above the confirm
-tick and the deploy button, which is where the one action you cannot undo belongs.
+### The confirmation tick box is visible now
 
-### Rubric titles are real headings again
+The tick box above **Deploy to Canvas** was a small check box under small grey text, so the
+greyed-out deploy button below it looked broken rather than waiting for you. It is a bordered
+panel now, with a line stating in plain words that ticking it turns the deploy button on. Once
+ticked, it turns green and stops asking for your attention.
 
-In a document holding several rubrics, only the first title came through as a Heading 1 — the
-rest arrived as ordinary bold text. Every title is now a proper heading, which also means the
-document outline in Google Docs lists all of them, so you can jump between rubrics from the
-sidebar instead of scrolling.
+### Start Over always asks first
 
-### Select all on the deliverables list
+Start Over now shows a confirmation every time, not only when you have a rubric that would be
+lost.
 
-A **Toggle all** control, next to a count of what is selected, for ticking or clearing
-everything at once. Same place and wording as the one in Canvas Extractor Tools.
+The reason is a misfire worth describing, because you may have hit it: the button sits in the
+ribbon at the top, the ribbon reflows when you change the text size, and changing the text size
+can slide Start Over underneath your cursor just in time for your next click. The session has no
+way of knowing that happened, so the confirmation can no longer depend on what the session
+holds.
 
-### Also fixed
-
-- The confirmation tick above the deploy button said "the rubric currently displayed above is
-  ready for Canvas" while the button deployed all of them. It now names the number it covers.
+The wording still changes with your situation — with nothing unsaved it tells you the screen is
+being cleared rather than warning you about losing work that does not exist.
 
 ### Known limits
 
