@@ -2,6 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { AppMode, PointStyle, ProcessingType, GenerationSettings, RubricData } from '../types';
+import { generateCsvFromRubricObject } from '../utils/rubricCsv';
+import { CsvSaveOptions } from './CsvSaveOptions';
 import {
   generateRubricFromDescription,
   extractRubricFromDocument,
@@ -40,6 +42,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     updateRubricAt,
     setIsLoading,
     setError,
+    setScoringMethod,
     newBatch,
     startProgress,
     stopProgress,
@@ -520,6 +523,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
       if (made.length > 0) {
         setProgress({ currentStep: 'Finalizing...', percentage: 0.95 });
         setRubrics(made);
+        /*
+          Recorded with the rubrics, not read off the control later. The deploy panel builds the
+          Canvas CSV and needs to know whether these rubrics state their points as ranges
+          ("10 to >8") or single values, because that decides the Criteria Enable Range column.
+          Nothing carried the choice between the two screens before, so every rubric deployed as
+          TRUE however the user had set it.
+        */
+        setScoringMethod(settings.pointStyle === PointStyle.RANGE ? 'ranges' : 'fixed');
         setRubricSource('generated');
         setProgress({ percentage: 1, itemsProcessed: made.length });
         setShowReplaceCard(false);
@@ -680,6 +691,38 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
   const activeDraft = changeDrafts[state.activeRubricIndex] ?? '';
   const activeSettled = changeSettled[state.activeRubricIndex] ?? false;
+
+  /**
+   * The Canvas CSV for each rubric on screen, built for the save panel.
+   *
+   * Memoised for the work it skips, not for referential identity — CsvSaveOptions is a plain
+   * function component with no memo and no effect keyed on this array, so a stable reference
+   * buys nothing. The saving is real though: a 26-rubric document costs about 0.7ms and 220KB
+   * of string allocation to rebuild, and this component subscribes to the session, whose
+   * progress timer ticks four times a second for the whole of a generation. Without the memo
+   * that rebuild would run on every one of those ticks for a panel that is usually closed.
+   *
+   * The dependency is the rubrics array's identity, which changes only when the set is
+   * replaced or one of them is revised. Everything the user types on this screen is local
+   * state, so typing re-renders without recomputing.
+   *
+   * `state.scoringMethod`, not the local `settings.pointStyle`, and that distinction is the
+   * whole point. The panel below promises these are the files the deploy will send, and the
+   * deploy reads `state.scoringMethod`. The two are not interchangeable: `settings` is local
+   * useState, and this component unmounts whenever the Phase 1 mode changes, so generating a
+   * rubric with Single points, switching to the screenshot card and coming back resets the
+   * control to Ranges while the rubrics and the session value both survive. Reading the
+   * control there would have offered a CSV scored differently from the one Canvas received —
+   * which is exactly the file someone saves as their recovery copy when a deploy fails.
+   */
+  const csvsForRubrics = React.useMemo(
+    () =>
+      state.rubrics.map((rubric) => ({
+        name: rubric.title,
+        csvContent: generateCsvFromRubricObject(rubric, state.scoringMethod),
+      })),
+    [state.rubrics, state.scoringMethod],
+  );
 
   /** Rubrics with a settled, non-empty request — what "Apply changes" will actually run. */
   const queuedIndexes = state.rubrics
@@ -1474,6 +1517,34 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                       ? 'Add your Gemini API key and Canvas token in Initial Setup to deploy.'
                       : 'Tick the box above to confirm the rubric is ready.'}
                   </p>
+                )}
+
+                {/*
+                  The CSVs, before anything is sent to Canvas.
+
+                  They exist already — or rather, they cost nothing to make: converting a rubric
+                  object to Canvas CSV is a local string build with no AI call behind it (see
+                  utils/rubricCsv.ts), so the files offered here are byte-for-byte the ones the
+                  deploy will push. The deploy panel offered them only on the way out, which is
+                  the wrong end for the case that needs them most: if Canvas rejects the upload,
+                  or the token has expired, the work is still recoverable from a CSV you already
+                  have. Saving one first costs a click and removes that whole class of loss.
+
+                  A link rather than a second button: there is one primary action on this screen
+                  and it is the one above.
+                */}
+                {onAnalyzeDeploy && state.rubrics.length > 0 && !showDeployCard && (
+                  <div className="mt-3">
+                    <CsvSaveOptions
+                      csvs={csvsForRubrics}
+                      prompt={
+                        state.rubrics.length > 1
+                          ? `Keep a copy of all ${state.rubrics.length} CSVs?`
+                          : 'Keep a copy of the CSV?'
+                      }
+                      footnote="These are the same files the deploy sends to Canvas. Saving them here changes nothing about the deploy."
+                    />
+                  </div>
                 )}
 
                 {/* Inline Canvas Course URL card */}

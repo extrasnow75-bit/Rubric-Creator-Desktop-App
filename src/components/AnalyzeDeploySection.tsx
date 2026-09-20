@@ -1,17 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle, XCircle, Loader2, Download, Copy, Check, Trash2, ExternalLink } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Copy, Check, Trash2, ExternalLink } from 'lucide-react';
 import { RubricData, CanvasConfig } from '../types';
 import {
   generateCsvFromRubricObject,
   generateCsvsChunked,
   discoverRubricTitles,
 } from '../services/geminiService';
-import JSZip from 'jszip';
 import { diagnoseCanvasError, CanvasDiagnosis } from '../utils/diagnoseCanvasError';
 import { CsvRepairPanel } from './CsvRepairPanel';
 import { useCopyAction } from '../hooks/useCopyAction';
-import { useSession } from '../contexts/SessionContext';
-import { useDrivePicker } from '../contexts/DrivePickerContext';
+import { CsvSaveOptions } from './CsvSaveOptions';
 import { isPinnedToBottom } from '../utils/followScroll';
 
 /**
@@ -100,8 +98,6 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
   const [elapsedMs, setElapsedMs] = useState(0);
   const [estimatedMs, setEstimatedMs] = useState(0);
   const { state: copyState, copy } = useCopyAction();
-  const { state: session } = useSession();
-  const { pickFolder } = useDrivePicker();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [results, setResults] = useState<RubricResult[]>([]);
 
@@ -116,18 +112,6 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
    * round.
    */
   const [convertedCsvs, setConvertedCsvs] = useState<{ name: string; csvContent: string }[]>([]);
-  /** True once the user has waved the keep-a-copy offer away. Saving does not dismiss it. */
-  const [csvPromptDismissed, setCsvPromptDismissed] = useState(false);
-  /**
-   * Where the CSVs went, so the confirmation can say which of the two things happened.
-   *
-   * One flag would not do: "downloaded" under a Drive save is wrong, and a user who did both
-   * should see both.
-   */
-  const [savedToDisk, setSavedToDisk] = useState(false);
-  const [savingToDrive, setSavingToDrive] = useState(false);
-  const [driveSaveSuccess, setDriveSaveSuccess] = useState<string | null>(null);
-  const [driveSaveError, setDriveSaveError] = useState<string | null>(null);
   /**
    * Rubrics that failed and then deployed from an AI repair.
    *
@@ -374,91 +358,6 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
 
   const handleCancel = () => {
     abortRef.current.abort();
-  };
-
-  /** True only if a file actually landed on disk. Cancelling the dialog is not a save. */
-  const handleDownloadCsvs = async (): Promise<boolean> => {
-    // From the converted list rather than from deploy results: a rubric that never reached Canvas
-    // still has a CSV worth keeping, and after a cancel it is the only record of the work.
-    const withCsv = convertedCsvs;
-    if (withCsv.length === 0) return false;
-    // Saved through the native dialog: an anchor-click download does not work from a file://
-    // page, and used to fail silently.
-    if (withCsv.length === 1) {
-      const res = await window.api.file.saveText({
-        defaultName: `${withCsv[0].name.replace(/[^a-z0-9]/gi, '_')}.csv`,
-        ext: 'csv',
-        label: 'CSV file',
-        content: withCsv[0].csvContent,
-      });
-      return res.ok;
-    }
-    const zip = new JSZip();
-    withCsv.forEach((r) => {
-      zip.file(`${r.name.replace(/[^a-z0-9]/gi, '_')}.csv`, r.csvContent);
-    });
-    // uint8array rather than blob: the bytes have to cross IPC, and a Blob does not.
-    const bytes = (await zip.generateAsync({ type: 'uint8array' })) as Uint8Array;
-    const res = await window.api.file.saveText({
-      defaultName: 'rubric_csvs.zip',
-      ext: 'zip',
-      label: 'Zip archive',
-      content: bytes,
-    });
-    return res.ok;
-  };
-
-  /**
-   * The same CSVs, into a Google Drive folder the user picks.
-   *
-   * One file per rubric rather than the zip the disk path uses. A zip in Drive has to be
-   * downloaded and unpacked before anyone can see what is in it, which gives up the only thing
-   * putting it in Drive was for.
-   *
-   * Uploaded as Google Sheets, matching what Part 2's "Add All to Drive" already does — the two
-   * screens produce the same kind of file and should not put two different things in someone's
-   * Drive. A Sheet opens in a click, and File → Download → CSV gives back the file that deployed.
-   */
-  const handleAddCsvsToDrive = async () => {
-    if (convertedCsvs.length === 0 || !session.isGoogleAuthenticated) return;
-    setDriveSaveError(null);
-    setSavingToDrive(true);
-    try {
-      const folder = await pickFolder();
-      if (!folder) return;
-
-      for (const item of convertedCsvs) {
-        await window.api.drive.upload({
-          content: item.csvContent,
-          name: item.name,
-          sourceMimeType: 'text/csv',
-          targetMimeType: 'application/vnd.google-apps.spreadsheet',
-          folderId: folder.folderId,
-        });
-      }
-      setDriveSaveSuccess(
-        `${convertedCsvs.length} file${convertedCsvs.length !== 1 ? 's' : ''} added to "${folder.folderName}"`,
-      );
-    } catch (err: any) {
-      // Named here rather than through the page's error banner: this panel is what the user is
-      // looking at, and a Drive failure costs nothing that was deployed.
-      setDriveSaveError(`Could not add to Drive: ${err?.message ?? 'unknown error'}`);
-    } finally {
-      setSavingToDrive(false);
-    }
-  };
-
-  const handleCsvYes = async () => {
-    // Only claimed once it is true. The receipt used to appear the moment the button was pressed,
-    // so backing out of the save dialog still left "CSVs downloaded" on the screen.
-    const saved = await handleDownloadCsvs();
-    if (saved) setSavedToDisk(true);
-  };
-
-  const handleCsvNo = () => {
-    // Only dismisses the prompt. The CSVs stay in state on purpose: a failed rubric's CSV is what
-    // an AI repair works from, and declining a download should not take the repair offer away.
-    setCsvPromptDismissed(true);
   };
 
   /**
@@ -729,85 +628,16 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
         </div>
 
         {/*
-          CSV keep-a-copy prompt — shown after completion if CSVs are available.
+          CSV keep-a-copy offer — available once the run has produced any.
 
-          It stays up after a save rather than being replaced by a receipt. There are two places
-          to put these now, and a single download used to close the offer for good: someone who
-          saved to their computer and then wanted them in Drive as well had no way back to it
-          short of re-running the deploy. Only "No thanks" dismisses it.
+          Part 1 offers the same thing under its deploy button, before any of this runs, which is
+          the copy that matters when a deploy fails. Both render CsvSaveOptions so the two cannot
+          drift apart; it opens here because at this point it is answering a question, and stays
+          reachable afterwards because dismissing it collapses the panel rather than deleting it.
         */}
-        {runStatus !== 'running' && convertedCsvs.length > 0 && !csvPromptDismissed && (
+        {runStatus !== 'running' && convertedCsvs.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm font-bold text-gray-700">
-                {savedToDisk || driveSaveSuccess
-                  ? 'Would you like another copy somewhere else?'
-                  : 'Would you like CSV versions of each rubric?'}
-              </span>
-              <button
-                onClick={handleCsvYes}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all active:scale-95"
-              >
-                <Download className="w-4 h-4" /> Save to my computer
-              </button>
-              <button
-                onClick={() => void handleAddCsvsToDrive()}
-                disabled={savingToDrive || !session.isGoogleAuthenticated}
-                title={
-                  session.isGoogleAuthenticated
-                    ? undefined
-                    : 'Sign in with Google to add files to your Drive.'
-                }
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
-              >
-                {savingToDrive ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  /* Drive's own mark, the same one Part 2 uses on its Add to Drive button. */
-                  <svg
-                    className="w-4 h-4 flex-shrink-0"
-                    viewBox="0 -960 960 960"
-                    fill="currentColor"
-                    xmlns="http://www.w3.org/2000/svg"
-                    aria-hidden="true"
-                  >
-                    <path d="M220-100q-17 0-34.5-10.5T160-135L60-310q-8-14-8-34.5t8-34.5l260-446q8-14 25.5-24.5T380-860h200q17 0 34.5 10.5T640-825l182 312q-23-6-47.5-8t-48.5 2L574-780H386L132-344l94 164h316q11 23 25.5 43t33.5 37H220Zm70-180-29-51 183-319h72l101 176q-17 13-31.5 28.5T560-413l-80-139-110 192h164q-7 19-10.5 39t-3.5 41H290Zm430 160v-120H600v-80h120v-120h80v120h120v80H800v120h-80Z" />
-                  </svg>
-                )}
-                {savingToDrive ? 'Adding…' : 'Add to Drive'}
-              </button>
-              <button
-                onClick={handleCsvNo}
-                className="px-4 py-2 bg-white border border-gray-300 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all"
-              >
-                {savedToDisk || driveSaveSuccess ? 'Done' : 'No thanks'}
-              </button>
-            </div>
-            {!session.isGoogleAuthenticated && (
-              <p className="text-xs text-gray-600 mt-2">
-                Sign in with Google to add them to your Drive. Saving to this computer needs no
-                account.
-              </p>
-            )}
-            {driveSaveError && (
-              <p className="text-xs text-red-700 font-bold mt-2">{driveSaveError}</p>
-            )}
-            {(savedToDisk || driveSaveSuccess) && (
-              <div className="mt-2 space-y-1">
-                {savedToDisk && (
-                  <p className="text-sm text-green-700 font-bold flex items-center gap-2">
-                    <Download className="w-4 h-4" />
-                    CSV{convertedCsvs.length !== 1 ? 's' : ''} saved to your computer.
-                  </p>
-                )}
-                {driveSaveSuccess && (
-                  <p className="text-sm text-green-700 font-bold flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4" />
-                    {driveSaveSuccess}
-                  </p>
-                )}
-              </div>
-            )}
+            <CsvSaveOptions csvs={convertedCsvs} defaultOpen />
           </div>
         )}
       </div>

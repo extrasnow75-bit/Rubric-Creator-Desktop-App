@@ -1,50 +1,60 @@
-## What's new in v0.9.14
+## What's new in v0.9.15
 
-One real bug, one new place to put your CSVs, and two pieces of wording.
+Your CSVs can now be saved before you deploy, the app stops shoving itself into the top of the
+window, and a batch of smaller fixes that came out of a security, accessibility and efficiency
+review of the changes.
 
-### Stop now stops
+### Save your CSV files before deploying
 
-Pressing **Stop** while the app was reading an assignment description did not stop it — it went
-ahead and wrote a rubric anyway. This is fixed. Stop leaves you back on the **Create Draft
-Rubric** card with your document still in the queue, your settings untouched, and nothing
-written.
+There is a **Save CSV files** link under the deploy button in Phase 1. It opens the same panel you
+see after a deployment — **Save to my computer** or **Add to Drive** — but before anything is sent
+to Canvas.
 
-The same fault was in two other places, where pressing Stop partway through a batch of rubrics
-was ignored and the run carried on to the end. Those are fixed too, so Stop is now honoured
-everywhere it appears in Phase 1 — during the analysis, during generation, and during a round of
-requested changes.
+This is worth doing when a deployment might go wrong. If Canvas rejects the upload or your token
+has expired, the work is still recoverable from a CSV you already have on disk. The files are the
+same ones the deployment sends, and saving them changes nothing about the deployment.
 
-### Your CSVs can go to Google Drive
+The offer after a deployment no longer disappears for good once you use it. Saving to your
+computer and then deciding you also want a copy in Drive used to mean re-running the whole
+deployment; now only **No thanks** closes it, and the link reopens it.
 
-After a deployment, the offer of CSV copies now has two destinations: **Save to my computer** as
-before, and **Add to Drive**, which puts one Google Sheet per rubric into a folder you pick.
-This is the same thing Part 2's **Add All to Drive** does, so both screens now put the same kind
-of file in your Drive.
+### The window no longer squashes itself into the top of the screen
 
-The offer also stops closing itself. Saving used to replace it with a receipt, so if you saved to
-your computer and then wanted a copy in Drive as well, there was no way back to it short of
-running the deployment again. Only **No thanks** dismisses it now, and the receipt tells you
-where each copy went.
+If the app ever slid its content up, leaving the blue title bar and the toolbar off the top and
+white space below, that is fixed. The app was asking the page itself to scroll when it revealed a
+new section, which moved everything. It now scrolls only the panel that should move, and the page
+is pinned so it cannot move even if something asks.
 
-If you are signed out, **Add to Drive** is greyed out with a line saying why, and saving to your
-computer still needs no Google account at all.
+### A rubric that starts with "=" is no longer treated as a formula
 
-Two smaller fixes came with it: the receipt only appears when a file actually landed — backing
-out of the save dialog used to leave "CSVs downloaded" on the screen — and a single rubric saves
-as one `.csv` while several save as a zip, as before.
+CSVs added to Drive are converted to Google Sheets, and Google treats a cell beginning with `=`,
+`+`, `@` or `-` as a formula rather than as text. A criterion description starting with one of
+those came out as an error message instead of the sentence you wrote. Those cells are now marked
+as text on the way up.
 
-### "Draft 8 rubrics", not "Create 8 rubrics"
+Rating points are unaffected — a penalty worth **-5** is still the number -5, not text. Only the
+Drive copy is adjusted; the file Canvas receives and the one saved to your computer are exactly
+as generated.
 
-The button at the bottom of the deliverables checklist now says **Draft**. What comes back from
-it is a first pass, and the entire screen after it is built around revising that first pass.
-Create promised something finished.
+### Your point style now reaches Canvas
 
-### The tick box asks you to confirm
+Phase 1 lets you choose **Ranges** (10 to >8) or **Single** (10, 8, 6), and that choice sets a
+column in the Canvas CSV. It was never being passed to the deployment, so every rubric was sent as
+Ranges whatever you picked. Worth a look if you use Single.
 
-It said **Tick this box to turn on the deploy button**, which described the machinery rather than
-what you are agreeing to. It now says **Tick this box when you are ready to proceed**, and
-**Ready to proceed** once ticked. The line under it is unchanged: no further revision is needed,
-and the rubrics are ready for Canvas.
+### Smaller fixes
+
+- **Start Over can be reached at large text sizes.** At 200% and above, the confirmation box could
+  have its buttons off the bottom of the window with no way to scroll to them.
+- **The Save CSV panel works properly with a keyboard.** Opening it used to throw you back to the
+  top of the window, so the next Tab started from the title bar again.
+- **Saving now says whether it worked.** For anyone using a screen reader, a failed Drive upload
+  previously sounded exactly like a successful one — neither was announced at all.
+- **"Add to Drive" explains itself when you are signed out**, instead of being greyed out with the
+  reason hidden in a tooltip a keyboard cannot reach.
+- **Filenames in a zip are readable again.** `Module 1: Discussion` was arriving as
+  `Module_1__Discussion.csv` from some screens; every screen now produces `Module 1_ Discussion.csv`.
+- A receipt saying your CSVs were saved no longer appears if you cancelled the save dialog.
 
 ### Known limits
 

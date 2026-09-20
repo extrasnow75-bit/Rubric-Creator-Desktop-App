@@ -23,6 +23,8 @@ const SessionContext = createContext<{
   /** Replace one entry of `rubrics` without opening it. */
   updateRubricAt: (index: number, rubric: RubricData) => void;
   setRubricMetadata: (metadata: RubricMeta | null) => void;
+  /** Record how the rubrics just generated express their points. See SessionState.scoringMethod. */
+  setScoringMethod: (method: 'ranges' | 'fixed') => void;
   setCsvOutput: (csv: string | null, fileName?: string) => void;
   setCanvasConfig: (config: CanvasConfig | null) => void;
   addBatchItem: (item: BatchItem) => void;
@@ -70,6 +72,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     rubrics: [],
     activeRubricIndex: 0,
     rubricMetadata: null,
+    scoringMethod: 'ranges',
     csvOutput: null,
     csvFileName: null,
     canvasConfig: null,
@@ -169,6 +172,10 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const setRubricMetadata = useCallback((metadata: RubricMeta | null) => {
     setState((prev) => ({ ...prev, rubricMetadata: metadata }));
+  }, []);
+
+  const setScoringMethod = useCallback((method: 'ranges' | 'fixed') => {
+    setState((prev) => ({ ...prev, scoringMethod: method }));
   }, []);
 
   const setCsvOutput = useCallback((csv: string | null, fileName?: string) => {
@@ -335,6 +342,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       rubrics: [],
       activeRubricIndex: 0,
       rubricMetadata: null,
+      scoringMethod: 'ranges',
       csvOutput: null,
       csvFileName: null,
       canvasConfig: null,
@@ -377,6 +385,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       rubrics: [],
       activeRubricIndex: 0,
       rubricMetadata: null,
+      scoringMethod: 'ranges',
       csvOutput: null,
       csvFileName: null,
       batchItems: [],
@@ -575,8 +584,12 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
    * duration of every generation, conversion and upload. Part 3's batch path holds that open
    * across its ten-second inter-upload waits, so it ran for minutes at a time.
    *
-   * The dependency list is every value below. It is long, but a missing entry here means a
-   * stale closure in a consumer, which is a far worse failure than an extra render.
+   * The dependency is `state` alone, and that is only correct because every function below is
+   * a `useCallback` with an empty dependency array — each one reads the latest state through
+   * `setState`'s updater argument rather than closing over it. A callback that ever takes a
+   * real dependency must be added here too, or consumers will hold a stale closure, which is a
+   * far worse failure than an extra render. (This comment used to claim the list already named
+   * every value; it never did.)
    */
   const value = useMemo(() => ({
     state,
@@ -586,6 +599,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     openRubric,
     updateRubricAt,
     setRubricMetadata,
+    setScoringMethod,
     setCsvOutput,
     setCanvasConfig,
     addBatchItem,

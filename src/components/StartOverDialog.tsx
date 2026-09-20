@@ -32,8 +32,20 @@ export const StartOverDialog: React.FC<Props> = ({ isOpen, hasUnsavedWork, onCan
   if (!isOpen) return null;
 
   return (
+    /*
+      `overflow-y-auto` on the backdrop and `m-auto` on the panel, not `items-center`.
+
+      Centring with `items-center` looks identical while the panel fits and fails badly when it
+      does not: the overflow is split above and below, and the half above y=0 cannot be scrolled
+      to at all. This dialog is three short paragraphs, so at 100% it never overflows — but the
+      app has a text-size control that goes to 250%, and the whole reason this dialog exists is
+      a misfire caused by changing that very setting. Someone at 250% could reach a confirm whose
+      buttons were off the bottom of the window with no way to get to them.
+
+      TaskCompletionDialog records the same fix; this is the pattern, not a one-off.
+    */
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-[110] flex overflow-y-auto overscroll-contain bg-black/40 p-4"
       onClick={onCancel}
       role="presentation"
     >
@@ -42,7 +54,7 @@ export const StartOverDialog: React.FC<Props> = ({ isOpen, hasUnsavedWork, onCan
         role="dialog"
         aria-modal="true"
         aria-labelledby="start-over-title"
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 m-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 mb-3">

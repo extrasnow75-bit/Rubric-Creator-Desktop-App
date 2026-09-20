@@ -36,6 +36,31 @@
   body {
     @apply bg-gray-50 font-sans;
   }
+
+  /*
+   * The window is the viewport, and the only thing that scrolls is <main> inside the app shell.
+   *
+   * This is a backstop, not decoration. The shell is `h-screen`, so the page has nothing to
+   * scroll to — but "nothing to scroll to" holds only while every descendant stays inside it.
+   * One absolutely-positioned element overhanging the bottom, or a modal that grows past the
+   * window, gives the document a scroll range, and anything that scrolls an ancestor (a stray
+   * `scrollIntoView`, a `focus()` without `preventScroll`) will then slide the whole app up and
+   * leave the title bar and ribbon off the top of the window with white space below them.
+   *
+   * Pinning the height here removes that scroll range for good. It is the second half of the fix
+   * in utils/revealSection.ts: that one stops the app asking for the page to move, this one means
+   * the page cannot move even if something asks.
+   */
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html,
+  body {
+    overflow: hidden;
+  }
 }
 
 /*
