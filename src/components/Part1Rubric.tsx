@@ -70,7 +70,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
   const [plan, setPlan] = useState<RubricPlanRow[] | null>(null);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const cancelRef = useRef<boolean>(false);
 
   // Google Docs URL state
   /**
@@ -383,18 +382,35 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     startProgress(1, true);
     setProgress({ currentStep: 'Reading the assignment description...' });
 
+    /**
+     * Held in a const, and this is the whole of the Stop fix.
+     *
+     * Stop calls `requestCancel`, which aborts the controller *and nulls the ref* so the next
+     * run gets a fresh one. This function used to ask for the signal twice — once to pass to
+     * discovery, then again to test whether it had been aborted — and the second call, arriving
+     * after the ref had been nulled, built a brand new controller and handed back a signal that
+     * had never been aborted. So Stop read as "no, carry on": discovery's cancellation error was
+     * swallowed into an empty list, the empty list was taken to mean "no separate parts", and
+     * the app generated the single rubric the user had just asked it not to.
+     */
+    const signal = getAbortSignal();
+
     let found: Deliverable[] = [];
     try {
-      found = await discoverDeliverables(assignmentDescription, getAbortSignal());
+      found = await discoverDeliverables(assignmentDescription, signal);
     } catch {
       // A discovery failure is not a reason to refuse to write a rubric. Fall through to the
-      // single-rubric path, which is what the app did before this step existed.
+      // single-rubric path, which is what the app did before this step existed. A cancel also
+      // lands here, and is caught by the aborted check below before it can reach that path.
       found = [];
     } finally {
       setIsDiscovering(false);
     }
 
-    if (getAbortSignal().aborted) {
+    if (signal.aborted) {
+      // Nothing else to undo. The description, the picked file name and the settings are all
+      // untouched, so the card the user was on is still the card they come back to, with the
+      // document still in it — which is what Stop should mean here.
       stopProgress();
       return;
     }
@@ -454,9 +470,18 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
   ) => {
     setIsGenerating(true);
     setError(null);
-    cancelRef.current = false;
 
     startProgress(entries.length, true);
+
+    /**
+     * One signal for the whole run, taken after startProgress has made the controller.
+     *
+     * Same reason as in handleGenerateRubric: Stop nulls the controller ref on its way out, so
+     * asking for the signal again afterwards returns a fresh, un-aborted one. Read per iteration,
+     * that turned Stop between two rubrics into a no-op; read at the end, it decided the run had
+     * not been cancelled and blamed the empty result on a failure instead.
+     */
+    const signal = getAbortSignal();
 
     const made: RubricData[] = [];
     const failed: string[] = [];
@@ -464,8 +489,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     try {
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
-        const signal = getAbortSignal();
-        if (signal.aborted || cancelRef.current) break;
+        if (signal.aborted) break;
 
         setProgress({
           currentStep:
@@ -510,8 +534,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
             ? `Could not generate ${failed.join(', ')}. Try again, or shorten the description.`
             : `Generated ${made.length} of ${entries.length}. Could not write ${failed.join(', ')}.`,
         );
-      } else if (made.length === 0 && !getAbortSignal().aborted) {
-        setError('Rubric generation cancelled');
+      } else if (made.length === 0 && !signal.aborted) {
+        setError('Nothing was generated. Try again, or shorten the description.');
       }
 
       setTimeout(() => stopProgress(), 500);
@@ -692,13 +716,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     setError(null);
     startProgress(queuedIndexes.length, true);
 
+    /* One signal for the run, for the reason given in generateRubricsFor: re-reading it per
+       rubric hands back a fresh controller after Stop, and the loop carries on. */
+    const signal = getAbortSignal();
+
     const revised: number[] = [];
     const failed: string[] = [];
 
     try {
       for (let n = 0; n < queuedIndexes.length; n++) {
         const index = queuedIndexes[n];
-        const signal = getAbortSignal();
         if (signal.aborted) break;
 
         const target = state.rubrics[index];
@@ -1368,8 +1395,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   /*
                     This is the only thing standing between the user and the deploy button, and
                     as a bare 16px check box under grey 14px text it did not look like one — the
-                    button below reads as broken rather than waiting. So the box states what
-                    ticking it does, and the panel carries the brand border until it is ticked,
+                    button below reads as broken rather than waiting. So the box asks for
+                    something, and the panel carries the brand border until it is ticked,
                     at which point it turns green and stops asking for attention. Brand is a
                     border and text here, never a fill: this is a gate, not a button.
                   */
@@ -1396,8 +1423,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                         }`}
                       >
                         {readyForCanvas
-                          ? 'Ready to deploy'
-                          : 'Tick this box to turn on the deploy button'}
+                          ? 'Ready to proceed'
+                          : 'Tick this box when you are ready to proceed'}
                       </span>
                       {/* Written when a run made one rubric. With eight, confirming "the rubric
                           currently displayed" while the button deploys all of them is a tick box
