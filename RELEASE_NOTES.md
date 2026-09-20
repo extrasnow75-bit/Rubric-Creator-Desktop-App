@@ -1,50 +1,50 @@
-## What's new in v0.9.13
+## What's new in v0.9.14
 
-A small release: four things that testing v0.9.12 turned up, all of them in the first screen of
-Phase 1.
+One real bug, one new place to put your CSVs, and two pieces of wording.
 
-### Phase 1 opens on Google Drive
+### Stop now stops
 
-The assignment description tabs open on **From Google Drive**, and that tab is now first in the
-row. Uploading from your computer is still there, one tab to the right — it is the fallback
-rather than the usual case.
+Pressing **Stop** while the app was reading an assignment description did not stop it — it went
+ahead and wrote a rubric anyway. This is fixed. Stop leaves you back on the **Create Draft
+Rubric** card with your document still in the queue, your settings untouched, and nothing
+written.
 
-If you are not signed in, the Drive tab shows the sign-in prompt and **From Local Drive** sits
-beside it, so nothing about being signed out blocks you from getting a rubric made.
+The same fault was in two other places, where pressing Stop partway through a batch of rubrics
+was ignored and the run carried on to the end. Those are fixed too, so Stop is now honoured
+everywhere it appears in Phase 1 — during the analysis, during generation, and during a round of
+requested changes.
 
-Note that the box for pasting an assignment description as plain text lives under **From Local
-Drive**, so pasting now takes one click first.
+### Your CSVs can go to Google Drive
 
-### The first button says what it does
+After a deployment, the offer of CSV copies now has two destinations: **Save to my computer** as
+before, and **Add to Drive**, which puts one Google Sheet per rubric into a folder you pick.
+This is the same thing Part 2's **Add All to Drive** does, so both screens now put the same kind
+of file in your Drive.
 
-It used to say **Generate Rubric**, which described the wrong step. Pressing it does not write
-anything — it reads the assignment description, works out which deliverables are in it, and
-hands you a checklist to confirm. Only after you tick rows and press the confirm button does any
-rubric get written.
+The offer also stops closing itself. Saving used to replace it with a receipt, so if you saved to
+your computer and then wanted a copy in Drive as well, there was no way back to it short of
+running the deployment again. Only **No thanks** dismisses it now, and the receipt tells you
+where each copy went.
 
-It now says **Analyze Description**, and the line underneath says what happens next instead of
-promising a rubric in under a minute.
+If you are signed out, **Add to Drive** is greyed out with a line saying why, and saving to your
+computer still needs no Google account at all.
 
-### The confirmation tick box is visible now
+Two smaller fixes came with it: the receipt only appears when a file actually landed — backing
+out of the save dialog used to leave "CSVs downloaded" on the screen — and a single rubric saves
+as one `.csv` while several save as a zip, as before.
 
-The tick box above **Deploy to Canvas** was a small check box under small grey text, so the
-greyed-out deploy button below it looked broken rather than waiting for you. It is a bordered
-panel now, with a line stating in plain words that ticking it turns the deploy button on. Once
-ticked, it turns green and stops asking for your attention.
+### "Draft 8 rubrics", not "Create 8 rubrics"
 
-### Start Over always asks first
+The button at the bottom of the deliverables checklist now says **Draft**. What comes back from
+it is a first pass, and the entire screen after it is built around revising that first pass.
+Create promised something finished.
 
-Start Over now shows a confirmation every time, not only when you have a rubric that would be
-lost.
+### The tick box asks you to confirm
 
-The reason is a misfire worth describing, because you may have hit it: the button sits in the
-ribbon at the top, the ribbon reflows when you change the text size, and changing the text size
-can slide Start Over underneath your cursor just in time for your next click. The session has no
-way of knowing that happened, so the confirmation can no longer depend on what the session
-holds.
-
-The wording still changes with your situation — with nothing unsaved it tells you the screen is
-being cleared rather than warning you about losing work that does not exist.
+It said **Tick this box to turn on the deploy button**, which described the machinery rather than
+what you are agreeing to. It now says **Tick this box when you are ready to proceed**, and
+**Ready to proceed** once ticked. The line under it is unchanged: no further revision is needed,
+and the rubrics are ready for Canvas.
 
 ### Known limits
 
@@ -54,3 +54,5 @@ being cleared rather than warning you about losing work that does not exist.
   still in testing, not a bug.
 - **Google shows a warning screen the first time you sign in.** Click **Advanced**, then **Go to
   Canvas Rubric Creator**.
+- **CSVs added to Drive arrive as Google Sheets.** To use one as a Canvas import again, open it
+  and choose File → Download → Comma-separated values.

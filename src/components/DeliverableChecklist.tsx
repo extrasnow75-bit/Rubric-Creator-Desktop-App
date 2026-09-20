@@ -142,11 +142,14 @@ export const DeliverableChecklist: React.FC<Props> = ({
           disabled={busy || problems.length > 0}
           className="px-5 py-2.5 rounded-xl font-bold text-sm bg-brand text-white hover:bg-brand-dark transition-all disabled:bg-gray-200 disabled:text-gray-500"
         >
+          {/* "Draft", not "Create": what comes back is a first pass to revise, and the screen
+              after this one is built around changing it. A button that says Create promises a
+              finished thing. */}
           {busy
-            ? 'Creating…'
+            ? 'Drafting…'
             : chosen === 1
-              ? 'Create 1 rubric'
-              : `Create ${chosen} rubrics`}
+              ? 'Draft 1 rubric'
+              : `Draft ${chosen} rubrics`}
         </button>
         <button
           onClick={onCancel}
