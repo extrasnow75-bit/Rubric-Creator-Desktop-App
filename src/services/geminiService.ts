@@ -37,6 +37,14 @@ export interface RubricDiscovery {
   scoringMethod: 'ranges' | 'fixed';
 }
 
+/** One separately-submitted piece of work found in an assignment description. */
+export interface Deliverable {
+  /** The name the description gives it, e.g. "Part 1: Systems Analysis". */
+  title: string;
+  /** One line from the description saying what it covers, shown so the user can judge the row. */
+  focus: string;
+}
+
 export interface BatchRubricResult {
   title: string;
   csv: string;
@@ -239,6 +247,22 @@ export const generateCsvForRubric = (
       attachment,
       jobId,
     }),
+  );
+
+/**
+ * The separately-submitted parts of an assignment description, for the user to confirm.
+ *
+ * Nothing is generated from this. It fills a checklist, and only what the user ticks is built —
+ * what counts as a deliverable is a teaching decision, not a fact in the text, so the model's
+ * answer is a proposal in every case. An empty array is a real answer: most assignments are one
+ * piece of work.
+ */
+export const discoverDeliverables = (
+  description: string,
+  signal?: AbortSignal,
+): Promise<Deliverable[]> =>
+  withCancellation(signal, (jobId) =>
+    window.api.gemini.discoverDeliverables({ description, jobId }),
   );
 
 export const discoverRubricTitles = (

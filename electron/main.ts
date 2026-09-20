@@ -454,6 +454,12 @@ ipcMain.handle(
 )
 
 ipcMain.handle(
+  'gemini:discoverDeliverables',
+  (_e, a: { description: string; jobId?: string }) =>
+    withJob(a.jobId, (s) => gemini.discoverDeliverables(a.description, s)),
+)
+
+ipcMain.handle(
   'gemini:discoverRubricTitles',
   (_e, a: { attachment: Attachment; jobId?: string }) =>
     withJob(a.jobId, (s) => gemini.discoverRubricTitles(a.attachment, s)),

@@ -186,6 +186,8 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('gemini:repairRubricCsv', a),
     generateCsvForRubric: (a: unknown): Promise<string> =>
       ipcRenderer.invoke('gemini:generateCsvForRubric', a),
+    discoverDeliverables: (a: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('gemini:discoverDeliverables', a),
     discoverRubricTitles: (a: unknown): Promise<unknown> =>
       ipcRenderer.invoke('gemini:discoverRubricTitles', a),
     generateCsvsForRubrics: (a: unknown): Promise<unknown> =>

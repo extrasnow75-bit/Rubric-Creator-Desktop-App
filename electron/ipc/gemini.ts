@@ -574,6 +574,107 @@ const CRITERIA_COVERAGE_RULE = `CHOOSING THE CRITERIA — how many, and what the
       criteria would always be given the same rating, they are one criterion.
     - Weight the points towards what the assignment emphasises.`;
 
+/** One separately-submitted piece of work found in an assignment description. */
+export interface Deliverable {
+  /** The name the description gives it, e.g. "Part 1: Systems Analysis". */
+  title: string
+  /** One line from the description saying what it covers. Shown so the user can judge the row. */
+  focus: string
+}
+
+/**
+ * Find the separate deliverables in an assignment description.
+ *
+ * This is the first half of "the model proposes, the user disposes": it only ever produces a
+ * list to be confirmed, and nothing is generated from it until someone has ticked a box. That
+ * matters because the judgement here is genuinely uncertain — what counts as a deliverable is a
+ * teaching decision, not a fact in the text — and a wrong guess acted on silently would produce
+ * rubrics for things nobody hands in.
+ *
+ * The prompt spends most of its length on what is *not* a deliverable. Asked for "the parts of
+ * this assignment", a model will happily return the sections of a single essay, or the learning
+ * outcomes, or the stages of writing it — all of which read like parts and none of which is
+ * separately submitted. The test is submission, and it is stated three times because it is the
+ * only thing separating this from a list of topics.
+ *
+ * An empty list is a real answer, not a failure: most assignments are one piece of work. The
+ * caller offers the whole-assignment rubric either way.
+ */
+export async function discoverDeliverables(
+  description: string,
+  signal?: AbortSignal,
+): Promise<Deliverable[]> {
+  await throttle(signal)
+
+  return retryWithBackoff(async () => {
+    if (signal?.aborted) throw new Error('Request cancelled')
+    const ai = getClient()
+
+    const prompt = `List the separate DELIVERABLES in this assignment description.
+
+A deliverable is a distinct piece of work the student hands in, which could reasonably be graded
+with a rubric of its own.
+
+Where to look: a table of parts or phases, numbered parts, milestones, or headed sections that
+each describe something submitted. Many descriptions contain a table listing the parts — if there
+is one, use it, and keep its titles and its wording.
+
+For each deliverable return:
+- title: the name exactly as the description gives it, for example "Part 1: Systems Analysis".
+  Never invent a name for something the description does not name.
+- focus: one short line, taken from the description, saying what that deliverable covers.
+
+Return an EMPTY list when the description is one single piece of work. In particular, these are
+NOT deliverables:
+- the sections of one document (introduction, body, conclusion, references)
+- learning outcomes, objectives, or skills the assignment develops
+- stages of doing the work that are not separately handed in (research, drafting, revising)
+- topics, themes, or subject matter the work must address
+
+The test is submission: if the student does not hand it in as its own piece of work, it is not a
+deliverable. Most assignments have none, and an empty list is the correct answer for those.
+
+ASSIGNMENT DESCRIPTION:
+${description}`
+
+    const response = await ai.models.generateContent({
+      model: PRIMARY_MODEL,
+      contents: prompt,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: 0.1,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            deliverables: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  focus: { type: Type.STRING },
+                },
+                required: ['title', 'focus'],
+              },
+            },
+          },
+          required: ['deliverables'],
+        },
+      },
+    })
+
+    if (!response.text) return []
+    const parsed = JSON.parse(response.text.trim()) as {
+      deliverables?: Array<{ title?: string; focus?: string }>
+    }
+    if (!Array.isArray(parsed.deliverables)) return []
+    return parsed.deliverables
+      .map((d) => ({ title: (d.title ?? '').trim(), focus: (d.focus ?? '').trim() }))
+      .filter((d) => d.title.length > 0)
+  }, signal)
+}
+
 export async function generateRubricFromDescription(
   assignmentDescription: string,
   settings: GenerationSettings,

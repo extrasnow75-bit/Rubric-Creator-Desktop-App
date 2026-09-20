@@ -14,6 +14,7 @@ import type {
   CsvRepairResult,
   RubricDiscovery,
   BatchRubricResult,
+  Deliverable,
 } from '../services/geminiService'
 
 export {}
@@ -168,6 +169,14 @@ declare global {
           attachment: Attachment
           jobId?: string
         }): Promise<string>
+        /**
+         * The separately-submitted parts of an assignment description, for the user to confirm.
+         * An empty array is a real answer — most assignments are one piece of work.
+         */
+        discoverDeliverables(a: {
+          description: string
+          jobId?: string
+        }): Promise<Deliverable[]>
         discoverRubricTitles(a: {
           attachment: Attachment
           jobId?: string
