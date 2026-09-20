@@ -291,7 +291,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
       const folder = await pickFolder({ title: 'Where should the rubric go?' });
       if (!folder) return;
       const result = await window.api.rubric.exportToDrive({
-        rubric: state.rubric,
+        rubrics: [state.rubric],
         folderId: folder.folderId,
       });
       if (!result.ok) setError(result.message ?? 'Could not create the Google Doc.');
@@ -303,7 +303,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
   /** Save the same rubric to this computer. Works with no Google account. */
   const handleSaveLocal = async () => {
     if (!state.rubric) return;
-    const result = await window.api.rubric.saveHtml({ rubric: state.rubric });
+    const result = await window.api.rubric.saveHtml({ rubrics: [state.rubric] });
     if (!result.ok && !result.cancelled) setError(result.message ?? 'Could not save the file.');
   };
 

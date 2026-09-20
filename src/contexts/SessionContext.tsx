@@ -16,6 +16,10 @@ const SessionContext = createContext<{
   state: SessionState;
   setCurrentStep: (step: AppMode) => void;
   setRubric: (rubric: RubricData | null) => void;
+  /** Replace the whole set, opening the first. */
+  setRubrics: (rubrics: RubricData[]) => void;
+  /** Open one of `rubrics` in the editor. Out-of-range indexes are ignored. */
+  openRubric: (index: number) => void;
   setRubricMetadata: (metadata: RubricMeta | null) => void;
   setCsvOutput: (csv: string | null, fileName?: string) => void;
   setCanvasConfig: (config: CanvasConfig | null) => void;
@@ -61,6 +65,8 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [state, setState] = useState<SessionState>({
     currentStep: AppMode.DASHBOARD,
     rubric: null,
+    rubrics: [],
+    activeRubricIndex: 0,
     rubricMetadata: null,
     csvOutput: null,
     csvFileName: null,
@@ -101,8 +107,44 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     setState((prev) => ({ ...prev, currentStep: step }));
   }, []);
 
+  /**
+   * Set the open rubric, and keep the set in step with it.
+   *
+   * Everything that edits a rubric — the cell editor, "request changes", replacing it from a
+   * file — calls this and knows nothing about there being a set. Writing the edit back into
+   * `rubrics` here is what lets all of that carry on unchanged: without it, editing the second
+   * of eight rubrics would look right on screen and then save the unedited version, because the
+   * document is built from the array.
+   */
   const setRubric = useCallback((rubric: RubricData | null) => {
-    setState((prev) => ({ ...prev, rubric }));
+    setState((prev) => {
+      if (rubric === null) return { ...prev, rubric: null, rubrics: [], activeRubricIndex: 0 };
+      if (prev.rubrics.length === 0) {
+        return { ...prev, rubric, rubrics: [rubric], activeRubricIndex: 0 };
+      }
+      return {
+        ...prev,
+        rubric,
+        rubrics: prev.rubrics.map((r, i) => (i === prev.activeRubricIndex ? rubric : r)),
+      };
+    });
+  }, []);
+
+  const setRubrics = useCallback((rubrics: RubricData[]) => {
+    setState((prev) => ({
+      ...prev,
+      rubrics,
+      rubric: rubrics[0] ?? null,
+      activeRubricIndex: 0,
+    }));
+  }, []);
+
+  const openRubric = useCallback((index: number) => {
+    setState((prev) =>
+      index < 0 || index >= prev.rubrics.length
+        ? prev
+        : { ...prev, activeRubricIndex: index, rubric: prev.rubrics[index] },
+    );
   }, []);
 
   const setRubricMetadata = useCallback((metadata: RubricMeta | null) => {
@@ -270,6 +312,8 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     setState((prev) => ({
       currentStep: AppMode.DASHBOARD,
       rubric: null,
+      rubrics: [],
+      activeRubricIndex: 0,
       rubricMetadata: null,
       csvOutput: null,
       csvFileName: null,
@@ -310,6 +354,8 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     setState((prev) => ({
       ...prev,
       rubric: null,
+      rubrics: [],
+      activeRubricIndex: 0,
       rubricMetadata: null,
       csvOutput: null,
       csvFileName: null,
@@ -516,6 +562,8 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     state,
     setCurrentStep,
     setRubric,
+    setRubrics,
+    openRubric,
     setRubricMetadata,
     setCsvOutput,
     setCanvasConfig,

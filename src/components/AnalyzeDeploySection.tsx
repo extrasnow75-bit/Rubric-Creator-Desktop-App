@@ -56,8 +56,14 @@ interface LogEntry {
 type RunStatus = 'running' | 'complete' | 'cancelled';
 
 interface Props {
-  /** Phase 1 "No" path — rubric already generated */
-  phase1Rubric?: RubricData | null;
+  /**
+   * Phase 1 "No" path — the rubrics already generated, in the order they were asked for.
+   *
+   * An array because a run can now produce one per deliverable. Converting them costs nothing:
+   * generateCsvFromRubricObject is local, so N rubrics is N string builds and no extra requests.
+   * The deploy loop below already handled many rubrics — that is the path a document takes.
+   */
+  phase1Rubrics?: RubricData[];
   scoringMethod?: 'ranges' | 'fixed';
   /** "Yes" path — user-uploaded document files */
   uploadedFiles?: UploadedDocFile[];
@@ -81,7 +87,7 @@ const formatMs = (ms: number) => {
 
 export const AnalyzeDeploySection: React.FC<Props> = ({
   onOpenSetup,
-  phase1Rubric,
+  phase1Rubrics = [],
   scoringMethod = 'ranges',
   uploadedFiles = [],
   courseUrl,
@@ -181,13 +187,16 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
         // ── Step 1: Convert to CSV ───────────────────────────────────────────
         const pending: { name: string; csvContent: string }[] = [];
 
-        if (phase1Rubric) {
-          addLog(`Converting "${phase1Rubric.title}" to CSV…`, 'info');
-          const csv = generateCsvFromRubricObject(phase1Rubric, scoringMethod);
-          pending.push({ name: phase1Rubric.title, csvContent: csv });
-          setConvertedCsvs((prev) => [...prev, { name: phase1Rubric.title, csvContent: csv }]);
+        if (phase1Rubrics.length > 0) {
+          for (const rubric of phase1Rubrics) {
+            if (signal.aborted) throw new Error('Cancelled');
+            addLog(`Converting "${rubric.title}" to CSV…`, 'info');
+            const csv = generateCsvFromRubricObject(rubric, scoringMethod);
+            pending.push({ name: rubric.title, csvContent: csv });
+            setConvertedCsvs((prev) => [...prev, { name: rubric.title, csvContent: csv }]);
+            addLog(`CSV generated: "${rubric.title}"`, 'success');
+          }
           setProgress(30);
-          addLog(`CSV generated: "${phase1Rubric.title}"`, 'success');
         } else if (uploadedFiles.length > 0) {
           const totalFiles = uploadedFiles.length;
           for (let i = 0; i < totalFiles; i++) {

@@ -1,8 +1,23 @@
 import React, { useState, useRef } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
-import { AppMode, PointStyle, ProcessingType, GenerationSettings } from '../types';
-import { generateRubricFromDescription, extractRubricFromDocument, applyRubricChanges } from '../services/geminiService';
+import { AppMode, PointStyle, ProcessingType, GenerationSettings, RubricData } from '../types';
+import {
+  generateRubricFromDescription,
+  extractRubricFromDocument,
+  applyRubricChanges,
+  discoverDeliverables,
+} from '../services/geminiService';
+import type { Deliverable } from '../services/geminiService';
+import {
+  buildPlan,
+  describedAssignmentTitle,
+  parsePlanPoints,
+  selectedRows,
+} from '../utils/rubricPlan';
+import type { RubricPlanRow } from '../utils/rubricPlan';
+import { DeliverableChecklist } from './DeliverableChecklist';
+import { RubricSwitcher } from './RubricSwitcher';
 import { SegmentedChoice } from './SegmentedChoice';
 import { Loader2, Download, FileText, CheckCircle, ArrowRight, RotateCw, Home, X, Clock, ChevronDown, ChevronUp, Link, Check } from 'lucide-react';
 import ErrorDisplay from './ErrorDisplay';
@@ -20,6 +35,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     state,
     setCurrentStep,
     setRubric,
+    setRubrics,
+    openRubric,
     setIsLoading,
     setError,
     newBatch,
@@ -42,6 +59,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     processingType: ProcessingType.SINGLE,
   });
   const [isGenerating, setIsGenerating] = useState(false);
+
+  /**
+   * The confirmation checklist, or null when there is nothing to confirm.
+   *
+   * Non-null only between discovery finding separate parts and the user choosing which get a
+   * rubric. A description with no separate parts never sets it.
+   */
+  const [plan, setPlan] = useState<RubricPlanRow[] | null>(null);
+  const [isDiscovering, setIsDiscovering] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const cancelRef = useRef<boolean>(false);
 
@@ -320,6 +346,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     }
   };
 
+  /**
+   * Step one: find out whether there is anything to choose between.
+   *
+   * Discovery is a cheap call — it sends the description and gets back a short list — and it
+   * runs before any rubric is generated so that nothing is built for a part the user did not
+   * want. When it finds no separate parts, which is most assignments, the checklist would be a
+   * one-row form with a foregone answer, so it is skipped entirely and the single rubric is
+   * generated as it always was.
+   */
   const handleGenerateRubric = async () => {
     if (!assignmentDescription.trim()) {
       setError('Please enter an assignment description');
@@ -327,63 +362,143 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     }
 
     setSnapshotDescription(assignmentDescription);
+    setError(null);
+    setIsDiscovering(true);
+    startProgress(1, true);
+    setProgress({ currentStep: 'Reading the assignment description...' });
+
+    let found: Deliverable[] = [];
+    try {
+      found = await discoverDeliverables(assignmentDescription, getAbortSignal());
+    } catch {
+      // A discovery failure is not a reason to refuse to write a rubric. Fall through to the
+      // single-rubric path, which is what the app did before this step existed.
+      found = [];
+    } finally {
+      setIsDiscovering(false);
+    }
+
+    if (getAbortSignal().aborted) {
+      stopProgress();
+      return;
+    }
+
+    if (found.length === 0) {
+      await generateRubricsFor([
+        { title: '', focus: '', points: settings.totalPoints, target: undefined },
+      ]);
+      return;
+    }
+
+    stopProgress();
+    setPlan(
+      buildPlan({
+        assignmentTitle: describedAssignmentTitle(assignmentDescription),
+        deliverables: found,
+        defaultPoints: settings.totalPoints,
+      }),
+    );
+  };
+
+  /** Turn the confirmed checklist into one generation call per ticked row. */
+  const handleConfirmPlan = async () => {
+    if (!plan) return;
+    const chosen = selectedRows(plan);
+    await generateRubricsFor(
+      chosen.map((row) => ({
+        title: row.title.trim(),
+        focus: row.focus,
+        points: parsePlanPoints(row.points) ?? settings.totalPoints,
+        target:
+          row.kind === 'deliverable'
+            ? { title: row.title.trim(), focus: row.focus }
+            : undefined,
+      })),
+    );
+    setPlan(null);
+  };
+
+  /**
+   * Generate one rubric per entry, in order, and open the first.
+   *
+   * One call each rather than one call for all of them. A single call returning eight rubrics
+   * would send the description once instead of eight times, but a batch extraction is
+   * all-or-nothing: one reply that runs past the output ceiling loses every rubric in it,
+   * including the ones already finished inside it. That is the failure that cost a 26-rubric
+   * document four minutes in Part 2, and rubric JSON is bulkier than CSV. A per-rubric failure
+   * costs one rubric, and the rest are kept.
+   */
+  const generateRubricsFor = async (
+    entries: Array<{
+      title: string;
+      focus: string;
+      points: number;
+      target?: { title: string; focus: string };
+    }>,
+  ) => {
     setIsGenerating(true);
     setError(null);
     cancelRef.current = false;
 
-    startProgress(1, true);
-    setProgress({ currentStep: 'Generating rubric criteria...' });
+    startProgress(entries.length, true);
+
+    const made: RubricData[] = [];
+    const failed: string[] = [];
 
     try {
-      const signal = getAbortSignal();
-      if (signal.aborted) {
-        setError('Rubric generation cancelled');
-        return;
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const signal = getAbortSignal();
+        if (signal.aborted || cancelRef.current) break;
+
+        setProgress({
+          currentStep:
+            entries.length === 1
+              ? 'Generating rubric criteria...'
+              : `Writing "${entry.title}" (${i + 1} of ${entries.length})...`,
+          percentage: i / entries.length,
+          itemsProcessed: i,
+        });
+
+        try {
+          // `signal` third: without it withCancellation never sends gemini:cancel, so Stop did
+          // nothing and the user watched a dead button through the retry back-off.
+          const rubric = await generateRubricFromDescription(
+            assignmentDescription,
+            { ...settings, totalPoints: entry.points },
+            signal,
+            entry.target,
+          );
+          made.push(rubric);
+        } catch (err: any) {
+          if (signal.aborted) break;
+          // One rubric failing does not cost the others; it is named at the end instead.
+          failed.push(entry.title || 'the rubric');
+        }
       }
 
-      setProgress({ currentStep: 'Creating evaluation scales...', percentage: 0.3 });
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      if (signal.aborted) {
-        setError('Rubric generation cancelled');
-        return;
-      }
-
-      setProgress({ currentStep: 'Creating evaluation scales...', percentage: 0.5 });
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // `signal` third: without it withCancellation never sends gemini:cancel, so Stop did
-      // nothing and the user watched a dead button through the retry back-off — up to minutes.
-      const rubric = await generateRubricFromDescription(
-        assignmentDescription,
-        settings,
-        signal,
-      );
-
-      if (signal.aborted) {
-        setError('Rubric generation cancelled');
-        return;
-      }
-
-      if (!cancelRef.current) {
-        setProgress({ currentStep: 'Finalizing rubric...', percentage: 0.9 });
-        setRubric(rubric);
+      if (made.length > 0) {
+        setProgress({ currentStep: 'Finalizing...', percentage: 0.95 });
+        setRubrics(made);
         setRubricSource('generated');
-        setProgress({ percentage: 1, itemsProcessed: 1 });
-        setError(null);
+        setProgress({ percentage: 1, itemsProcessed: made.length });
         setShowReplaceCard(false);
         setShowRequestChangesCard(false);
         setReadyForCanvas(false);
         setShowDeployCard(false);
-        setTimeout(() => {
-          stopProgress();
-        }, 500);
       }
-    } catch (err: any) {
-      if (!getAbortSignal().aborted) {
-        setError(`Failed to generate rubric: ${err.message}`);
+
+      if (failed.length > 0) {
+        setError(
+          made.length === 0
+            ? `Could not generate ${failed.join(', ')}. Try again, or shorten the description.`
+            : `Generated ${made.length} of ${entries.length}. Could not write ${failed.join(', ')}.`,
+        );
+      } else if (made.length === 0 && !getAbortSignal().aborted) {
+        setError('Rubric generation cancelled');
       }
-      stopProgress();
+
+      setTimeout(() => stopProgress(), 500);
     } finally {
       setIsGenerating(false);
     }
@@ -409,8 +524,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
       const folder = await pickFolder({ title: 'Where should the rubric go?' });
       if (!folder) return;
 
+      // The whole set, not just the one on screen: a run that produced eight rubrics saves as
+      // one document holding all eight. A single-rubric run passes an array of one.
       const result = await window.api.rubric.exportToDrive({
-        rubric: state.rubric,
+        rubrics: state.rubrics.length > 0 ? state.rubrics : [state.rubric],
+        documentTitle: state.rubrics.length > 1 ? describedAssignmentTitle(snapshotDescription) : undefined,
         folderId: folder.folderId,
       });
       if (result.ok) {
@@ -438,7 +556,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     setSavingLocal(true);
     setDriveSaveSuccess(null);
     try {
-      const result = await window.api.rubric.saveHtml({ rubric: state.rubric });
+      const result = await window.api.rubric.saveHtml({
+        rubrics: state.rubrics.length > 0 ? state.rubrics : [state.rubric],
+        documentTitle: state.rubrics.length > 1 ? describedAssignmentTitle(snapshotDescription) : undefined,
+      });
       if (result.ok) {
         setDriveSaveSuccess(`Saved to ${result.path}`);
       } else if (!result.cancelled) {
@@ -601,22 +722,35 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
             </p>
 
             {/*
-              One panel, not two. These are three settings for the same request, and splitting
-              them across two grey boxes with two different label styles — "PROCESSING TYPE" in
-              black uppercase, "Total Points" in sentence case right beneath it — was most of why
-              this screen read as assembled rather than designed.
-            */}
-            <div className="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-2xl space-y-5">
-              <SegmentedChoice
-                label="How many rubrics?"
-                value={settings.processingType}
-                onChange={(processingType) => setSettings({ ...settings, processingType })}
-                options={[
-                  { value: ProcessingType.SINGLE, label: 'One rubric' },
-                  { value: ProcessingType.MULTIPLE, label: 'Multiple rubrics' },
-                ]}
-              />
+              One panel, not two. These are settings for the same request, and splitting them
+              across two grey boxes with two different label styles — "PROCESSING TYPE" in black
+              uppercase, "Total Points" in sentence case right beneath it — was most of why this
+              screen read as assembled rather than designed.
 
+              "How many rubrics?" used to sit at the top of this panel. It is gone because the
+              question is now answered after the description has been read rather than before:
+              the app looks for the assignment's separate parts and shows them, and the tick
+              boxes are the answer. Asking up front could only ever be a guess, and the setting
+              did not work anyway — it told the model to return several rubrics through a schema
+              with room for one.
+            */}
+            {/*
+              The confirmation step, standing in for the description form once there is something
+              to confirm. Nothing has been generated at this point — the app has only read the
+              description and proposed the parts it found — so the form is replaced rather than
+              disabled: leaving it on screen invites a second run of the thing already decided.
+            */}
+            {plan !== null ? (
+              <DeliverableChecklist
+                rows={plan}
+                onChange={setPlan}
+                onConfirm={() => void handleConfirmPlan()}
+                onCancel={() => setPlan(null)}
+                busy={isGenerating}
+              />
+            ) : (
+            <>
+            <div className="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-2xl space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="total-points" className="text-sm font-bold text-gray-900 block mb-2">
@@ -731,11 +865,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 {/* Generate Button */}
                 <button
                   onClick={handleGenerateRubric}
-                  disabled={isGenerating || !assignmentDescription.trim()}
+                  disabled={isGenerating || isDiscovering || plan !== null || !assignmentDescription.trim()}
                   className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 mt-6 flex items-center justify-center gap-2"
                 >
-                  {isGenerating && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {isGenerating ? 'Generating Rubric...' : 'Generate Rubric'}
+                  {(isGenerating || isDiscovering) && <Loader2 className="w-5 h-5 animate-spin" />}
+                  {isDiscovering
+                    ? 'Reading the description...'
+                    : isGenerating
+                      ? 'Generating Rubric...'
+                      : 'Generate Rubric'}
                 </button>
                 {assignmentDescription.trim() && (
                   <p className="text-xs text-gray-600 text-center mt-2 italic">
@@ -890,13 +1028,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 {/* Generate Button */}
                 <button
                   onClick={handleGenerateRubric}
-                  disabled={isGenerating || !assignmentDescription.trim()}
+                  disabled={isGenerating || isDiscovering || plan !== null || !assignmentDescription.trim()}
                   className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 mt-6 flex items-center justify-center gap-2"
                 >
-                  {isGenerating && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {isGenerating ? 'Generating Rubric...' : 'Generate Rubric'}
+                  {(isGenerating || isDiscovering) && <Loader2 className="w-5 h-5 animate-spin" />}
+                  {isDiscovering
+                    ? 'Reading the description...'
+                    : isGenerating
+                      ? 'Generating Rubric...'
+                      : 'Generate Rubric'}
                 </button>
               </>
+            )}
+            </>
             )}
           </>
         ) : (
@@ -916,6 +1060,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
               {/* Right column (or full width): rubric */}
               <div>
+                <RubricSwitcher
+                  rubrics={state.rubrics}
+                  activeIndex={state.activeRubricIndex}
+                  onOpen={openRubric}
+                />
                 <h3 className="text-xl font-black text-gray-900 mb-2">
                   {state.rubric.title}
                 </h3>
@@ -1062,7 +1211,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   className={`w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed ${showDeployCard ? 'opacity-50 pointer-events-none' : ''}`}
                 >
                   <ArrowRight className="w-5 h-5" />
-                  {onAnalyzeDeploy ? 'Deploy Displayed Rubric to Canvas' : 'Continue to Part 2: Convert to CSV'}
+                  {onAnalyzeDeploy
+                    ? state.rubrics.length > 1
+                      ? `Deploy All ${state.rubrics.length} Rubrics to Canvas`
+                      : 'Deploy Displayed Rubric to Canvas'
+                    : 'Continue to Part 2: Convert to CSV'}
                 </button>
 
                 {/*

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { escapeHtml, buildRubricTable, buildRubricHtml, rubricFileName } from './rubricHtml'
+import { escapeHtml, buildRubricTable, buildRubricHtml, buildRubricSetHtml, rubricFileName } from './rubricHtml'
 import type { RubricData } from './geminiTypes'
 
 const rubric: RubricData = {
@@ -162,5 +162,39 @@ describe('rubricFileName', () => {
   it('caps a very long title', () => {
     const name = rubricFileName({ ...rubric, title: 'x'.repeat(300) }, 'html')
     expect(name.length).toBeLessThanOrEqual(85)
+  })
+})
+
+describe('buildRubricSetHtml', () => {
+  const second: RubricData = { ...rubric, title: 'Presentation Rubric' }
+
+  it('puts every rubric in one document, each with its own heading', () => {
+    const html = buildRubricSetHtml([rubric, second])
+    expect(html).toContain('Essay Rubric')
+    expect(html).toContain('Presentation Rubric')
+    expect((html.match(/<table/g) ?? []).length).toBe(2)
+  })
+
+  /** Without this the tables run together and read as one long rubric. */
+  it('starts each rubric after the first on a new page', () => {
+    const html = buildRubricSetHtml([rubric, second])
+    expect((html.match(/page-break-before:always/g) ?? []).length).toBe(1)
+  })
+
+  it('escapes titles, which are AI-written and user-edited', () => {
+    const html = buildRubricSetHtml([{ ...rubric, title: 'A & B <script>' }])
+    expect(html).toContain('A &amp; B &lt;script&gt;')
+    expect(html).not.toContain('<script>')
+  })
+
+  it('takes a document title when one is given, and falls back when not', () => {
+    expect(buildRubricSetHtml([rubric, second], 'Wicked Problems')).toContain(
+      '<title>Wicked Problems</title>',
+    )
+    expect(buildRubricSetHtml([rubric, second])).toContain('<title>Essay Rubric</title>')
+  })
+
+  it('handles a single rubric without a page break', () => {
+    expect(buildRubricSetHtml([rubric])).not.toContain('page-break-before')
   })
 })

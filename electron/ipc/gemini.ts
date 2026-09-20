@@ -521,8 +521,18 @@ export async function validateAssignmentDescription(
  * This applies only where the model is the author. Extraction — from a document, from a
  * screenshot — copies the instructor's wording verbatim, because that rubric is already written
  * and already approved, and quietly rewriting it changes what students are graded against.
+ *
+ * The first line of the rule exists because the rule without it caused real damage. Told only to
+ * be brief, the model shortened the wrong thing: a seven-criterion rubric came back as a single
+ * criterion worth the whole hundred points, with tidy fifteen-word ratings. It had read "be
+ * brief" as being about the rubric rather than about the sentences. The length of a cell and the
+ * number of criteria are unrelated decisions, and this rule governs only the first — the second
+ * belongs to CRITERIA_COVERAGE_RULE.
  */
 const RATING_BREVITY_RULE = `WRITING THE DESCRIPTIONS — be brief:
+    - This rule governs the WORDING INSIDE one cell and nothing else. It is never a reason to
+      write fewer criteria, to merge two criteria into one, or to drop a rating level. You are
+      being asked to shorten the sentences, not the rubric.
     - One sentence per rating, 20 words maximum. Aim for 10 to 15.
     - State the observable difference and stop: what the work has, lacks, or does inconsistently.
     - Cut throat-clearing openers ("The student...", "This submission...", "Work at this level
@@ -534,10 +544,149 @@ const RATING_BREVITY_RULE = `WRITING THE DESCRIPTIONS — be brief:
     - Criterion descriptions follow the same rule: one short line, and none at all when the
       criterion name already says it.`;
 
+/**
+ * How many criteria a generated rubric has, and what they are.
+ *
+ * Coverage decides the count, not a target number. An assignment that states its learning
+ * outcomes has already said what it is assessing, so the rubric's job is to have a row for each
+ * of the ones it is responsible for; inventing a quota on top of that would either pad a short
+ * assignment or clip a long one. The 4-to-7 range is only the fallback for a description that
+ * states nothing to cover.
+ *
+ * The explicit ban on a single criterion holding the whole total is there because that is what
+ * the app actually produced. It is worth stating as its own rule rather than trusting the range
+ * to imply it: a rubric with one row cannot tell a student which part of the work cost them the
+ * marks, so it fails at the thing a rubric is for while still looking like a rubric.
+ */
+const CRITERIA_COVERAGE_RULE = `CHOOSING THE CRITERIA — how many, and what they are:
+    - Start from what the assignment says it assesses. If the description states learning
+      outcomes, objectives, a purpose, or a list of what the work must contain or do, then every
+      one of those that this rubric is responsible for must be covered by a criterion. Coverage
+      decides how many criteria there are. Do not choose a number first.
+    - Cover only what this rubric is for. A rubric for one part of a larger assignment covers
+      that part's outcomes, not the whole assignment's.
+    - If the description states no outcomes, objectives or required elements, write 4 to 7
+      criteria drawn from what the work actually involves.
+    - Never return a single criterion holding the entire point total unless the assignment
+      genuinely assesses one single thing. A rubric with one row cannot show a student which part
+      of the work cost them marks.
+    - Each criterion must name something that can be judged separately from the others. If two
+      criteria would always be given the same rating, they are one criterion.
+    - Weight the points towards what the assignment emphasises.`;
+
+/** One separately-submitted piece of work found in an assignment description. */
+export interface Deliverable {
+  /** The name the description gives it, e.g. "Part 1: Systems Analysis". */
+  title: string
+  /** One line from the description saying what it covers. Shown so the user can judge the row. */
+  focus: string
+}
+
+/**
+ * Find the separate deliverables in an assignment description.
+ *
+ * This is the first half of "the model proposes, the user disposes": it only ever produces a
+ * list to be confirmed, and nothing is generated from it until someone has ticked a box. That
+ * matters because the judgement here is genuinely uncertain — what counts as a deliverable is a
+ * teaching decision, not a fact in the text — and a wrong guess acted on silently would produce
+ * rubrics for things nobody hands in.
+ *
+ * The prompt spends most of its length on what is *not* a deliverable. Asked for "the parts of
+ * this assignment", a model will happily return the sections of a single essay, or the learning
+ * outcomes, or the stages of writing it — all of which read like parts and none of which is
+ * separately submitted. The test is submission, and it is stated three times because it is the
+ * only thing separating this from a list of topics.
+ *
+ * An empty list is a real answer, not a failure: most assignments are one piece of work. The
+ * caller offers the whole-assignment rubric either way.
+ */
+export async function discoverDeliverables(
+  description: string,
+  signal?: AbortSignal,
+): Promise<Deliverable[]> {
+  await throttle(signal)
+
+  return retryWithBackoff(async () => {
+    if (signal?.aborted) throw new Error('Request cancelled')
+    const ai = getClient()
+
+    const prompt = `List the separate DELIVERABLES in this assignment description.
+
+A deliverable is a distinct piece of work the student hands in, which could reasonably be graded
+with a rubric of its own.
+
+Where to look: a table of parts or phases, numbered parts, milestones, or headed sections that
+each describe something submitted. Many descriptions contain a table listing the parts — if there
+is one, use it, and keep its titles and its wording.
+
+For each deliverable return:
+- title: the name exactly as the description gives it, for example "Part 1: Systems Analysis".
+  Never invent a name for something the description does not name.
+- focus: one short line, taken from the description, saying what that deliverable covers.
+
+Return an EMPTY list when the description is one single piece of work. In particular, these are
+NOT deliverables:
+- the sections of one document (introduction, body, conclusion, references)
+- learning outcomes, objectives, or skills the assignment develops
+- stages of doing the work that are not separately handed in (research, drafting, revising)
+- topics, themes, or subject matter the work must address
+
+The test is submission: if the student does not hand it in as its own piece of work, it is not a
+deliverable. Most assignments have none, and an empty list is the correct answer for those.
+
+ASSIGNMENT DESCRIPTION:
+${description}`
+
+    const response = await ai.models.generateContent({
+      model: PRIMARY_MODEL,
+      contents: prompt,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: 0.1,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            deliverables: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  focus: { type: Type.STRING },
+                },
+                required: ['title', 'focus'],
+              },
+            },
+          },
+          required: ['deliverables'],
+        },
+      },
+    })
+
+    if (!response.text) return []
+    const parsed = JSON.parse(response.text.trim()) as {
+      deliverables?: Array<{ title?: string; focus?: string }>
+    }
+    if (!Array.isArray(parsed.deliverables)) return []
+    return parsed.deliverables
+      .map((d) => ({ title: (d.title ?? '').trim(), focus: (d.focus ?? '').trim() }))
+      .filter((d) => d.title.length > 0)
+  }, signal)
+}
+
 export async function generateRubricFromDescription(
   assignmentDescription: string,
   settings: GenerationSettings,
   signal?: AbortSignal,
+  /**
+   * Narrow the rubric to one deliverable of a larger assignment.
+   *
+   * Omitted, the rubric covers the whole description — which is what it always did. Supplied,
+   * the model still gets the entire description, because a rubric for Part 4 needs to know what
+   * Parts 1 to 3 established; it is the rubric's *scope* that narrows, not its reading.
+   */
+  target?: { title: string; focus: string },
 ): Promise<RubricData> {
   await throttle(signal);
 
@@ -545,19 +694,30 @@ export async function generateRubricFromDescription(
     if (signal?.aborted) throw new Error('Request cancelled');
     const ai = getClient();
 
-    const processingInstruction = settings.processingType === ProcessingType.MULTIPLE
-      ? `The assignment description may contain MULTIPLE distinct assignments or components.
-      Generate a SEPARATE rubric for each distinct assignment or component found in the description.
-      Each rubric should have its own title, criteria, and point distribution.
-      The total points constraint applies to EACH individual rubric.`
-      : `Generate a SINGLE rubric that covers the entire assignment description.`;
+    /*
+     * One rubric per call, always.
+     *
+     * This used to branch on a "multiple rubrics" setting whose instruction told the model to
+     * "generate a SEPARATE rubric for each distinct component" — while the response schema below
+     * has room for exactly one. The model resolved that contradiction by picking a component and
+     * returning a thin rubric for it, which is how a seven-part assignment came back as one
+     * criterion worth a hundred points. Several rubrics now means several calls, each with its
+     * own target, decided by the user in the checklist before any of them are made.
+     */
+    const scopeInstruction = target
+      ? `This rubric is for ONE PART of a larger assignment: "${target.title}"${
+          target.focus ? ` — ${target.focus}` : ''
+        }.
+    Grade only that part. The rest of the description is context, and is there so you understand
+    where this part sits; do not write criteria for work that belongs to another part.
+    Title the rubric exactly: ${target.title}`
+      : `Generate a SINGLE rubric covering the assignment description as a whole.`;
 
     const prompt = `
     Act as an expert in instructional design and assessment.
     Based on the following assignment description, create a professional rubric.
 
-    PROCESSING MODE: ${settings.processingType === ProcessingType.MULTIPLE ? 'MULTIPLE RUBRICS' : 'SINGLE RUBRIC'}
-    ${processingInstruction}
+    ${scopeInstruction}
 
     ASSIGNMENT DESCRIPTION:
     ${assignmentDescription}
@@ -573,6 +733,8 @@ export async function generateRubricFromDescription(
     - Break down the ${settings.totalPoints} points across logical categories/criteria.
     - For each category, describe specific observable behaviours or qualities for each of the
       four ratings.
+
+    ${CRITERIA_COVERAGE_RULE}
 
     ${RATING_BREVITY_RULE}
 
