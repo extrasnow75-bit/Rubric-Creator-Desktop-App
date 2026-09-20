@@ -124,8 +124,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
   // Inline deploy card
   const [showDeployCard, setShowDeployCard] = useState(false);
-  /** Whether the "keep a copy of the CSVs" panel under the deploy button is open. */
-  const [showCsvSave, setShowCsvSave] = useState(false);
   const [deployUrlInput, setDeployUrlInput] = useState(() => state.courseUrl || '');
 
   /**
@@ -695,27 +693,35 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
   const activeSettled = changeSettled[state.activeRubricIndex] ?? false;
 
   /**
-   * The Canvas CSV for each rubric on screen, built on demand for the save panel.
+   * The Canvas CSV for each rubric on screen, built for the save panel.
    *
-   * Free to compute: generateCsvFromRubricObject is a pure formatter over data already in
-   * memory, so eight rubrics is eight string builds and no requests. Memoised only so the
-   * strings keep their identity between renders while the panel is open.
+   * Memoised for the work it skips, not for referential identity — CsvSaveOptions is a plain
+   * function component with no memo and no effect keyed on this array, so a stable reference
+   * buys nothing. The saving is real though: a 26-rubric document costs about 0.7ms and 220KB
+   * of string allocation to rebuild, and this component subscribes to the session, whose
+   * progress timer ticks four times a second for the whole of a generation. Without the memo
+   * that rebuild would run on every one of those ticks for a panel that is usually closed.
    *
-   * `settings.pointStyle` rather than `state.scoringMethod` because these are the rubrics as
-   * they stand right now, including one generated as ranges and then regenerated as single
-   * values without a deploy in between; the two agree in every case where they can disagree
-   * that matters, since generating is what writes `state.scoringMethod`.
+   * The dependency is the rubrics array's identity, which changes only when the set is
+   * replaced or one of them is revised. Everything the user types on this screen is local
+   * state, so typing re-renders without recomputing.
+   *
+   * `state.scoringMethod`, not the local `settings.pointStyle`, and that distinction is the
+   * whole point. The panel below promises these are the files the deploy will send, and the
+   * deploy reads `state.scoringMethod`. The two are not interchangeable: `settings` is local
+   * useState, and this component unmounts whenever the Phase 1 mode changes, so generating a
+   * rubric with Single points, switching to the screenshot card and coming back resets the
+   * control to Ranges while the rubrics and the session value both survive. Reading the
+   * control there would have offered a CSV scored differently from the one Canvas received —
+   * which is exactly the file someone saves as their recovery copy when a deploy fails.
    */
   const csvsForRubrics = React.useMemo(
     () =>
       state.rubrics.map((rubric) => ({
         name: rubric.title,
-        csvContent: generateCsvFromRubricObject(
-          rubric,
-          settings.pointStyle === PointStyle.RANGE ? 'ranges' : 'fixed',
-        ),
+        csvContent: generateCsvFromRubricObject(rubric, state.scoringMethod),
       })),
-    [state.rubrics, settings.pointStyle],
+    [state.rubrics, state.scoringMethod],
   );
 
   /** Rubrics with a settled, non-empty request — what "Apply changes" will actually run. */
@@ -1529,30 +1535,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 */}
                 {onAnalyzeDeploy && state.rubrics.length > 0 && !showDeployCard && (
                   <div className="mt-3">
-                    {!showCsvSave ? (
-                      <button
-                        onClick={() => setShowCsvSave(true)}
-                        className="mx-auto block text-sm font-bold text-brand hover:text-brand-dark underline underline-offset-2"
-                      >
-                        Save CSV files
-                      </button>
-                    ) : (
-                      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
-                        <CsvSaveOptions
-                          csvs={csvsForRubrics}
-                          prompt={
-                            state.rubrics.length > 1
-                              ? `Keep a copy of all ${state.rubrics.length} CSVs?`
-                              : 'Keep a copy of the CSV?'
-                          }
-                          onDismiss={() => setShowCsvSave(false)}
-                        />
-                        <p className="text-xs text-gray-600 mt-3">
-                          These are the same files the deploy sends to Canvas. Saving them here
-                          changes nothing about the deploy.
-                        </p>
-                      </div>
-                    )}
+                    <CsvSaveOptions
+                      csvs={csvsForRubrics}
+                      prompt={
+                        state.rubrics.length > 1
+                          ? `Keep a copy of all ${state.rubrics.length} CSVs?`
+                          : 'Keep a copy of the CSV?'
+                      }
+                      footnote="These are the same files the deploy sends to Canvas. Saving them here changes nothing about the deploy."
+                    />
                   </div>
                 )}
 

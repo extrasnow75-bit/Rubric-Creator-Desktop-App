@@ -112,8 +112,6 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
    * round.
    */
   const [convertedCsvs, setConvertedCsvs] = useState<{ name: string; csvContent: string }[]>([]);
-  /** True once the user has waved the keep-a-copy offer away. Saving does not dismiss it. */
-  const [csvPromptDismissed, setCsvPromptDismissed] = useState(false);
   /**
    * Rubrics that failed and then deployed from an AI repair.
    *
@@ -630,22 +628,16 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
         </div>
 
         {/*
-          CSV keep-a-copy prompt — shown after completion if CSVs are available.
+          CSV keep-a-copy offer — available once the run has produced any.
 
           Part 1 offers the same thing under its deploy button, before any of this runs, which is
-          the copy that matters when a deploy fails. Both render CsvSaveOptions so the two offers
-          cannot drift apart.
-
-          It stays up after a save rather than being replaced by a receipt: a single download used
-          to close the offer for good, so someone who saved to their computer and then wanted them
-          in Drive as well had no way back to it short of re-running the deploy.
+          the copy that matters when a deploy fails. Both render CsvSaveOptions so the two cannot
+          drift apart; it opens here because at this point it is answering a question, and stays
+          reachable afterwards because dismissing it collapses the panel rather than deleting it.
         */}
-        {runStatus !== 'running' && convertedCsvs.length > 0 && !csvPromptDismissed && (
+        {runStatus !== 'running' && convertedCsvs.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <CsvSaveOptions
-              csvs={convertedCsvs}
-              onDismiss={() => setCsvPromptDismissed(true)}
-            />
+            <CsvSaveOptions csvs={convertedCsvs} defaultOpen />
           </div>
         )}
       </div>

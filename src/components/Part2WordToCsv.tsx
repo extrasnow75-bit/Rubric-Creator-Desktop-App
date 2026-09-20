@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { bytesToBase64 } from '../utils/driveFile';
+import { safeFileName } from '../utils/fileName';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { AppMode, Attachment, RubricMeta, BatchItemStatus } from '../types';
 import {
@@ -490,11 +491,7 @@ export const Part2WordToCsv: React.FC = () => {
     const zip = new JSZip();
 
     for (const result of completed) {
-      // Sanitise name — remove characters that are illegal in filenames
-      const safeName = result.rubric.name
-        .replace(/[/\\?%*:|"<>]/g, '_')
-        .trim();
-      zip.file(`${safeName}.csv`, result.csvContent!);
+      zip.file(`${safeFileName(result.rubric.name)}.csv`, result.csvContent!);
     }
 
     // uint8array rather than blob: the bytes have to cross IPC, and a Blob does not.

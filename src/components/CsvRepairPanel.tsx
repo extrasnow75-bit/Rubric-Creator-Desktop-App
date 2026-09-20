@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { AlertTriangle, Check, Download, Loader2, Sparkles, X } from 'lucide-react';
 import { repairRubricCsv, CsvRepairDiff } from '../services/geminiService';
 import { diagnoseCanvasError } from '../utils/diagnoseCanvasError';
+import { safeFileName } from '../utils/fileName';
 import { revealSection, REVEAL_DELAY_MS } from '../utils/revealSection';
 
 /**
@@ -49,8 +50,7 @@ type Stage =
   | { name: 'deploying'; repairedCsv: string; notes: string; diff: CsvRepairDiff }
   | { name: 'failed'; repairedCsv: string; notes: string; diff: CsvRepairDiff; message: string };
 
-const fileNameFor = (rubricName: string) =>
-  `${rubricName.replace(/[^a-z0-9]/gi, '_')}_repaired.csv`;
+const fileNameFor = (rubricName: string) => `${safeFileName(rubricName)}_repaired.csv`;
 
 /** An empty cell reads as nothing at all in a before/after pair, so it gets a word. */
 const cellText = (value: string) => (value.trim() === '' ? '(blank)' : value);
