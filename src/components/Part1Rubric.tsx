@@ -73,7 +73,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
   const cancelRef = useRef<boolean>(false);
 
   // Google Docs URL state
-  const [inputMode, setInputMode] = useState<'text' | 'google-doc'>('text');
+  /**
+   * Google Drive is the tab that opens, because that is where the assignment descriptions
+   * already live for the people this app is for — the local dropzone is the fallback, not the
+   * common case. Someone signed out lands on a sign-in prompt with "From Local Drive" sitting
+   * one click away, which is a prompt rather than a wall.
+   */
+  const [inputMode, setInputMode] = useState<'text' | 'google-doc'>('google-doc');
   const [googleDocUrl, setGoogleDocUrl] = useState<string>('');
   const [fetchingGoogleDoc, setFetchingGoogleDoc] = useState(false);
   const [isPickerLoading, setIsPickerLoading] = useState(false);
@@ -876,6 +882,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
             <div className="flex gap-3 mb-6 border-b border-gray-200">
               <button
                 onClick={() => {
+                  setInputMode('google-doc');
+                  setError(null);
+                }}
+                className={`px-4 py-3 font-bold border-b-2 transition-all ${
+                  inputMode === 'google-doc'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                From Google Drive
+              </button>
+              <button
+                onClick={() => {
                   setInputMode('text');
                   setGoogleDocUrl('');
                   setError(null);
@@ -887,19 +906,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 }`}
               >
                 From Local Drive
-              </button>
-              <button
-                onClick={() => {
-                  setInputMode('google-doc');
-                  setError(null);
-                }}
-                className={`px-4 py-3 font-bold border-b-2 transition-all ${
-                  inputMode === 'google-doc'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                From Google Drive
               </button>
             </div>
 
@@ -964,11 +970,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                     ? 'Reading the description...'
                     : isGenerating
                       ? 'Generating Rubric...'
-                      : 'Generate Rubric'}
+                      : 'Analyze Description'}
                 </button>
                 {assignmentDescription.trim() && (
                   <p className="text-xs text-gray-600 text-center mt-2 italic">
-                    This usually takes less than a minute to generate a rubric.
+                    The app reads the description first to see how many rubrics it needs. Nothing
+                    is written until you confirm.
                   </p>
                 )}
               </>
@@ -1127,7 +1134,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                     ? 'Reading the description...'
                     : isGenerating
                       ? 'Generating Rubric...'
-                      : 'Generate Rubric'}
+                      : 'Analyze Description'}
                 </button>
               </>
             )}
@@ -1358,7 +1365,21 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
                 {/* Ready confirmation checkbox */}
                 {onAnalyzeDeploy && (
-                  <label className="flex items-start gap-3 mb-3 cursor-pointer select-none">
+                  /*
+                    This is the only thing standing between the user and the deploy button, and
+                    as a bare 16px check box under grey 14px text it did not look like one — the
+                    button below reads as broken rather than waiting. So the box states what
+                    ticking it does, and the panel carries the brand border until it is ticked,
+                    at which point it turns green and stops asking for attention. Brand is a
+                    border and text here, never a fill: this is a gate, not a button.
+                  */
+                  <label
+                    className={`flex items-start gap-4 mb-3 p-5 rounded-2xl border-2 cursor-pointer select-none transition-all ${
+                      readyForCanvas
+                        ? 'bg-green-50 border-green-400'
+                        : 'bg-white border-brand ring-4 ring-brand/15 shadow-md hover:bg-gray-50'
+                    }`}
+                  >
                     <input
                       type="checkbox"
                       checked={readyForCanvas}
@@ -1366,15 +1387,26 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                         setReadyForCanvas(e.target.checked);
                         if (!e.target.checked) setShowDeployCard(false);
                       }}
-                      className="mt-0.5 w-4 h-4 accent-green-600 flex-shrink-0"
+                      className="mt-0.5 w-6 h-6 accent-green-600 flex-shrink-0"
                     />
-                    {/* Written when a run made one rubric. With eight, confirming "the rubric
-                        currently displayed" while the button deploys all of them is a tick box
-                        that does not describe what it authorises. */}
-                    <span className="text-sm text-gray-700">
-                      {state.rubrics.length > 1
-                        ? `No further revision is needed. All ${state.rubrics.length} rubrics are ready for Canvas.`
-                        : 'No further revision is needed. The rubric above is ready for Canvas.'}
+                    <span>
+                      <span
+                        className={`block text-base font-black ${
+                          readyForCanvas ? 'text-green-800' : 'text-brand'
+                        }`}
+                      >
+                        {readyForCanvas
+                          ? 'Ready to deploy'
+                          : 'Tick this box to turn on the deploy button'}
+                      </span>
+                      {/* Written when a run made one rubric. With eight, confirming "the rubric
+                          currently displayed" while the button deploys all of them is a tick box
+                          that does not describe what it authorises. */}
+                      <span className="block text-sm text-gray-700 mt-1">
+                        {state.rubrics.length > 1
+                          ? `No further revision is needed. All ${state.rubrics.length} rubrics are ready for Canvas.`
+                          : 'No further revision is needed. The rubric above is ready for Canvas.'}
+                      </span>
                     </span>
                   </label>
                 )}

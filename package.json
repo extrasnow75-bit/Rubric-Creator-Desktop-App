@@ -1,6 +1,6 @@
 {
   "name": "canvas-rubric-creator",
-  "version": "0.9.12",
+  "version": "0.9.13",
   "description": "Desktop app for creating Canvas rubrics from assignment descriptions, converting them to CSV, and pushing them to Canvas",
   "author": "Boise State University eCampus Center",
   "private": true,

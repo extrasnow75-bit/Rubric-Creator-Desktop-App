@@ -3,22 +3,27 @@ import { RotateCcw } from 'lucide-react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 
 /**
- * Confirm before Start Over throws away work that exists only in memory.
+ * Confirm before Start Over clears the session.
  *
- * Shown only when there is something to lose — see `hasUnsavedWork`. A confirm on every clear
- * would be the kind people learn to dismiss without reading, which is worse than none, because
- * then it is not there on the one occasion it matters.
+ * This used to be raised only when there was something to lose, on the reasoning that a confirm
+ * on every clear is one people learn to dismiss without reading. What changed that: Start Over
+ * lives in a ribbon that reflows when the zoom changes, so pressing the zoom control can slide
+ * the button under the cursor in time for the next click. That is a misfire the session state
+ * knows nothing about, and it is the case the dialog most needs to catch.
  *
- * The same reasoning as the quit confirm in TaskCompletionDialog, and the same wording about
- * what "unsaved" means, since it is the same loss.
+ * `hasUnsavedWork` therefore no longer decides whether to ask, only what to say — warning about
+ * losing a rubric when no rubric exists is the sort of wrong detail that teaches people the
+ * dialog is not worth reading.
  */
 interface Props {
   isOpen: boolean;
+  /** Decides the wording, not whether the dialog appears. */
+  hasUnsavedWork: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-export const StartOverDialog: React.FC<Props> = ({ isOpen, onCancel, onConfirm }) => {
+export const StartOverDialog: React.FC<Props> = ({ isOpen, hasUnsavedWork, onCancel, onConfirm }) => {
   // Focus lands on "Keep working", not on the destructive button: Enter on an unread dialog
   // should do the harmless thing.
   const keepRef = useRef<HTMLButtonElement>(null);
@@ -47,9 +52,9 @@ export const StartOverDialog: React.FC<Props> = ({ isOpen, onCancel, onConfirm }
           </h2>
         </div>
         <p className="text-sm text-gray-700 mb-5">
-          Anything you have not saved to your computer or to Google Drive will be gone. Rubrics
-          already deployed to Canvas stay there, and your Gemini key, Canvas token and Google
-          sign-in are kept.
+          {hasUnsavedWork
+            ? 'Anything you have not saved to your computer or to Google Drive will be gone. Rubrics already deployed to Canvas stay there, and your Gemini key, Canvas token and Google sign-in are kept.'
+            : 'This clears the screen and takes you back to the start. Nothing you have made is waiting to be saved, and your Gemini key, Canvas token and Google sign-in are kept.'}
         </p>
         <div className="flex gap-2">
           <button
