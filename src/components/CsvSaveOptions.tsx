@@ -2,6 +2,7 @@ import React, { useId, useRef, useState } from 'react';
 import { CheckCircle, Download, Loader2 } from 'lucide-react';
 import JSZip from 'jszip';
 import { safeFileName } from '../utils/fileName';
+import { toSheetSafeCsv } from '../utils/sheetSafeCsv';
 import { useSession } from '../contexts/SessionContext';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 
@@ -130,7 +131,11 @@ export const CsvSaveOptions: React.FC<Props> = ({
     try {
       for (const item of csvs) {
         await window.api.drive.upload({
-          content: item.csvContent,
+          // Guarded only on this path. Google evaluates every cell when it converts a CSV to a
+          // Sheet, so a description beginning with "=" or "-" arrives as a formula rather than
+          // the sentence someone wrote. The copy saved to disk, and the one Canvas receives,
+          // stay exactly as generated.
+          content: toSheetSafeCsv(item.csvContent),
           name: item.name,
           sourceMimeType: 'text/csv',
           targetMimeType: 'application/vnd.google-apps.spreadsheet',

@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { bytesToBase64 } from '../utils/driveFile';
 import { safeFileName } from '../utils/fileName';
+import { toSheetSafeCsv } from '../utils/sheetSafeCsv';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { AppMode, Attachment, RubricMeta, BatchItemStatus } from '../types';
 import {
@@ -530,7 +531,8 @@ export const Part2WordToCsv: React.FC = () => {
 
       for (const result of completed) {
         await window.api.drive.upload({
-        content: result.csvContent!,
+        // Sheets evaluates cells on import; see utils/sheetSafeCsv.ts. Drive copy only.
+        content: toSheetSafeCsv(result.csvContent!),
         name: result.rubric.name,
         sourceMimeType: 'text/csv',
         targetMimeType: 'application/vnd.google-apps.spreadsheet',
@@ -555,7 +557,8 @@ export const Part2WordToCsv: React.FC = () => {
 
       const filename = editableRubricName || state.csvFileName?.replace(/\.csv$/i, '') || 'rubric';
       await window.api.drive.upload({
-        content: singleCsvContent,
+        // Sheets evaluates cells on import; see utils/sheetSafeCsv.ts. Drive copy only.
+        content: toSheetSafeCsv(singleCsvContent),
         name: filename,
         sourceMimeType: 'text/csv',
         targetMimeType: 'application/vnd.google-apps.spreadsheet',
