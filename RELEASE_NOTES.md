@@ -52,6 +52,7 @@ redeploy after an edit, delete the old one in Canvas.
 - Ticking **ready to proceed** and then adjusting a rubric now un-ticks it, the same as uploading
   a replacement or applying a change request does. The tick says no further revision is needed,
   and a rename is a revision.
+- The Help Center link is now labelled **Canvas Rubric Creator App — KB Article**.
 
 ### Known limits
 
