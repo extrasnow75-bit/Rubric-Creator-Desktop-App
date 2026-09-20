@@ -251,6 +251,16 @@ export interface SessionState {
    */
   scoringMethod: 'ranges' | 'fixed';
 
+  /**
+   * Whether any rubric has reached Canvas in this session.
+   *
+   * Editing a rubric here never changes one already in Canvas, and deploying again POSTs a new
+   * one rather than updating the old — so a rename followed by a second deploy leaves the course
+   * holding two rubrics with similar names. The editing controls say so once this is true. It is
+   * a session fact rather than a per-rubric one because the deploy panel reports a batch.
+   */
+  deployedToCanvas: boolean;
+
   // CSV output (from Part 2)
   csvOutput: string | null;
   csvFileName: string | null;

@@ -1,60 +1,58 @@
-## What's new in v0.9.15
+## What's new in v0.9.16
 
-Your CSVs can now be saved before you deploy, the app stops shoving itself into the top of the
-window, and a batch of smaller fixes that came out of a security, accessibility and efficiency
-review of the changes.
+You can now rename a rubric and change what it is worth without waiting on the AI, and go back to
+the list of parts to draft a different set.
 
-### Save your CSV files before deploying
+### Adjust a rubric without asking the AI
 
-There is a **Save CSV files** link under the deploy button in Phase 1. It opens the same panel you
-see after a deployment — **Save to my computer** or **Add to Drive** — but before anything is sent
-to Canvas.
+There is an **Adjust this rubric** panel under the save buttons in Phase 1. It does two things,
+both instantly, and neither touches a word you or the AI wrote:
 
-This is worth doing when a deployment might go wrong. If Canvas rejects the upload or your token
-has expired, the work is still recoverable from a CSV you already have on disk. The files are the
-same ones the deployment sends, and saving them changes nothing about the deployment.
+- **Rubric name.** Type a new one and press Enter or click away. This is the name Canvas shows and
+  the name the CSV file takes.
+- **Total points.** Type a number and press **Rescale**. Every criterion keeps its share of the
+  total and its wording; only the numbers move.
 
-The offer after a deployment no longer disappears for good once you use it. Saving to your
-computer and then deciding you also want a copy in Drive used to mean re-running the whole
-deployment; now only **No thanks** closes it, and the link reopens it.
+Until now both of these meant using **Request Changes**, which sends the whole rubric back to the
+AI and takes about ten seconds — to change a name, or do arithmetic. It also meant trusting the AI
+to change only the thing you asked about, which is not something it guarantees.
 
-### The window no longer squashes itself into the top of the screen
+Request Changes is still there, and is still the right tool when you want different criteria or
+different wording.
 
-If the app ever slid its content up, leaving the blue title bar and the toolbar off the top and
-white space below, that is fixed. The app was asking the page itself to scroll when it revealed a
-new section, which moved everything. It now scrolls only the panel that should move, and the page
-is pinned so it cannot move even if something asks.
+### How rescaling divides the points
 
-### A rubric that starts with "=" is no longer treated as a formula
+A rubric worth 75 across five criteria of 15, rescaled to 100, gives five criteria of 20. When it
+does not divide evenly, the leftover points go to whichever criteria lost the most in the
+rounding, so the total always lands exactly on the number you asked for rather than a point or
+two under.
 
-CSVs added to Drive are converted to Google Sheets, and Google treats a cell beginning with `=`,
-`+`, `@` or `-` as a formula rather than as text. A criterion description starting with one of
-those came out as an error message instead of the sentence you wrote. Those cells are now marked
-as text on the way up.
+Ranges are kept as ranges. A rubric written as `25-20` stays in that form, and one written in
+Canvas's own `4 to >3 pts` notation stays in that one.
 
-Rating points are unaffected — a penalty worth **-5** is still the number -5, not text. Only the
-Drive copy is adjusted; the file Canvas receives and the one saved to your computer are exactly
-as generated.
+### Choose the parts again
 
-### Your point style now reaches Canvas
+At the bottom of the Adjust panel, **Choose the parts again and re-draft** brings back the
+checklist of assignment parts — with your names, your point values and your tick boxes exactly as
+you left them. Change what you like and draft again.
 
-Phase 1 lets you choose **Ranges** (10 to >8) or **Single** (10, 8, 6), and that choice sets a
-column in the Canvas CSV. It was never being passed to the deployment, so every rubric was sent as
-Ranges whatever you picked. Worth a look if you use Single.
+This one does re-run the AI and **replaces every rubric on screen**, including any changes you
+have applied, so it asks you to confirm first and suggests saving your CSVs before you go ahead.
+Your rubrics stay visible underneath while you choose.
 
-### Smaller fixes
+### A warning once you have deployed
 
-- **Start Over can be reached at large text sizes.** At 200% and above, the confirmation box could
-  have its buttons off the bottom of the window with no way to scroll to them.
-- **The Save CSV panel works properly with a keyboard.** Opening it used to throw you back to the
-  top of the window, so the next Tab started from the title bar again.
-- **Saving now says whether it worked.** For anyone using a screen reader, a failed Drive upload
-  previously sounded exactly like a successful one — neither was announced at all.
-- **"Add to Drive" explains itself when you are signed out**, instead of being greyed out with the
-  reason hidden in a tooltip a keyboard cannot reach.
-- **Filenames in a zip are readable again.** `Module 1: Discussion` was arriving as
-  `Module_1__Discussion.csv` from some screens; every screen now produces `Module 1_ Discussion.csv`.
-- A receipt saying your CSVs were saved no longer appears if you cancelled the save dialog.
+Once you have sent rubrics to Canvas, the Adjust panel says so. Editing here does not change a
+rubric that is already in your course, and deploying a second time **adds another copy rather
+than replacing the first** — Canvas has no way for the app to update an existing rubric. If you
+redeploy after an edit, delete the old one in Canvas.
+
+### Smaller changes
+
+- Ticking **ready to proceed** and then adjusting a rubric now un-ticks it, the same as uploading
+  a replacement or applying a change request does. The tick says no further revision is needed,
+  and a rename is a revision.
+- The Help Center link is now labelled **Canvas Rubric Creator App — KB Article**.
 
 ### Known limits
 
@@ -66,3 +64,5 @@ Ranges whatever you picked. Worth a look if you use Single.
   Canvas Rubric Creator**.
 - **CSVs added to Drive arrive as Google Sheets.** To use one as a Canvas import again, open it
   and choose File → Download → Comma-separated values.
+- **Rescaling rounds to whole points.** A criterion worth 15 in a 75-point rubric becomes 8 in a
+  40-point one, not 8.5.

@@ -4,7 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { useDialogFocus, useInertWhenHidden } from '../hooks/useDialogFocus';
 
 /**
- * The eCampus Help Center article for this app.
+ * The eCampus KB article for this app.
  *
  * TEMPORARY — this points at the Google Doc draft, not the published Confluence page. When the
  * article moves to Confluence, replace it with the short /wiki/x/ form rather than the long
@@ -276,7 +276,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
           <section>
             <h3 className="text-xs font-black text-gray-600 uppercase tracking-[0.2em] mb-4">Resources & Training</h3>
             <div className="space-y-3">
-              {/* The eCampus Help Center article. Hidden until HELP_CENTER_ARTICLE_URL is set —
+              {/* The eCampus KB article. Hidden until HELP_CENTER_ARTICLE_URL is set —
                   see the note on that constant for why a placeholder link is not left in. */}
               {HELP_CENTER_ARTICLE_URL ? (
                 <a
@@ -286,14 +286,14 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
                   className="flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all group"
                 >
                   <span className="text-sm font-bold text-blue-900">
-                    Canvas Rubric Creator — Help Center article
+                    Canvas Rubric Creator App — KB Article
                   </span>
                   <span className="text-blue-700 ml-3"><ExternalLinkIcon /></span>
                 </a>
               ) : (
                 <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-2xl">
                   <p className="text-sm font-bold text-gray-700">
-                    Help Center article — coming soon
+                    KB Article — coming soon
                   </p>
                   <p className="text-xs text-gray-600 mt-1">
                     The full setup and troubleshooting guide is being written. It will appear here
