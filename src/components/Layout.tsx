@@ -82,12 +82,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
    * the screen is not behaving, which is when a clever visibility rule is least likely to agree
    * with you.
    *
-   * The confirm is only raised when clearing would destroy something — see `hasUnsavedWork`.
+   * The confirm is raised every time, including when there is nothing to lose. The reasoning
+   * used to be the opposite — ask only when clearing would destroy something, so the prompt stays
+   * meaningful — but the button sits in a ribbon that reflows when the zoom changes, and a user
+   * pressing the zoom control had Start Over slide under the cursor and fire on the next click.
+   * A control that can be triggered by the layout moving needs a stop, whatever state the session
+   * is in. `hasUnsavedWork` still decides the wording, so the dialog says which of the two things
+   * is about to happen instead of warning about losses that do not exist.
    */
-  const startOver = () => {
-    if (hasUnsavedWork(state)) setConfirmingStartOver(true);
-    else clearSession();
-  };
+  const startOver = () => setConfirmingStartOver(true);
 
   /**
    * Whether a newer version exists on GitHub, checked once at launch.
@@ -299,6 +302,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       <StartOverDialog
         isOpen={confirmingStartOver}
+        hasUnsavedWork={hasUnsavedWork(state)}
         onCancel={() => setConfirmingStartOver(false)}
         onConfirm={() => {
           setConfirmingStartOver(false);
