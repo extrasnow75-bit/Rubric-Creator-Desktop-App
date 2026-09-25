@@ -1,42 +1,48 @@
-## What's new in v0.9.17
+## What's new in v0.9.18
 
-A layout release. Phase 1's review screen now has a heading, deploying is a card of its own, and
-the Adjust panel stays out of the way until you want it.
+The app now adds up a rubric's points itself instead of taking the AI's word for it.
 
-### The review area has a heading
+### Rubrics that were not worth what they said
 
-Phase 1 is one card with two states. Before anything is generated it is headed **Create Draft
-Rubric**; afterwards it went straight into the list of rubrics with no heading at all. So the
-largest text on the screen was one rubric's own title, which made a single rubric look like the
-subject of the page rather than one of eight.
+In a recent eight-part run, two rubrics came back worth three times what they claimed. Each one
+gave *every* criterion the whole hundred-point budget — ranges running 100-85, 85-70, 70-50, 50-0
+on every row — and then reported the rubric total as 100. The other rubrics in the same run split
+their budget correctly, so nothing about the settings or the assignment caused it.
 
-That half of the card is now headed **Review Your Draft Rubrics**, with a line underneath saying
-what to do there. The rubric's title and the panel headings below it step down in size to match,
-so the page reads in the order it is meant to.
+Nothing in the app noticed. The rubric screen and the Google Doc both printed the total the AI
+wrote, so they agreed with each other and both disagreed with Canvas — which reads neither of
+them. Canvas works out what a criterion is worth from its top rating, so those two rubrics would
+have been created worth 300 points apiece while every number on screen said 100.
 
-### Deploying is a separate card
+Totals are now calculated from the ratings, in the app and in the document. Where the calculated
+total does not match what the rubric was drafted for, an amber notice appears above the rubric
+saying both numbers and what Canvas would actually create, with two ways to settle it:
 
-The confirmation tick box, the deploy button, the **Save CSV files** link and the Canvas course
-box have moved out of the review card into their own card below it, headed **Deploy to Canvas**.
+- **Make it 300 points** accepts the criteria as drafted and corrects the total line. Nothing
+  moves; the rubric was already worth this.
+- **Adjust this rubric** rescales every criterion to the total you meant, which is the choice to
+  make if the rubric really should be worth 100.
 
-They used to sit at the bottom of the review card, so the last thing inside "is this rubric
-right?" was "send it to Canvas". Two cards put the break where the decision is.
+Which of those is right depends on how you want the assignment weighted, so the app does not pick
+one. Deploying is not blocked either — the points are real points Canvas accepts.
 
-### Adjust this rubric opens when you ask
+The deploy card also names any affected rubrics by title. Rubrics go to Canvas as a set, and a set
+gets checked by opening the first one, so a problem on the fourth was easy to never see.
 
-The **Adjust this rubric** panel used to be open all the time, putting two text fields between the
-save buttons and the deploy button on every visit. It is now a single line you click to open —
-**Adjust this rubric — rename it or change its points** — and everything inside it works exactly
-as before.
+### Overlapping point ranges are corrected
 
-### Request Changes shows that it is open
+Reading down a criterion, each rating should start where the one above it stopped: 40-32, 32-24,
+24-12, 12-0. One criterion in the same run ran 20-16 for Exemplary and then 20-12 for Proficient,
+so a score of 18 counted as both.
 
-**Request Changes** and **Upload Replacement Rubric to App** now look pressed while their card is
-showing, and clicking either one again closes it. Previously the only way to close those cards
-was the small × in the corner, and nothing marked which button had opened them.
+Canvas stores only the top of each range, so that criterion would have arrived with two tiers both
+worth 20 — a grader clicking either one awards full marks, and the criterion's total looks right
+the whole time. These are now lined up automatically when the rubric is drafted or changed, since
+a rating's starting number has only one correct value. The wording is untouched, and the top
+rating — the one that decides what the criterion is worth — never moves.
 
-Note that the Request Changes card deliberately stays open when you move between rubrics — that
-is what lets you write a request for several rubrics and apply them in one run.
+Rubrics read in from a screenshot or converted from a document are left exactly as they are. Those
+are your numbers, not the AI's, and the app reports a problem there rather than rewriting them.
 
 ### Known limits
 
