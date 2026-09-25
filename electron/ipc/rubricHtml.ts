@@ -27,6 +27,32 @@
  * <colgroup> nothing reads column sizes from it.
  */
 import type { RubricData, RubricCriterion } from './geminiTypes'
+import { parseRatingPoints } from './canvasUtils'
+
+/**
+ * What a criterion is worth, read the way Canvas reads it.
+ *
+ * The rubric object carries two point fields the AI wrote — `criterion.totalPoints` and
+ * `rubric.totalPoints` — and this used to print both verbatim. They are claims about the rating
+ * strings rather than derived from them, and the AI is not reliable about making them agree: one
+ * observed rubric gave three criteria a hundred points each and then declared itself worth a
+ * hundred, so the document a colleague would be handed said 100 while the rubric Canvas built was
+ * worth 300.
+ *
+ * Nothing but the four rating strings reaches Canvas, so the document is built from those too,
+ * through the very function that builds the Canvas payload. The two cannot now disagree.
+ *
+ * A rating whose points cannot be read falls back to the AI's own number — `buildRubricPayload`
+ * refuses that CSV separately, and a blank cell here would say less than a wrong one.
+ */
+function criterionWorth(criterion: RubricCriterion): number {
+  return parseRatingPoints(criterion.exemplary?.points) ?? criterion.totalPoints
+}
+
+/** The rubric's total: what its criteria are worth, added up. */
+function rubricWorth(rubric: RubricData): number {
+  return (rubric.criteria ?? []).reduce((sum, c) => sum + criterionWorth(c), 0)
+}
 
 const FONT = 'Arial, sans-serif'
 
@@ -88,7 +114,7 @@ function criterionRow(criterion: RubricCriterion): string {
 
   const points =
     `<td style="${CELL}text-align:center;vertical-align:middle;">` +
-    `${escapeHtml(String(criterion.totalPoints))} points` +
+    `${escapeHtml(String(criterionWorth(criterion)))} points` +
     '</td>'
 
   return `<tr>${criteria}${ratings}${points}</tr>`
@@ -118,7 +144,7 @@ export function buildRubricTable(rubric: RubricData): string {
     `<td colspan="${RATING_LEVELS.length + 1}" style="${CELL}text-align:right;">` +
     '<strong>Total Points</strong></td>' +
     `<td style="${CELL}text-align:center;"><strong>${escapeHtml(
-      String(rubric.totalPoints),
+      String(rubricWorth(rubric)),
     )} points</strong></td>` +
     '</tr>'
 

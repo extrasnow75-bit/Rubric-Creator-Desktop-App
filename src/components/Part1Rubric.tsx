@@ -5,6 +5,9 @@ import { AppMode, PointStyle, ProcessingType, GenerationSettings, RubricData } f
 import { generateCsvFromRubricObject } from '../utils/rubricCsv';
 import { CsvSaveOptions } from './CsvSaveOptions';
 import { RubricAdjustPanel } from './RubricAdjustPanel';
+import { RubricPointsWarning } from './RubricPointsWarning';
+import { canvasTotal } from '../utils/rescaleRubric';
+import { pointsFindings, rubricsWithFindings, settleStatedTotal } from '../utils/rubricPoints';
 import {
   generateRubricFromDescription,
   extractRubricFromDocument,
@@ -22,7 +25,7 @@ import type { RubricPlanRow } from '../utils/rubricPlan';
 import { DeliverableChecklist } from './DeliverableChecklist';
 import { RubricSwitcher } from './RubricSwitcher';
 import { SegmentedChoice } from './SegmentedChoice';
-import { Loader2, Download, FileText, CheckCircle, ArrowRight, RotateCw, Home, X, Clock, ChevronDown, ChevronUp, Link, Check } from 'lucide-react';
+import { Loader2, Download, FileText, CheckCircle, ArrowRight, RotateCw, Home, X, Clock, ChevronDown, ChevronUp, Link, Check, AlertTriangle } from 'lucide-react';
 import ErrorDisplay from './ErrorDisplay';
 import mammoth from 'mammoth';
 import { extractPdfText } from '../utils/pdfText';
@@ -735,6 +738,25 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     [state.rubrics, state.scoringMethod],
   );
 
+  /**
+   * Points problems on the rubric being looked at, and across the whole set.
+   *
+   * Both are needed because the two are read at different moments. The open rubric's findings sit
+   * with the rubric itself, where someone reviewing it will see them. The set-wide count sits by
+   * the deploy button, because rubrics are deployed all at once: the run that prompted these
+   * checks had two bad rubrics out of six, and nothing would have made that visible to someone
+   * who looked at the first one, found it fine, and ticked the box.
+   */
+  const activeFindings = React.useMemo(
+    () => (state.rubric ? pointsFindings(state.rubric) : []),
+    [state.rubric],
+  );
+
+  const flaggedRubrics = React.useMemo(
+    () => rubricsWithFindings(state.rubrics),
+    [state.rubrics],
+  );
+
   /** Rubrics with a settled, non-empty request — what "Apply changes" will actually run. */
   const queuedIndexes = state.rubrics
     .map((_, i) => i)
@@ -1291,9 +1313,31 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 <h3 className="text-lg font-bold text-gray-900 mb-2">
                   {state.rubric.title}
                 </h3>
+                {/*
+                  The computed total, not `rubric.totalPoints`. That field is the AI's own claim
+                  about its criteria and can contradict them — it is what said 100 on a rubric
+                  whose criteria added up to 300. canvasTotal reads the rating strings, which are
+                  the only thing Canvas receives, so this number and the deployed rubric cannot
+                  disagree.
+                */}
                 <p className="text-sm text-gray-600 mb-6">
-                  {state.rubric.criteria.length} criteria • {state.rubric.totalPoints} points
+                  {state.rubric.criteria.length} criteria • {canvasTotal(state.rubric)} points
                 </p>
+
+                <RubricPointsWarning
+                  findings={activeFindings}
+                  actualTotal={canvasTotal(state.rubric)}
+                  /*
+                    No setReadyForCanvas(false) here, unlike the Adjust panel's onChange. This
+                    moves no rating and changes nothing Canvas will receive — it only records
+                    that the criteria, not the drafted total, are the ones to go by. Retiring the
+                    readiness tick for that would ask the user to re-confirm a no-op.
+                  */
+                  onAccept={() => {
+                    if (!state.rubric) return;
+                    updateRubricAt(state.activeRubricIndex, settleStatedTotal(state.rubric));
+                  }}
+                />
 
                 {/* Preview Table */}
                 <div className="overflow-x-auto mb-6 border rounded-2xl">
@@ -1567,6 +1611,33 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 : 'Send this rubric to your Canvas course.'
               : 'Turn the rubric into a Canvas CSV in Part 2.'}
           </p>
+
+          {/*
+            Named here as well as on each rubric, because this is the screen where the decision
+            is actually made. Rubrics deploy as a set, and a set is reviewed by opening the first
+            one — so a problem on the fourth never gets seen unless the deploy step says so.
+          */}
+          {flaggedRubrics.length > 0 && (
+            <div className="mb-6 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+              <AlertTriangle
+                className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                aria-hidden="true"
+              />
+              <p className="text-sm text-amber-900">
+                <span className="font-bold">
+                  {flaggedRubrics.length === 1
+                    ? 'One rubric will not be worth what it says'
+                    : `${flaggedRubrics.length} rubrics will not be worth what they say`}
+                  :
+                </span>{' '}
+                {flaggedRubrics.map((rubric) => rubric.title).join(', ')}. Open{' '}
+                {flaggedRubrics.length === 1 ? 'it' : 'each of them'} above to see the totals and
+                decide. Deploying anyway is allowed — the points Canvas receives are the ones shown
+                on each rubric.
+              </p>
+            </div>
+          )}
+
         {/* Ready confirmation checkbox */}
         {onAnalyzeDeploy && (
           /*

@@ -113,6 +113,57 @@ describe('buildRubricTable', () => {
     expect(() => buildRubricTable(sparse)).not.toThrow()
   })
 
+  /*
+   * The run that prompted these: three criteria of a hundred points each, declaring itself worth
+   * a hundred. The document used to print both numbers as given, so it stated a total Canvas
+   * would never agree with.
+   */
+  it("ignores a stated total that contradicts the criteria", () => {
+    const miscounted: RubricData = {
+      title: 'Part 2: The Internal Compass',
+      totalPoints: 100,
+      criteria: ['Why', 'Frameworks', 'Leadership'].map((category) => ({
+        category,
+        description: '',
+        exemplary: { text: 'a', points: '100-85' },
+        proficient: { text: 'b', points: '85-70' },
+        developing: { text: 'c', points: '70-50' },
+        unsatisfactory: { text: 'd', points: '50-0' },
+        totalPoints: 100,
+      })),
+    }
+    const out = buildRubricTable(miscounted)
+
+    expect(out).toContain('<strong>300 points</strong>')
+    expect(out).not.toContain('<strong>100 points</strong>')
+  })
+
+  it('reads a range the way Canvas does, taking its top', () => {
+    const ranged: RubricData = {
+      ...rubric,
+      criteria: [{ ...rubric.criteria[0], exemplary: { text: 'a', points: '40-32' } }],
+    }
+    expect(buildRubricTable(ranged)).toContain('>40 points<')
+  })
+
+  it("reads Canvas's own notation", () => {
+    const canvasStyle: RubricData = {
+      ...rubric,
+      criteria: [{ ...rubric.criteria[0], exemplary: { text: 'a', points: '4 to >3 pts' } }],
+    }
+    expect(buildRubricTable(canvasStyle)).toContain('>4 points<')
+  })
+
+  it("falls back to the AI's number when a rating carries none", () => {
+    const wordsOnly: RubricData = {
+      ...rubric,
+      criteria: [
+        { ...rubric.criteria[0], exemplary: { text: 'a', points: 'see description' }, totalPoints: 9 },
+      ],
+    }
+    expect(buildRubricTable(wordsOnly)).toContain('>9 points<')
+  })
+
   it('handles a rubric with no criteria at all', () => {
     const empty: RubricData = { title: 'Empty', totalPoints: 0, criteria: [] }
     const out = buildRubricTable(empty)

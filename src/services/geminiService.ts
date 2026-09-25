@@ -18,6 +18,7 @@ import {
   Attachment,
   RubricMeta,
 } from '../types';
+import { repairRatingBands } from '../utils/rubricPoints';
 import { ipcErrorMessage } from '../utils/ipcErrorMessage';
 import { alignByTitle, chunk } from '../utils/rubricBatching';
 
@@ -154,6 +155,20 @@ export const sendMessageToGemini = (
     window.api.gemini.sendMessage({ text, attachments, jobId }),
   );
 
+/**
+ * Chain a rubric's rating bands before anyone sees it.
+ *
+ * Wrapped here rather than in main so it sits on one line of each call instead of four return
+ * statements, and so the fix and the warnings that pair with it stay in one tested module.
+ *
+ * Applied only to the two calls where the AI *writes* the points. `generateRubricFromScreenshot`
+ * and `extractRubricFromDocument` transcribe a rubric that already exists, and quietly editing
+ * someone's own numbers to match a house rule is not a repair — those are left to
+ * `pointsFindings`, which reports rather than rewrites.
+ */
+const chained = (call: Promise<RubricData>): Promise<RubricData> =>
+  call.then((rubric) => repairRatingBands(rubric).rubric);
+
 // ─── Rubric generation and extraction ─────────────────────────────────────────
 
 export const extractRubricMetadata = (
@@ -179,13 +194,15 @@ export const generateRubricFromDescription = (
   signal?: AbortSignal,
   target?: { title: string; focus: string },
 ): Promise<RubricData> =>
-  withCancellation(signal, (jobId) =>
-    window.api.gemini.generateRubricFromDescription({
-      assignmentDescription,
-      settings,
-      jobId,
-      target,
-    }),
+  chained(
+    withCancellation(signal, (jobId) =>
+      window.api.gemini.generateRubricFromDescription({
+        assignmentDescription,
+        settings,
+        jobId,
+        target,
+      }),
+    ),
   );
 
 export const generateRubricFromScreenshot = (
@@ -210,8 +227,10 @@ export const applyRubricChanges = (
   changeRequest: string,
   signal?: AbortSignal,
 ): Promise<RubricData> =>
-  withCancellation(signal, (jobId) =>
-    window.api.gemini.applyRubricChanges({ rubric, changeRequest, jobId }),
+  chained(
+    withCancellation(signal, (jobId) =>
+      window.api.gemini.applyRubricChanges({ rubric, changeRequest, jobId }),
+    ),
   );
 
 // ─── CSV ──────────────────────────────────────────────────────────────────────
