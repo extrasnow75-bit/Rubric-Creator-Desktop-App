@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useSession } from '../contexts/SessionContext';
+import { useCopyAction } from '../hooks/useCopyAction';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { AppMode, PointStyle, ProcessingType, GenerationSettings, RubricData } from '../types';
 import { generateCsvFromRubricObject } from '../utils/rubricCsv';
@@ -69,6 +70,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     startGoogleAuth,
     signOutGoogle,
     setCourseUrl,
+    setSavedDoc,
   } = useSession();
   const { pickFile, pickFolder } = useDrivePicker();
 
@@ -151,7 +153,20 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
    */
   const [changeDrafts, setChangeDrafts] = useState<Record<number, string>>({});
   /** Which rubrics' requests the user has marked as settled and ready to run. */
-  const [changeSettled, setChangeSettled] = useState<Record<number, boolean>>({});
+  /*
+   * One confirmation for the whole run, not one per rubric.
+   *
+   * The per-rubric version created a third state — text typed but not ticked — which did nothing
+   * except need its own warning to explain why a rubric had been skipped. The typed text is
+   * already the signal that a change is wanted; the tick only needs to say "send them".
+   */
+  const [changesConfirmed, setChangesConfirmed] = useState(false);
+
+  /** What the last run did, shown where the button was. Cleared when a new run starts. */
+  const [changeSummary, setChangeSummary] = useState<string | null>(null);
+
+  /** Rubrics the last run actually changed, marked on the switcher so they can be checked. */
+  const [revisedIndexes, setRevisedIndexes] = useState<number[]>([]);
   const [isApplyingChanges, setIsApplyingChanges] = useState(false);
 
   // Rubric source — controls which success banner to show
@@ -568,6 +583,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
         */
         setScoringMethod(settings.pointStyle === PointStyle.RANGE ? 'ranges' : 'fixed');
         setRubricSource('generated');
+        // A new set of rubrics: the previous run's markers and summary describe rubrics that no
+        // longer exist, and the remembered Google Doc holds the set that has just been replaced.
+        setRevisedIndexes([]);
+        setChangeSummary(null);
+        setChangesConfirmed(false);
+        setSavedDoc(null);
+        setDocConflict(null);
+        setDriveSaveSuccess(null);
         setProgress({ percentage: 1, itemsProcessed: made.length });
         setShowReplaceCard(false);
         setShowRequestChangesCard(false);
@@ -596,6 +619,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
   const [driveSaveSuccess, setDriveSaveSuccess] = useState<string | null>(null);
 
   /**
+   * Why an update stopped short, when it did.
+   *
+   * Null is the ordinary case. The other three are the reasons not to write: somebody has edited
+   * the document in Google Docs, it is in the bin, or the id no longer resolves at all. Each
+   * needs a different offer, so the reason is kept rather than collapsed into a boolean.
+   */
+  const [docConflict, setDocConflict] = useState<'edited' | 'trashed' | 'missing' | null>(null);
+  const { state: copyState, copy } = useCopyAction();
+
+  /**
    * The default: create a Google Doc in Drive and open it.
    *
    * The rubric is rendered as an HTML table and handed to Drive to convert, which preserves the
@@ -603,10 +636,86 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
    * uploading, so everything below the words — the grid, the ratings columns, the points — was
    * lost on the way to Drive.
    */
+  /** The rubrics that go into the document, and the name it is filed under. */
+  const docPayload = () => ({
+    rubrics: state.rubrics.length > 0 ? state.rubrics : state.rubric ? [state.rubric] : [],
+    documentTitle:
+      state.rubrics.length > 1 ? describedAssignmentTitle(snapshotDescription) : undefined,
+  });
+
+  /**
+   * Write the rubrics over the document the app made earlier.
+   *
+   * Split from the check in front of it so that "overwrite anyway" can call it directly once the
+   * user has seen what they would be overwriting.
+   */
+  const writeDocUpdate = async () => {
+    const doc = state.savedDoc;
+    if (!doc) return;
+    setSavingToDrive(true);
+    setDriveSaveSuccess(null);
+    try {
+      const result = await window.api.rubric.updateDriveDoc({ fileId: doc.fileId, ...docPayload() });
+      if (result.ok && result.fileId && result.webViewLink) {
+        setSavedDoc({
+          fileId: result.fileId,
+          webViewLink: result.webViewLink,
+          name: result.name ?? doc.name,
+          version: result.version ?? '',
+        });
+        setDocConflict(null);
+        setDriveSaveSuccess('Google Doc updated. Same document, same link.');
+      } else {
+        setError(result.message ?? 'Could not update the Google Doc.');
+      }
+    } catch (err) {
+      setError(`Google Drive update failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSavingToDrive(false);
+    }
+  };
+
+  /**
+   * Check the document is still ours to overwrite, then overwrite it.
+   *
+   * The check is the whole point. Updating in place is what makes the link permanent and gives
+   * Google Docs a revision history worth having, but it also means a rubric someone tidied up by
+   * hand in Docs would be silently replaced by the app's version. Drive's own version counter,
+   * recorded at the last write, says whether that has happened.
+   */
+  const handleUpdateDoc = async () => {
+    const doc = state.savedDoc;
+    if (!doc) return;
+    setSavingToDrive(true);
+    setDriveSaveSuccess(null);
+    setDocConflict(null);
+    try {
+      const check = await window.api.rubric.checkDriveDoc({
+        fileId: doc.fileId,
+        version: doc.version,
+      });
+      if (!check.ok) {
+        setError(check.message);
+        return;
+      }
+      if (check.status !== 'unchanged') {
+        setDocConflict(check.status);
+        return;
+      }
+    } catch (err) {
+      setError(`Could not reach Google Drive: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    } finally {
+      setSavingToDrive(false);
+    }
+    await writeDocUpdate();
+  };
+
   const handleExportToDrive = async () => {
     if (!state.rubric) return;
     setSavingToDrive(true);
     setDriveSaveSuccess(null);
+    setDocConflict(null);
     try {
       const folder = await pickFolder({ title: 'Where should the rubric go?' });
       if (!folder) return;
@@ -614,11 +723,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
       // The whole set, not just the one on screen: a run that produced eight rubrics saves as
       // one document holding all eight. A single-rubric run passes an array of one.
       const result = await window.api.rubric.exportToDrive({
-        rubrics: state.rubrics.length > 0 ? state.rubrics : [state.rubric],
-        documentTitle: state.rubrics.length > 1 ? describedAssignmentTitle(snapshotDescription) : undefined,
+        ...docPayload(),
         folderId: folder.folderId,
       });
-      if (result.ok) {
+      if (result.ok && result.fileId && result.webViewLink) {
+        setSavedDoc({
+          fileId: result.fileId,
+          webViewLink: result.webViewLink,
+          name: result.name ?? 'Rubric',
+          version: result.version ?? '',
+        });
         setDriveSaveSuccess(`Opened in your browser, saved to "${folder.folderName}"`);
       } else {
         setError(result.message ?? 'Could not create the Google Doc.');
@@ -713,6 +827,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
       const parsed = await extractRubricFromDocument(replaceFileText, signal);
       setRubric(parsed);
       setRubricSource('uploaded');
+      setRevisedIndexes([]);
+      setChangeSummary(null);
       setShowReplaceCard(false);
       setReplaceFileText(null);
       setReplaceFileName(null);
@@ -726,7 +842,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
   };
 
   const activeDraft = changeDrafts[state.activeRubricIndex] ?? '';
-  const activeSettled = changeSettled[state.activeRubricIndex] ?? false;
 
   /**
    * The Canvas CSV for each rubric on screen, built for the save panel.
@@ -825,26 +940,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     setShowDeployCard(false);
   };
 
-  /** Rubrics with a settled, non-empty request — what "Apply changes" will actually run. */
+  /** Rubrics with something typed — what "Apply changes" will run, once it is confirmed. */
   const queuedIndexes = state.rubrics
     .map((_, i) => i)
-    .filter((i) => (changeSettled[i] ?? false) && (changeDrafts[i] ?? '').trim() !== '');
-
-  /**
-   * Rubrics with text typed but not ticked.
-   *
-   * Named rather than silently skipped: writing a request and forgetting to tick it would
-   * otherwise mean the run quietly leaves that rubric alone, and the user discovers it by
-   * reading a document that did not change.
-   */
-  const unsettledIndexes = state.rubrics
-    .map((_, i) => i)
-    .filter((i) => !(changeSettled[i] ?? false) && (changeDrafts[i] ?? '').trim() !== '');
+    .filter((i) => (changeDrafts[i] ?? '').trim() !== '');
 
   const setDraft = (index: number, text: string) =>
     setChangeDrafts((prev) => ({ ...prev, [index]: text }));
-  const setSettled = (index: number, settled: boolean) =>
-    setChangeSettled((prev) => ({ ...prev, [index]: settled }));
 
   /**
    * Run every settled request, one rubric at a time.
@@ -858,6 +960,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
     setIsApplyingChanges(true);
     setError(null);
+    setChangeSummary(null);
+    setRevisedIndexes([]);
     startProgress(queuedIndexes.length, true);
 
     /* One signal for the run, for the reason given in generateRubricsFor: re-reading it per
@@ -901,11 +1005,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
           for (const i of revised) delete next[i];
           return next;
         });
-        setChangeSettled((prev) => {
-          const next = { ...prev };
-          for (const i of revised) delete next[i];
-          return next;
-        });
+        setChangesConfirmed(false);
+        setRevisedIndexes(revised);
+        /*
+          Named, not counted. "Your changes have been applied" reads the same whether one rubric
+          changed or eight, and the green banner below the table said exactly that in exactly the
+          place it had already been sitting — a word changing inside a box that was already green
+          is not an event anyone notices.
+        */
+        const names = revised.map((i) => state.rubrics[i]?.title).filter(Boolean);
+        setChangeSummary(
+          `${revised.length === 1 ? 'Updated 1 rubric' : `Updated ${revised.length} rubrics`}` +
+            (names.length > 0 ? ` — ${names.join(', ')}.` : '.'),
+        );
         setRubricSource('revised');
         setReadyForCanvas(false);
         setShowDeployCard(false);
@@ -1393,7 +1505,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   rubrics={state.rubrics}
                   activeIndex={state.activeRubricIndex}
                   onOpen={openRubric}
-                  pending={[...queuedIndexes, ...unsettledIndexes]}
+                  pending={queuedIndexes}
+                  revised={revisedIndexes}
                 />
                 <h3 className="text-lg font-bold text-gray-900 mb-2">
                   {state.rubric.title}
@@ -1483,8 +1596,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
                 {/* Secondary Actions */}
                 <div className="flex gap-3 mb-3">
+                  {/*
+                    One button, two jobs. Once a document exists this writes back to it, which is
+                    what keeps its link permanent and its Google Docs revision history worth
+                    reading; creating another copy is still available, from the card below, where
+                    it reads as the deliberate choice it is rather than the default.
+                  */}
                   <button
-                    onClick={handleExportToDrive}
+                    onClick={state.savedDoc ? handleUpdateDoc : handleExportToDrive}
                     disabled={savingToDrive || !state.isGoogleAuthenticated}
                     title={
                       state.isGoogleAuthenticated
@@ -1498,7 +1617,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                         <path d="M220-100q-17 0-34.5-10.5T160-135L60-310q-8-14-8-34.5t8-34.5l260-446q8-14 25.5-24.5T380-860h200q17 0 34.5 10.5T640-825l182 312q-23-6-47.5-8t-48.5 2L574-780H386L132-344l94 164h316q11 23 25.5 43t33.5 37H220Zm70-180-29-51 183-319h72l101 176q-17 13-31.5 28.5T560-413l-80-139-110 192h164q-7 19-10.5 39t-3.5 41H290Zm430 160v-120H600v-80h120v-120h80v120h120v80H800v120h-80Z"/>
                       </svg>
                     )}
-                    {savingToDrive ? 'Creating\u2026' : 'Open in Google Docs'}
+                    {savingToDrive
+                      ? state.savedDoc
+                        ? 'Updating\u2026'
+                        : 'Creating\u2026'
+                      : state.savedDoc
+                        ? 'Update the Google Doc'
+                        : 'Open in Google Docs'}
                   </button>
                   <button
                     onClick={handleSaveLocal}
@@ -1550,6 +1675,110 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                     Request Changes
                   </button>
                 </div>
+
+                {/*
+                  The document, kept on screen rather than announced once and forgotten.
+                  Creating it used to return a file id and a link that were both thrown away, so
+                  the only record of where the rubric went was a browser tab that may have opened
+                  behind the app window or on another screen.
+                */}
+                {state.savedDoc && (
+                  <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded-2xl">
+                    <p className="text-sm font-bold text-gray-900">Google Doc</p>
+                    <p className="text-sm text-gray-700 truncate" title={state.savedDoc.name}>
+                      {state.savedDoc.name}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-4 mt-2">
+                      {/* A plain link: the window's navigation guard sends it to the system
+                          browser, and Google Docs is already on the external-link allowlist. */}
+                      <a
+                        href={state.savedDoc.webViewLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-bold text-brand hover:text-brand-dark underline"
+                      >
+                        Open
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => state.savedDoc && copy(state.savedDoc.webViewLink)}
+                        className="text-sm font-bold text-brand hover:text-brand-dark underline"
+                      >
+                        {copyState === 'copied'
+                          ? 'Link copied'
+                          : copyState === 'failed'
+                            ? 'Could not copy'
+                            : 'Copy link'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportToDrive}
+                        disabled={savingToDrive}
+                        className="text-sm text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
+                      >
+                        Create a new one instead
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/*
+                  Stop short of overwriting, and say what would have been lost. Each reason gets
+                  its own offer, because "create a new one" is the only move for a document that
+                  is gone, whereas an edited one is a genuine choice.
+                */}
+                {docConflict && (
+                  <div
+                    role="status"
+                    className="mb-3 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl"
+                  >
+                    <AlertTriangle
+                      className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-amber-900">
+                        {docConflict === 'edited'
+                          ? 'That document has been edited since the app wrote it.'
+                          : docConflict === 'trashed'
+                            ? 'That document is in your Google Drive bin.'
+                            : 'That document is no longer in your Google Drive.'}
+                      </p>
+                      <p className="mt-1 text-sm text-amber-900">
+                        {docConflict === 'edited'
+                          ? 'Updating it replaces what is there now with the rubrics in this app. Google Docs keeps a version history, so the edit could be recovered under File → Version history — but it is easier not to lose it.'
+                          : 'Nothing can be written back to it, so the rubrics need a new document.'}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {docConflict === 'edited' && (
+                          <button
+                            type="button"
+                            onClick={writeDocUpdate}
+                            disabled={savingToDrive}
+                            className="px-3 py-1.5 rounded-xl text-sm font-medium bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                          >
+                            Overwrite it anyway
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleExportToDrive}
+                          disabled={savingToDrive}
+                          className="px-3 py-1.5 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                        >
+                          Create a new document
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDocConflict(null)}
+                          className="px-3 py-1.5 rounded-xl text-sm font-medium bg-white border border-amber-300 text-amber-900 hover:bg-amber-100"
+                        >
+                          Leave it alone
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {driveSaveSuccess && (
                   <p className="text-xs text-green-700 font-bold text-center mb-3">✓ {driveSaveSuccess}</p>
@@ -1621,16 +1850,38 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                       className="w-full h-32 p-4 border border-gray-300 rounded-2xl focus:border-brand focus:outline-none resize-none text-sm"
                     />
 
+                    {/*
+                      One tick for the whole run, listing what it covers. Per-rubric ticks meant
+                      the box on screen confirmed only the rubric on screen, so the thing you were
+                      agreeing to was never visible in one place — and forgetting one left a
+                      rubric silently unchanged.
+                    */}
                     <label className="flex items-start gap-3 mt-3 cursor-pointer select-none">
                       <input
                         type="checkbox"
-                        checked={activeSettled}
-                        disabled={activeDraft.trim() === ''}
-                        onChange={(e) => setSettled(state.activeRubricIndex, e.target.checked)}
+                        checked={changesConfirmed}
+                        disabled={queuedIndexes.length === 0}
+                        onChange={(e) => setChangesConfirmed(e.target.checked)}
                         className="mt-0.5 w-4 h-4 accent-brand flex-shrink-0 disabled:opacity-40"
                       />
                       <span className="text-sm text-gray-700">
-                        These are the changes I want for <strong>{state.rubric.title}</strong>.
+                        {queuedIndexes.length === 0 ? (
+                          'Describe a change above, then tick this to send it.'
+                        ) : queuedIndexes.length === 1 ? (
+                          <>
+                            Send this change for{' '}
+                            <strong>{state.rubrics[queuedIndexes[0]]?.title}</strong>.
+                          </>
+                        ) : (
+                          <>
+                            Send these changes for <strong>{queuedIndexes.length} rubrics</strong>:{' '}
+                            {queuedIndexes
+                              .map((i) => state.rubrics[i]?.title)
+                              .filter(Boolean)
+                              .join(', ')}
+                            .
+                          </>
+                        )}
                       </span>
                     </label>
                   </div>
@@ -1645,7 +1896,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 {showRequestChangesCard && queuedIndexes.length > 0 && (
                   <button
                     onClick={handleApplyChanges}
-                    disabled={isApplyingChanges}
+                    disabled={isApplyingChanges || !changesConfirmed}
                     className="w-full py-3 mb-3 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 flex items-center justify-center gap-2"
                   >
                     {isApplyingChanges && <Loader2 className="w-5 h-5 animate-spin" />}
@@ -1657,19 +1908,37 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   </button>
                 )}
 
-                {/* Only alongside the run button. With nothing queued there is no run for these
-                    to be left out of, and "will be left alone" would read as an error when the
-                    user has simply not finished typing yet. */}
-                {showRequestChangesCard &&
-                  queuedIndexes.length > 0 &&
-                  unsettledIndexes.length > 0 &&
-                  !isApplyingChanges && (
-                  <p className="text-xs text-amber-700 mb-3">
-                    {unsettledIndexes.length === 1 ? 'One rubric has' : `${unsettledIndexes.length} rubrics have`}{' '}
-                    changes typed but not ticked, and will be left alone:{' '}
-                    {unsettledIndexes.map((i) => state.rubrics[i]?.title).filter(Boolean).join(', ')}.
+                {showRequestChangesCard && queuedIndexes.length > 0 && !changesConfirmed && (
+                  <p className="text-xs text-gray-600 mb-3 text-center">
+                    Tick the box above to turn on the button.
                   </p>
                 )}
+
+                {/*
+                  Outside the Request Changes card, which closes itself on a successful run — a
+                  confirmation that disappears along with the thing it is confirming is no
+                  confirmation at all. Live so it is announced rather than only drawn.
+                */}
+                <div role="status" aria-live="polite">
+                  {changeSummary && !isApplyingChanges && (
+                    <div className="mb-3 flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl">
+                      <CheckCircle
+                        className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-green-900">{changeSummary}</p>
+                        {/* The gap someone actually hit: the table redraws, the document does
+                            not, and nothing said so. */}
+                        <p className="text-sm text-green-800 mt-1">
+                          {state.savedDoc
+                            ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — use “Update the Google Doc” above to bring it in line.'
+                            : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </>

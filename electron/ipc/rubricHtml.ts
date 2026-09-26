@@ -230,3 +230,34 @@ export function rubricFileName(rubric: RubricData, extension: string): string {
       .trim() || 'Rubric'
   return `${stem}.${extension}`
 }
+
+/**
+ * A document name carrying when it was written: "Essay Rubric (2026-09-25 6.25pm)".
+ *
+ * Goes on the Drive file name only, never inside the document. Two paths read a saved rubric back
+ * — "Upload Replacement Rubric to App" and Part 2's document route — and both work from the
+ * document's *text*, which never contains the file's name. A stamp in the heading would be one
+ * more line sitting next to the title for the model to decide about; here there is nothing for it
+ * to see.
+ *
+ * Year first because Drive sorts names as text: written 9/25 and 9/5 the versions interleave
+ * wrongly, written 2026-09-25 and 2026-09-05 they do not.
+ *
+ * A full stop rather than a colon in the time, which is what a clock would use. Windows refuses
+ * a colon in a filename, and a Google Doc's name becomes a filename the moment anyone downloads
+ * it — as does this app's own "Save to this computer". One format that survives every
+ * destination beats a prettier one that gets rewritten to "6_25pm" on the way out.
+ */
+export function timestampedName(base: string, when: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const hours = when.getHours()
+  const suffix = hours < 12 ? 'am' : 'pm'
+  const twelve = hours % 12 === 0 ? 12 : hours % 12
+
+  const stamp =
+    `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())} ` +
+    `${twelve}.${pad(when.getMinutes())}${suffix}`
+
+  const stem = (base ?? '').trim() || 'Rubric'
+  return `${stem} (${stamp})`
+}

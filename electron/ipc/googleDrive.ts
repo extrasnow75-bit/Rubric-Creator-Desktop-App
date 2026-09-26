@@ -33,6 +33,11 @@ export interface DriveFile {
 export interface UploadResult {
   fileId: string
   webViewLink: string
+  /** The name Drive settled on, which is what to show rather than what we asked for. */
+  name?: string
+  /** Recorded after a write, so the next write can tell whether anyone else has been in. */
+  modifiedTime?: string
+  version?: string
 }
 
 /** Pull a useful sentence out of a Google error body, which is nested several layers deep. */
@@ -322,6 +327,53 @@ export async function downloadFileBytes(rawFileId: string): Promise<Uint8Array> 
  * outside the string's encoding is mangled on the way through. Since this is the path a generated
  * document takes into Drive, that mattered.
  */
+/** Everything both writes ask Drive to hand back. */
+const UPLOAD_FIELDS = 'id,webViewLink,name,modifiedTime,version'
+
+function asUploadResult(raw: unknown): UploadResult {
+  const file = raw as {
+    id: string
+    webViewLink: string
+    name?: string
+    modifiedTime?: string
+    version?: string
+  }
+  return {
+    fileId: file.id,
+    webViewLink: file.webViewLink,
+    name: file.name,
+    modifiedTime: file.modifiedTime,
+    version: file.version,
+  }
+}
+
+/**
+ * The metadata-plus-media body Drive wants for a multipart write.
+ *
+ * Shared by create and update so the two cannot drift; the boundary is passed in because the
+ * caller generates it from random bytes — a guessable one would let renderer-supplied content
+ * close the part and start its own.
+ */
+function multipartBody(
+  boundary: string,
+  metadata: Record<string, unknown>,
+  content: string | Uint8Array,
+  sourceMimeType: string,
+): Buffer {
+  return Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\n` +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        `${JSON.stringify(metadata)}\r\n` +
+        `--${boundary}\r\n` +
+        `Content-Type: ${sourceMimeType}\r\n\r\n`,
+      'utf-8',
+    ),
+    typeof content === 'string' ? Buffer.from(content, 'utf-8') : Buffer.from(content),
+    Buffer.from(`\r\n--${boundary}--`, 'utf-8'),
+  ])
+}
+
 export async function uploadToDrive(args: {
   content: string | Uint8Array
   name: string
@@ -338,22 +390,11 @@ export async function uploadToDrive(args: {
   if (args.targetMimeType) metadata.mimeType = args.targetMimeType
   if (args.folderId) metadata.parents = [args.folderId]
 
-  const body = Buffer.concat([
-    Buffer.from(
-      `--${boundary}\r\n` +
-        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-        `${JSON.stringify(metadata)}\r\n` +
-        `--${boundary}\r\n` +
-        `Content-Type: ${args.sourceMimeType}\r\n\r\n`,
-      'utf-8',
-    ),
-    typeof args.content === 'string' ? Buffer.from(args.content, 'utf-8') : Buffer.from(args.content),
-    Buffer.from(`\r\n--${boundary}--`, 'utf-8'),
-  ])
+  const body = multipartBody(boundary, metadata, args.content, args.sourceMimeType)
 
   const params = new URLSearchParams({
     uploadType: 'multipart',
-    fields: 'id,webViewLink',
+    fields: UPLOAD_FIELDS,
     supportsAllDrives: 'true',
   })
 
@@ -368,6 +409,105 @@ export async function uploadToDrive(args: {
 
   if (!response.ok) throw await driveError(response, 'file')
 
-  const created = (await response.json()) as { id: string; webViewLink: string }
-  return { fileId: created.id, webViewLink: created.webViewLink }
+  return asUploadResult(await response.json())
+}
+
+/**
+ * Replace an existing document's contents, keeping its id, its link and its revision history.
+ *
+ * The alternative — writing a second file every time — is what the app did, and it meant a run
+ * that was revised three times left three identically named documents in Drive with nothing to
+ * say which was current. Writing back to the same file makes the link permanent and, because
+ * Google keeps a revision per write, gives File → Version history something real to show.
+ *
+ * Drive converts the uploaded HTML into the existing Google Doc exactly as it does on create, so
+ * long as the target mime type is sent again; without it the file would be replaced by raw HTML.
+ * The caller is expected to have checked first that nobody else has edited the document, because
+ * this overwrites whatever is there (see describeDriveFile).
+ */
+export async function updateDriveFile(args: {
+  fileId: string
+  content: string | Uint8Array
+  name?: string
+  sourceMimeType: string
+  targetMimeType?: string
+}): Promise<UploadResult> {
+  const fileId = assertFileId(args.fileId)
+  const accessToken = await getAccessToken()
+  const boundary = `rubriccreator${randomBytes(16).toString('hex')}`
+
+  const params = new URLSearchParams({
+    uploadType: 'multipart',
+    fields: UPLOAD_FIELDS,
+    supportsAllDrives: 'true',
+  })
+
+  const write = (metadata: Record<string, unknown>) =>
+    fetch(`${DRIVE_UPLOAD}/${fileId}?${params.toString()}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body: multipartBody(boundary, metadata, args.content, args.sourceMimeType),
+    })
+
+  const named: Record<string, unknown> = {}
+  if (args.name) named.name = args.name
+
+  /*
+   * Sending the target mime type is what asks Drive to convert the uploaded HTML, exactly as on
+   * create. Drive also refuses, on some files, to be told a mime type it considers unchangeable —
+   * and the file here is already a Google Doc, so conversion may well be implied without it.
+   *
+   * Which of those is true is not worth guessing at from here: ask for the conversion, and if
+   * Drive objects to being told the type at all, send the same body again without it. One wasted
+   * request in the case that does not arise, against a feature that silently does not work.
+   */
+  let response = await write(
+    args.targetMimeType ? { ...named, mimeType: args.targetMimeType } : named,
+  )
+
+  if (!response.ok && args.targetMimeType && response.status >= 400 && response.status < 500) {
+    const complaint = (await response.clone().text()).toLowerCase()
+    if (complaint.includes('mimetype') || complaint.includes('mime type')) {
+      response = await write(named)
+    }
+  }
+
+  if (!response.ok) throw await driveError(response, 'file')
+  return asUploadResult(await response.json())
+}
+
+/** What a Drive file looks like right now. Null when it is not there at all. */
+export interface DriveFileState {
+  name: string
+  /** RFC 3339, and it moves for any change — ours included, so record it after writing. */
+  modifiedTime: string
+  /** Drive's own counter for the file. A cheaper equality check than the timestamp. */
+  version: string
+  /** In the owner's bin. The file still answers by id, so this is not a 404. */
+  trashed: boolean
+}
+
+/**
+ * Look at a file without downloading it, to find out whether it is still ours to overwrite.
+ *
+ * Two different "gone"s, reported differently because they need different offers. A file that has
+ * been deleted is still addressable by id and comes back with `trashed: true`, so it can be named
+ * as being in the bin. A file whose id no longer resolves at all is a 404, which is null here
+ * rather than an error: it is an ordinary thing for a remembered id to have outlived its file,
+ * and the only sensible response is to offer a new document.
+ */
+export async function describeDriveFile(rawFileId: string): Promise<DriveFileState | null> {
+  const fileId = assertFileId(rawFileId)
+  const params = new URLSearchParams({
+    fields: 'name,modifiedTime,version,trashed',
+    supportsAllDrives: 'true',
+  })
+
+  const response = await authorized(`${DRIVE_FILES}/${fileId}?${params.toString()}`)
+  if (response.status === 404) return null
+  if (!response.ok) throw await driveError(response, 'file')
+  return (await response.json()) as DriveFileState
 }

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { escapeHtml, buildRubricTable, buildRubricHtml, buildRubricSetHtml, rubricFileName } from './rubricHtml'
+import {
+  escapeHtml,
+  buildRubricTable,
+  buildRubricHtml,
+  buildRubricSetHtml,
+  rubricFileName,
+  timestampedName,
+} from './rubricHtml'
 import type { RubricData } from './geminiTypes'
 
 const rubric: RubricData = {
@@ -272,5 +279,41 @@ describe('buildRubricSetHtml heading structure', () => {
   it('gives every rubric an h1', () => {
     const html = buildRubricSetHtml([rubric, second, { ...rubric, title: 'Third' }])
     expect((html.match(/<h1/g) ?? []).length).toBe(3)
+  })
+})
+
+describe('timestampedName', () => {
+  const at = (iso: string) => new Date(iso)
+
+  it('appends the date and time in brackets', () => {
+    expect(timestampedName('Essay Rubric', at('2026-09-25T18:25:00'))).toBe(
+      'Essay Rubric (2026-09-25 6.25pm)',
+    )
+  })
+
+  it('writes the year first, so Drive sorts versions chronologically', () => {
+    const fifth = timestampedName('R', at('2026-09-05T09:00:00'))
+    const twentyFifth = timestampedName('R', at('2026-09-25T09:00:00'))
+
+    // The comparison Drive actually makes on a name column.
+    expect([twentyFifth, fifth].sort()).toEqual([fifth, twentyFifth])
+  })
+
+  it('uses no character Windows refuses in a filename', () => {
+    const name = timestampedName('Essay Rubric', at('2026-09-25T18:25:00'))
+    expect(name).not.toMatch(/[<>:"/\\|?*]/)
+  })
+
+  it('reads midnight and noon as 12, not 0', () => {
+    expect(timestampedName('R', at('2026-01-02T00:07:00'))).toBe('R (2026-01-02 12.07am)')
+    expect(timestampedName('R', at('2026-01-02T12:07:00'))).toBe('R (2026-01-02 12.07pm)')
+  })
+
+  it('pads the month, day and minute', () => {
+    expect(timestampedName('R', at('2026-01-02T09:05:00'))).toBe('R (2026-01-02 9.05am)')
+  })
+
+  it('falls back to a usable stem when the title is blank', () => {
+    expect(timestampedName('   ', at('2026-09-25T18:25:00'))).toBe('Rubric (2026-09-25 6.25pm)')
   })
 })

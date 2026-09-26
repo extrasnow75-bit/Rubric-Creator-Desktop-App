@@ -95,11 +95,14 @@ contextBridge.exposeInMainWorld('api', {
   },
   rubric: {
     /** Creates a Google Doc in Drive and opens it in the browser. Needs a Google sign-in. */
-    exportToDrive: (args: {
-      rubric: unknown
-      folderId?: string
-    }): Promise<{ ok: boolean; fileId?: string; webViewLink?: string; message?: string }> =>
+    exportToDrive: (args: unknown): Promise<unknown> =>
       ipcRenderer.invoke('rubric:exportToDrive', args),
+    /** Rewrites a document this app made earlier, keeping its id, link and revision history. */
+    updateDriveDoc: (args: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('rubric:updateDriveDoc', args),
+    /** Whether that document is still there, and still as the app left it. */
+    checkDriveDoc: (args: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('rubric:checkDriveDoc', args),
     /** Saves the same rubric as a .html file. Works with no Google account at all. */
     saveHtml: (args: {
       rubric: unknown

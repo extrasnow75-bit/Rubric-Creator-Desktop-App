@@ -85,6 +85,16 @@ export interface RubricData {
   totalPoints: number;
 }
 
+/** A Google Doc this app wrote, and enough about it to write to it again. */
+export interface SavedRubricDoc {
+  fileId: string;
+  webViewLink: string;
+  /** What Drive called it, timestamp included. Shown rather than reconstructed. */
+  name: string;
+  /** Drive's version counter as of our last write. */
+  version: string;
+}
+
 export interface RubricMeta {
   name: string;
   totalPoints: string;
@@ -260,6 +270,21 @@ export interface SessionState {
    * a session fact rather than a per-rubric one because the deploy panel reports a batch.
    */
   deployedToCanvas: boolean;
+
+  /**
+   * The Google Doc these rubrics were last written to, if any.
+   *
+   * Held so the app can write back to the same file instead of creating another one. Every
+   * "Open in Google Docs" used to create a new document and throw the returned id away, so three
+   * revisions left three identically named files in Drive and nothing said which was current.
+   *
+   * `version` is Drive's own counter as of the app's last write. Comparing it before the next
+   * write is how an edit made by hand in Google Docs is noticed, rather than silently overwritten.
+   *
+   * Cleared when a genuinely new set of rubrics is generated, since the remembered document
+   * belongs to the set it was written from.
+   */
+  savedDoc: SavedRubricDoc | null;
 
   // CSV output (from Part 2)
   csvOutput: string | null;

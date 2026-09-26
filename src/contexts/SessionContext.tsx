@@ -9,6 +9,7 @@ import {
   UploadHistoryItem,
   ProgressState,
   GoogleUser,
+  SavedRubricDoc,
 } from '../types';
 
 // Create context
@@ -27,6 +28,8 @@ const SessionContext = createContext<{
   setScoringMethod: (method: 'ranges' | 'fixed') => void;
   /** Latch on the first rubric to reach Canvas. See SessionState.deployedToCanvas. */
   markDeployedToCanvas: () => void;
+  /** Remember (or forget) the Google Doc these rubrics were written to. */
+  setSavedDoc: (doc: SavedRubricDoc | null) => void;
   setCsvOutput: (csv: string | null, fileName?: string) => void;
   setCanvasConfig: (config: CanvasConfig | null) => void;
   addBatchItem: (item: BatchItem) => void;
@@ -76,6 +79,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     rubricMetadata: null,
     scoringMethod: 'ranges',
     deployedToCanvas: false,
+    savedDoc: null,
     csvOutput: null,
     csvFileName: null,
     canvasConfig: null,
@@ -184,6 +188,10 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
   /** One way only, until the session is cleared. A later failed deploy does not un-deploy. */
   const markDeployedToCanvas = useCallback(() => {
     setState((prev) => (prev.deployedToCanvas ? prev : { ...prev, deployedToCanvas: true }));
+  }, []);
+
+  const setSavedDoc = useCallback((doc: SavedRubricDoc | null) => {
+    setState((prev) => ({ ...prev, savedDoc: doc }));
   }, []);
 
   const setCsvOutput = useCallback((csv: string | null, fileName?: string) => {
@@ -352,6 +360,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       rubricMetadata: null,
       scoringMethod: 'ranges',
       deployedToCanvas: false,
+      savedDoc: null,
       csvOutput: null,
       csvFileName: null,
       canvasConfig: null,
@@ -396,6 +405,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       rubricMetadata: null,
       scoringMethod: 'ranges',
       deployedToCanvas: false,
+      savedDoc: null,
       csvOutput: null,
       csvFileName: null,
       batchItems: [],
@@ -611,6 +621,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     setRubricMetadata,
     setScoringMethod,
     markDeployedToCanvas,
+    setSavedDoc,
     setCsvOutput,
     setCanvasConfig,
     addBatchItem,

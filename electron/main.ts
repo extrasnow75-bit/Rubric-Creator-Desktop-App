@@ -16,7 +16,7 @@ import { checkRepair } from './ipc/csvRepair'
 import { signIn, getStatus, clearTokens } from './ipc/googleAuth'
 import { withJob, cancelJob } from './ipc/jobs'
 import * as gemini from './ipc/gemini'
-import { buildRubricSetHtml, rubricFileName } from './ipc/rubricHtml'
+import { buildRubricSetHtml, rubricFileName, timestampedName } from './ipc/rubricHtml'
 import type { Attachment, GenerationSettings, RubricData } from './ipc/geminiTypes'
 import {
   listFiles,
@@ -26,6 +26,8 @@ import {
   downloadFileBytes,
   fetchFileForProcessing,
   uploadToDrive,
+  updateDriveFile,
+  describeDriveFile,
   extractFileIdFromUrl,
   GOOGLE_DOC_MIME,
   type ListFilesArgs,
@@ -492,6 +494,60 @@ ipcMain.handle(
 // a working Google sign-in — which is the point, given that Testing-mode refresh tokens expire
 // weekly and new staff hit sign-in problems most.
 
+/** The name a rubric set goes into Drive under, stamped with the moment it was written. */
+function docNameFor(rubrics: RubricData[], documentTitle?: string): string {
+  return timestampedName(documentTitle?.trim() || rubrics[0]?.title || 'Rubric')
+}
+
+/**
+ * Report what has happened to a document since the app last wrote it.
+ *
+ * Asked before an update, so that overwriting someone's own edits is a choice rather than a
+ * surprise. Three outcomes the renderer has to tell apart: the file is gone entirely, it is in
+ * the bin, or it is there but has moved on from the version we recorded — which means somebody
+ * has been editing it in Google Docs.
+ */
+ipcMain.handle('rubric:checkDriveDoc', async (_e, args: { fileId: string; version?: string }) => {
+  try {
+    const state = await describeDriveFile(args.fileId)
+    if (!state) return { ok: true as const, status: 'missing' as const }
+    if (state.trashed) return { ok: true as const, status: 'trashed' as const, name: state.name }
+    const status = args.version && state.version !== args.version ? 'edited' : 'unchanged'
+    return { ok: true as const, status, name: state.name, modifiedTime: state.modifiedTime }
+  } catch (e) {
+    return { ok: false as const, message: e instanceof Error ? e.message : String(e) }
+  }
+})
+
+/**
+ * Write the rubrics back over a document the app made earlier.
+ *
+ * Renamed as well as rewritten, so the stamp in the name goes on telling the truth about when the
+ * contents were last written. Deliberately does not open a browser tab: an update follows a
+ * change the user just made in the app, where they already are, and a new tab per revision is
+ * how the old create-every-time behaviour felt.
+ */
+ipcMain.handle(
+  'rubric:updateDriveDoc',
+  async (_e, args: { fileId: string; rubrics: RubricData[]; documentTitle?: string }) => {
+    if (args.rubrics.length === 0) {
+      return { ok: false as const, message: 'There is no rubric to save.' }
+    }
+    try {
+      const written = await updateDriveFile({
+        fileId: args.fileId,
+        content: buildRubricSetHtml(args.rubrics, args.documentTitle),
+        name: docNameFor(args.rubrics, args.documentTitle),
+        sourceMimeType: 'text/html',
+        targetMimeType: GOOGLE_DOC_MIME,
+      })
+      return { ok: true as const, ...written }
+    } catch (e) {
+      return { ok: false as const, message: e instanceof Error ? e.message : String(e) }
+    }
+  },
+)
+
 /** Build the rubric as a Google Doc in the user's Drive, and open it in their browser. */
 ipcMain.handle(
   'rubric:exportToDrive',
@@ -500,15 +556,15 @@ ipcMain.handle(
       return { ok: false as const, message: 'There is no rubric to save.' }
     }
     try {
-      const { fileId, webViewLink } = await uploadToDrive({
+      const written = await uploadToDrive({
         content: buildRubricSetHtml(args.rubrics, args.documentTitle),
-        name: args.documentTitle?.trim() || args.rubrics[0].title || 'Rubric',
+        name: docNameFor(args.rubrics, args.documentTitle),
         sourceMimeType: 'text/html',
         targetMimeType: GOOGLE_DOC_MIME,
         folderId: args.folderId,
       })
-      await openExternalSafely(webViewLink)
-      return { ok: true as const, fileId, webViewLink }
+      await openExternalSafely(written.webViewLink)
+      return { ok: true as const, ...written }
     } catch (e) {
       return { ok: false as const, message: e instanceof Error ? e.message : String(e) }
     }
@@ -527,9 +583,12 @@ ipcMain.handle(
     if (args.rubrics.length === 0) {
       return { ok: false as const, message: 'There is no rubric to save.' }
     }
-    const named = args.documentTitle?.trim()
-      ? ({ ...args.rubrics[0], title: args.documentTitle } as RubricData)
-      : args.rubrics[0]
+    // Stamped like the Drive name, so a folder of local copies is as easy to read as Drive is.
+    // rubricFileName strips what Windows refuses; the stamp is written to survive that untouched.
+    const named = {
+      ...args.rubrics[0],
+      title: docNameFor(args.rubrics, args.documentTitle),
+    } as RubricData
     const { filePath } = await dialog.showSaveDialog({
       defaultPath: rubricFileName(named, 'html'),
       filters: [{ name: 'Web page', extensions: ['html'] }],

@@ -19,6 +19,23 @@ import type {
 
 export {}
 
+/**
+ * What both Drive writes hand back.
+ *
+ * `version` and `modifiedTime` are recorded after a write so the next one can tell whether
+ * anybody has edited the document in Google Docs since. `name` is what Drive settled on, which
+ * is what to display — it carries the timestamp the main process stamped on.
+ */
+interface DriveDocResult {
+  ok: boolean
+  fileId?: string
+  webViewLink?: string
+  name?: string
+  modifiedTime?: string
+  version?: string
+  message?: string
+}
+
 declare global {
   interface Window {
     api: {
@@ -64,7 +81,34 @@ declare global {
           rubrics: RubricData[]
           documentTitle?: string
           folderId?: string
-        }): Promise<{ ok: boolean; fileId?: string; webViewLink?: string; message?: string }>
+        }): Promise<DriveDocResult>
+        /**
+         * Rewrite a document this app created, keeping its id, its link and its revision
+         * history. Does not open a browser tab — see the handler for why.
+         */
+        updateDriveDoc(args: {
+          fileId: string
+          rubrics: RubricData[]
+          documentTitle?: string
+        }): Promise<DriveDocResult>
+        /**
+         * What has happened to that document since the app last wrote it.
+         *
+         * `edited` means someone has changed it in Google Docs, so an update would overwrite
+         * their work. Pass the version recorded by the last write to get that answer at all.
+         */
+        checkDriveDoc(args: {
+          fileId: string
+          version?: string
+        }): Promise<
+          | {
+              ok: true
+              status: 'unchanged' | 'edited' | 'trashed' | 'missing'
+              name?: string
+              modifiedTime?: string
+            }
+          | { ok: false; message: string }
+        >
         /** The same document as .html. Works with no Google account. */
         saveHtml(args: {
           rubrics: RubricData[]

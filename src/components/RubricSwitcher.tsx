@@ -23,10 +23,25 @@ interface Props {
    * of them to remember which ones you have already done.
    */
   pending?: number[];
+  /**
+   * Indexes the last change-request run actually rewrote.
+   *
+   * Separate from `pending` because they answer different questions — one is "what have I asked
+   * for", the other "what came back changed, and therefore wants reading". After a run of eight
+   * these are the only rubrics worth opening.
+   */
+  revised?: number[];
 }
 
-export const RubricSwitcher: React.FC<Props> = ({ rubrics, activeIndex, onOpen, pending = [] }) => {
+export const RubricSwitcher: React.FC<Props> = ({
+  rubrics,
+  activeIndex,
+  onOpen,
+  pending = [],
+  revised = [],
+}) => {
   const pendingSet = new Set(pending);
+  const revisedSet = new Set(revised);
   if (rubrics.length < 2) return null;
 
   return (
@@ -38,6 +53,9 @@ export const RubricSwitcher: React.FC<Props> = ({ rubrics, activeIndex, onOpen, 
         {rubrics.map((rubric, i) => {
           const active = i === activeIndex;
           const hasRequest = pendingSet.has(i);
+          // A request not yet sent outranks one already applied: it is the one still needing
+          // an action, and a rubric can easily be both.
+          const wasRevised = !hasRequest && revisedSet.has(i);
           return (
             <li key={`${rubric.title}-${i}`}>
               <button
@@ -49,22 +67,27 @@ export const RubricSwitcher: React.FC<Props> = ({ rubrics, activeIndex, onOpen, 
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                 }`}
                 title={
-                  hasRequest ? `${rubric.title} — changes requested` : rubric.title
+                  hasRequest
+                    ? `${rubric.title} — changes requested`
+                    : wasRevised
+                      ? `${rubric.title} — just changed`
+                      : rubric.title
                 }
               >
                 {/* A dot rather than a count: what matters is which rubrics you have written
                     something for, not how much. The title attribute carries it for anyone who
                     cannot see the dot. */}
-                {hasRequest && (
+                {(hasRequest || wasRevised) && (
                   <span
                     aria-hidden="true"
                     className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle ${
-                      active ? 'bg-white' : 'bg-amber-500'
+                      active ? 'bg-white' : hasRequest ? 'bg-amber-500' : 'bg-green-600'
                     }`}
                   />
                 )}
                 {rubric.title}
                 {hasRequest && <span className="sr-only"> — changes requested</span>}
+                {wasRevised && <span className="sr-only"> — just changed</span>}
               </button>
             </li>
           );
