@@ -505,6 +505,72 @@ export async function validateAssignmentDescription(
 }
 
 /**
+ * Ask only for the weighting: how many of `totalPoints` each criterion should carry.
+ *
+ * The narrowest call in the file, and deliberately so. It exists for a rubric whose criteria and
+ * wording are fine but whose points were mis-divided — most often every criterion given the whole
+ * budget. Regenerating the rubric to fix that would rewrite twelve rating descriptions nobody
+ * complained about, take ten seconds, and risk losing wording someone had already read and
+ * approved. Here the model sees the criterion names and nothing else, and answers with numbers.
+ *
+ * Its answer is a proposal, not an instruction. The caller checks the length, rejects anything
+ * unusable, and re-apportions shares that do not add up (see applyPointSplit) — so a plausible
+ * but wrong reply cannot put a rubric back into the state this was called to fix.
+ */
+export async function suggestPointSplit(
+  criteria: string[],
+  totalPoints: number,
+  signal?: AbortSignal,
+): Promise<number[]> {
+  await throttle(signal);
+
+  return retryWithBackoff(async () => {
+    if (signal?.aborted) throw new Error('Request cancelled');
+    const ai = getClient();
+
+    const prompt = `
+    Act as an expert in instructional design and assessment.
+
+    A rubric worth ${totalPoints} points in total has these criteria, in this order:
+    ${criteria.map((name, i) => `${i + 1}. ${name}`).join('\n    ')}
+
+    Decide how many of the ${totalPoints} points each criterion should be worth.
+
+    RULES:
+    - Give one number per criterion, in the same order, and return exactly ${criteria.length}
+      numbers.
+    - The numbers must ADD UP to exactly ${totalPoints}.
+    - Use whole numbers.
+    - Weight them by how much each criterion matters to the work being assessed. Give more to the
+      criteria that carry the assignment's main thinking, less to presentation and mechanics.
+    - An even split is the right answer only when the criteria really are equally important.
+    - Do NOT give every criterion ${totalPoints}. That is the total for the whole rubric.
+
+    Return JSON: an object with "points", an array of ${criteria.length} numbers.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: PRIMARY_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            points: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+          },
+          required: ["points"],
+        },
+      },
+    });
+
+    if (!response.text) throw new Error('The AI returned no point split.');
+    const parsed = JSON.parse(response.text.trim()) as { points?: unknown };
+    return Array.isArray(parsed.points) ? parsed.points.map(Number) : [];
+  }, signal);
+}
+
+/**
  * Generate a rubric from an assignment description.
  */
 /**
@@ -573,6 +639,46 @@ const CRITERIA_COVERAGE_RULE = `CHOOSING THE CRITERIA — how many, and what the
     - Each criterion must name something that can be judged separately from the others. If two
       criteria would always be given the same rating, they are one criterion.
     - Weight the points towards what the assignment emphasises.`;
+
+/**
+ * How the requested total is divided between the criteria.
+ *
+ * CRITERIA_COVERAGE_RULE already forbids *one* criterion holding the whole total, and ends by
+ * asking for the points to be weighted. Neither covers the failure this rule is for: giving
+ * *every* criterion the whole total. In one eight-part run two rubrics came back that way — three
+ * criteria of a hundred points each, in a rubric asked to be worth a hundred — and in the run
+ * after it, a different one did. Same prompt, same settings, so the instruction was being read
+ * as satisfied: each criterion was indeed worth "exactly 100".
+ *
+ * What was missing was the arithmetic. "Break down the points across criteria" describes an
+ * activity; it never says the shares have to add up. The response schema cannot say it either —
+ * it can require that these fields are numbers, not that they sum to anything — so this is the
+ * only place the constraint can live, and it is why the deterministic check in
+ * utils/rubricPoints.ts exists regardless of what this says.
+ *
+ * The last bullet is the one that targets what actually goes wrong. The rubrics that failed did
+ * not write a wrong number in the points column; they wrote rating bands running from the full
+ * total down to zero on every row, which is a percentage scale. Saying "a criterion's points are
+ * the top of its highest band" connects the share to the thing the model is really choosing.
+ *
+ * Interpolated rather than a constant because every line needs the actual number in it. A rule
+ * about "the total" is exactly the kind of abstraction that got ignored.
+ */
+function pointsBudgetRule(totalPoints: number): string {
+  return `DIVIDING THE POINTS — ${totalPoints} is a budget to share out, not a scale to repeat:
+    - The whole rubric is worth ${totalPoints} points. Give each criterion a SHARE of that, and
+      make the shares ADD UP to exactly ${totalPoints}.
+    - Weight the shares by how much each criterion matters to the assignment. An even split is
+      right only when the criteria really are equally important.
+    - NEVER give every criterion ${totalPoints} points. That would make the rubric worth
+      ${totalPoints} multiplied by the number of criteria. ${totalPoints} is divided between the
+      criteria, not repeated on each one.
+    - A criterion's points are the HIGHEST NUMBER in its top rating. So a criterion whose share is
+      40 has a top rating starting at 40 — never at ${totalPoints}, unless that one criterion is
+      genuinely worth the entire rubric.
+    - Before answering, add the criteria's points together. If the sum is not exactly
+      ${totalPoints}, change the shares until it is.`;
+}
 
 /** One separately-submitted piece of work found in an assignment description. */
 export interface Deliverable {
@@ -723,16 +829,16 @@ export async function generateRubricFromDescription(
     ${assignmentDescription}
 
     CONSTRAINTS:
-    - Total points for the entire assignment must be exactly ${settings.totalPoints}.
     - Point style preference: ${
       settings.pointStyle === PointStyle.RANGE
         ? "Point ranges with overlapping boundaries (e.g., 10-8, 8-4, 4-0, 0-0). The upper bound of each range must equal the lower bound of the range above it. Do NOT use decimal offsets like 10-8.1."
         : "Single point values (e.g., 10 pts)"
     }.
     - Ratings columns MUST BE: Exemplary, Proficient, Developing, and Unsatisfactory.
-    - Break down the ${settings.totalPoints} points across logical categories/criteria.
     - For each category, describe specific observable behaviours or qualities for each of the
       four ratings.
+
+    ${pointsBudgetRule(settings.totalPoints)}
 
     ${CRITERIA_COVERAGE_RULE}
 

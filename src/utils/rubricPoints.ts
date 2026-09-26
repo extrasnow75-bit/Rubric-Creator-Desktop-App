@@ -1,5 +1,5 @@
 import type { RubricData, RubricCriterion } from '../types';
-import { canvasTotal } from './rescaleRubric';
+import { canvasTotal, leadingPoints } from './rescaleRubric';
 
 /**
  * Deterministic checks on a rubric's numbers.
@@ -153,38 +153,57 @@ export function repairRatingBands(rubric: RubricData): { rubric: RubricData; fix
   return { rubric: { ...rubric, criteria }, fixes };
 }
 
-/** Something about the rubric's numbers that a person needs to decide about. */
-export interface PointsFinding {
-  kind: 'total' | 'band';
-  text: string;
+/**
+ * Everything the checks found about one rubric's numbers.
+ *
+ * Numbers rather than sentences, because the wording belongs to the component that shows it and
+ * the same report drives three different places: the notice on the rubric, the line on the deploy
+ * card, and the buttons that offer a way out. An earlier version returned finished strings and
+ * the deploy card ended up with the vaguest of them — "will not be worth what it says" — which
+ * named no figure a reader could check against anything on screen.
+ */
+export interface PointsReport {
+  /** What the ratings add up to. This is what Canvas will create. */
+  actual: number;
+  /** What the rubric was drafted to be worth, which is the total that was asked for. */
+  intended: number;
+  criteriaCount: number;
+  /** The drafted total and the real one disagree. */
+  totalsDisagree: boolean;
+  /**
+   * Every criterion carries the whole intended total rather than a share of it.
+   *
+   * Worth singling out because it is the failure that keeps happening, and because it is the one
+   * where saying the cause out loud makes the notice checkable in seconds: three criteria, 100
+   * points each, on a rubric asked to be worth 100. It also determines what help can be offered
+   * — a rubric in this state has no surviving weighting to rescale, so an even split is the best
+   * arithmetic alone can do.
+   */
+  everyCriterionHasWholeTotal: boolean;
+  /** Band overlaps that could not be lined up mechanically, described one per entry. */
+  bandProblems: string[];
+}
+
+/** Whether anything in the report needs a person to look at it. */
+export function hasPointsProblem(report: PointsReport): boolean {
+  return report.totalsDisagree || report.bandProblems.length > 0;
 }
 
 /**
- * Everything wrong with a rubric's numbers that this module will not fix on its own.
+ * Check one rubric's numbers against each other.
  *
- * The totals check compares the rubric's claimed total against what its ratings actually add up
- * to, rather than against the total that was requested. Requested totals go stale the moment
- * someone rescales, which would leave a permanent false warning on a rubric that is now correct;
- * a rubric that contradicts *itself* is wrong no matter how it got here, including after an
- * import or a change request.
+ * The totals check compares the rubric against itself, rather than against the total that was
+ * requested. Requested totals go stale the moment someone rescales, which would leave a permanent
+ * warning on a rubric that had just been corrected; a rubric that contradicts *itself* is wrong
+ * however it got here, including after an import or a change request.
  */
-export function pointsFindings(rubric: RubricData): PointsFinding[] {
-  const findings: PointsFinding[] = [];
+export function checkRubricPoints(rubric: RubricData): PointsReport {
   const criteria = rubric?.criteria ?? [];
-  if (criteria.length === 0) return findings;
+  const actual = criteria.length === 0 ? 0 : canvasTotal(rubric);
+  const statedRaw = Number(rubric?.totalPoints);
+  const intended = Number.isFinite(statedRaw) ? statedRaw : actual;
 
-  const actual = canvasTotal(rubric);
-  const stated = Number(rubric.totalPoints);
-
-  if (Number.isFinite(stated) && stated !== actual) {
-    findings.push({
-      kind: 'total',
-      text:
-        `This rubric was drafted to be worth ${stated} points, but its criteria add up to ` +
-        `${actual}. Canvas goes by the criteria, so it would be created worth ${actual}.`,
-    });
-  }
-
+  const bandProblems: string[] = [];
   for (const criterion of criteria) {
     const bands = RATING_KEYS.map((key) => readBand(criterion[key]?.points ?? ''));
     if (bands.some((band) => band === null)) continue;
@@ -193,23 +212,43 @@ export function pointsFindings(rubric: RubricData): PointsFinding[] {
       const band = bands[i] as RatingBand;
       const ceiling = (bands[i - 1] as RatingBand).bottom;
       if (band.top !== ceiling && ceiling <= band.bottom) {
-        findings.push({
-          kind: 'band',
-          text:
-            `"${criterion.category}": ${RATING_LABELS[i]} runs ${criterion[RATING_KEYS[i]].points} ` +
-            `but ${RATING_LABELS[i - 1]} ends at ${ceiling}, and the two cannot be lined up ` +
-            `without inverting a range. Edit the points by hand or request a change.`,
-        });
+        bandProblems.push(
+          `"${criterion.category}": ${RATING_LABELS[i]} runs ${criterion[RATING_KEYS[i]].points} ` +
+            `but ${RATING_LABELS[i - 1]} ends at ${ceiling}. These cannot be lined up without ` +
+            `inverting a range, so the points need editing by hand.`,
+        );
       }
     }
   }
 
-  return findings;
+  const totalsDisagree = criteria.length > 0 && intended !== actual;
+
+  return {
+    actual,
+    intended,
+    criteriaCount: criteria.length,
+    totalsDisagree,
+    everyCriterionHasWholeTotal:
+      totalsDisagree &&
+      criteria.length > 1 &&
+      criteria.every((c) => leadingPoints(c.exemplary) === intended),
+    bandProblems,
+  };
 }
 
-/** Rubrics carrying at least one finding, for a summary before deploying several at once. */
-export function rubricsWithFindings(rubrics: RubricData[]): RubricData[] {
-  return (rubrics ?? []).filter((rubric) => pointsFindings(rubric).length > 0);
+/**
+ * Rubrics needing a look, each with its report, for a summary before deploying several at once.
+ *
+ * The report comes back with the rubric because the summary states each one's figures. Naming
+ * them without their numbers is what sent someone to open a Google Doc looking for a problem
+ * that, by then, only existed relative to a total the document no longer mentioned.
+ */
+export function rubricsWithPointsProblems(
+  rubrics: RubricData[],
+): Array<{ rubric: RubricData; report: PointsReport }> {
+  return (rubrics ?? [])
+    .map((rubric) => ({ rubric, report: checkRubricPoints(rubric) }))
+    .filter(({ report }) => hasPointsProblem(report));
 }
 
 /**

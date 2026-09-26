@@ -76,3 +76,37 @@ describe('CRITERIA_COVERAGE_RULE placement', () => {
     expect(rule.slice(0, rule.indexOf('`;'))).toContain('Never return a single criterion')
   })
 })
+
+describe('pointsBudgetRule placement', () => {
+  it('is used when a rubric is generated from a description', () => {
+    expect(bodyOf('generateRubricFromDescription')).toContain('pointsBudgetRule')
+  })
+
+  /*
+   * Kept out of extraction for the same reason as the other two rules, and more sharply: these
+   * prompts read totals off someone's existing rubric. Telling the model there what the points
+   * ought to add up to would invite it to correct their arithmetic on the way past, silently
+   * changing a rubric that was already approved.
+   */
+  it.each(EXTRACTING)('is kept out of %s, which reads totals off an existing rubric', (fn) => {
+    expect(bodyOf(fn)).not.toContain('pointsBudgetRule')
+  })
+
+  it('puts the real number in every line, not the word "total"', () => {
+    const rule = bodyOf('pointsBudgetRule')
+    const body = rule.slice(0, rule.indexOf('`;'))
+    // Five bullets plus the heading, each carrying ${totalPoints} at least once.
+    expect((body.match(/\$\{totalPoints\}/g) ?? []).length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('states the sum requirement and forbids repeating the total on every criterion', () => {
+    const body = bodyOf('pointsBudgetRule')
+    expect(body).toContain('ADD UP to exactly')
+    expect(body).toContain('NEVER give every criterion')
+  })
+
+  /* The bands, not the points column, are what actually went wrong — see the note on the rule. */
+  it("ties a criterion's share to the top of its highest rating", () => {
+    expect(bodyOf('pointsBudgetRule')).toContain('HIGHEST NUMBER in its top rating')
+  })
+})

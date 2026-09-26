@@ -139,6 +139,12 @@ declare global {
           text: string
           jobId?: string
         }): Promise<{ isValid: boolean; message: string }>
+        /** One number per criterion, in order. Validated by the caller before it is applied. */
+        suggestPointSplit(a: {
+          criteria: string[]
+          totalPoints: number
+          jobId?: string
+        }): Promise<number[]>
         generateRubricFromDescription(a: {
           assignmentDescription: string
           settings: GenerationSettings

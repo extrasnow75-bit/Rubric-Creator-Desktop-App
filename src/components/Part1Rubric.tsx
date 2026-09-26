@@ -6,12 +6,24 @@ import { generateCsvFromRubricObject } from '../utils/rubricCsv';
 import { CsvSaveOptions } from './CsvSaveOptions';
 import { RubricAdjustPanel } from './RubricAdjustPanel';
 import { RubricPointsWarning } from './RubricPointsWarning';
-import { canvasTotal } from '../utils/rescaleRubric';
-import { pointsFindings, rubricsWithFindings, settleStatedTotal } from '../utils/rubricPoints';
+import {
+  allocatePoints,
+  applyPointSplit,
+  canvasTotal,
+  leadingPoints,
+  rescaleRubric,
+} from '../utils/rescaleRubric';
+import {
+  checkRubricPoints,
+  repairRatingBands,
+  rubricsWithPointsProblems,
+  settleStatedTotal,
+} from '../utils/rubricPoints';
 import {
   generateRubricFromDescription,
   extractRubricFromDocument,
   applyRubricChanges,
+  suggestPointSplit,
   discoverDeliverables,
 } from '../services/geminiService';
 import type { Deliverable } from '../services/geminiService';
@@ -66,6 +78,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     pointStyle: PointStyle.RANGE,
     processingType: ProcessingType.SINGLE,
   });
+
+  /*
+   * What is currently typed in the Total points box, held separately from settings.totalPoints.
+   *
+   * The box has to be allowed to be empty for a moment, which a number cannot represent. It used
+   * to write `parseInt(value) || 100` straight into settings on every keystroke, so clearing it
+   * to type a new figure put 100 back before the first digit arrived, and the only way to reach
+   * 75 was to overtype in exactly the right order. Typing 0 also gave 100, zero being falsy.
+   */
+  const [totalPointsText, setTotalPointsText] = useState('100');
   const [isGenerating, setIsGenerating] = useState(false);
 
   /**
@@ -747,15 +769,61 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
    * checks had two bad rubrics out of six, and nothing would have made that visible to someone
    * who looked at the first one, found it fine, and ticked the box.
    */
-  const activeFindings = React.useMemo(
-    () => (state.rubric ? pointsFindings(state.rubric) : []),
+  const activeReport = React.useMemo(
+    () => (state.rubric ? checkRubricPoints(state.rubric) : null),
     [state.rubric],
   );
 
   const flaggedRubrics = React.useMemo(
-    () => rubricsWithFindings(state.rubrics),
+    () => rubricsWithPointsProblems(state.rubrics),
     [state.rubrics],
   );
+
+  /*
+   * What rescaling to the intended total would produce, shown on its button so the choice between
+   * it and asking the AI is visible rather than described. Left out past five criteria, where the
+   * string is longer than the sentence around it.
+   */
+  const rescalePreview = React.useMemo(() => {
+    if (!state.rubric || !activeReport?.totalsDisagree) return null;
+    const maxes = state.rubric.criteria.map((c) => leadingPoints(c.exemplary));
+    if (maxes.length === 0 || maxes.length > 5) return null;
+    return allocatePoints(maxes, activeReport.intended).join(' / ');
+  }, [state.rubric, activeReport]);
+
+  /** Re-weight the criteria from the AI's proposal, after checking it is usable. */
+  const handleSplitByImportance = async (): Promise<string | null> => {
+    const rubric = state.rubric;
+    if (!rubric || !activeReport) return null;
+    try {
+      const shares = await suggestPointSplit(
+        rubric.criteria.map((c) => c.category),
+        activeReport.intended,
+      );
+      const split = applyPointSplit(rubric, shares, activeReport.intended);
+      if (!split) {
+        return 'The AI did not return a usable set of numbers. Rescaling instead will divide the points without asking it again.';
+      }
+      // Scaling four bands by one factor can leave a rounded edge that no longer meets the band
+      // below it, so the same chaining that runs on generated rubrics runs here.
+      const chained = repairRatingBands(split).rubric;
+      updateRubricAt(state.activeRubricIndex, chained);
+      setReadyForCanvas(false);
+      setShowDeployCard(false);
+      return `Now ${chained.criteria.map((c) => leadingPoints(c.exemplary)).join(' / ')}, adding up to ${canvasTotal(chained)}. Every word is unchanged.`;
+    } catch (err) {
+      return `Could not reach the AI: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  };
+
+  const handleRescaleToIntended = () => {
+    if (!state.rubric || !activeReport) return;
+    const next = rescaleRubric(state.rubric, activeReport.intended);
+    if (next === state.rubric) return;
+    updateRubricAt(state.activeRubricIndex, repairRatingBands(next).rubric);
+    setReadyForCanvas(false);
+    setShowDeployCard(false);
+  };
 
   /** Rubrics with a settled, non-empty request — what "Apply changes" will actually run. */
   const queuedIndexes = state.rubrics
@@ -956,16 +1024,33 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   <label htmlFor="total-points" className="text-sm font-bold text-gray-900 block mb-2">
                     Total points
                   </label>
+                  {/*
+                    Deliberately type="text" with inputMode="numeric" rather than type="number".
+                    A number input draws the spinner arrows, which are a small target sitting
+                    right where the cursor goes, and it also captures the scroll wheel — with the
+                    pointer over the box, scrolling the page silently rewrites the total. Neither
+                    is worth the numeric keypad, which inputMode gives us anyway.
+                  */}
                   <input
                     id="total-points"
-                    type="number"
-                    value={settings.totalPoints}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        totalPoints: parseInt(e.target.value) || 100,
-                      })
-                    }
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={totalPointsText}
+                    onChange={(e) => {
+                      // Digits only, but an empty box stays empty: this is mid-edit, and
+                      // substituting a default here is what made the field hard to type into.
+                      const digits = e.target.value.replace(/\D/g, '');
+                      setTotalPointsText(digits);
+                      const parsed = parseInt(digits, 10);
+                      if (Number.isFinite(parsed) && parsed > 0) {
+                        setSettings({ ...settings, totalPoints: parsed });
+                      }
+                    }}
+                    // Leaving the box blank falls back to the last figure that was committed,
+                    // not to a hardcoded 100 — whatever was last generated from is the better
+                    // guess at what was meant.
+                    onBlur={() => setTotalPointsText(String(settings.totalPoints))}
                     className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium text-gray-900 focus:border-brand focus:outline-none transition-all"
                   />
                 </div>
@@ -1324,20 +1409,24 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   {state.rubric.criteria.length} criteria • {canvasTotal(state.rubric)} points
                 </p>
 
-                <RubricPointsWarning
-                  findings={activeFindings}
-                  actualTotal={canvasTotal(state.rubric)}
-                  /*
-                    No setReadyForCanvas(false) here, unlike the Adjust panel's onChange. This
-                    moves no rating and changes nothing Canvas will receive — it only records
-                    that the criteria, not the drafted total, are the ones to go by. Retiring the
-                    readiness tick for that would ask the user to re-confirm a no-op.
-                  */
-                  onAccept={() => {
-                    if (!state.rubric) return;
-                    updateRubricAt(state.activeRubricIndex, settleStatedTotal(state.rubric));
-                  }}
-                />
+                {activeReport && (
+                  <RubricPointsWarning
+                    report={activeReport}
+                    evenSplitPreview={rescalePreview}
+                    onSplitByImportance={handleSplitByImportance}
+                    onDivideEvenly={handleRescaleToIntended}
+                    /*
+                      No setReadyForCanvas(false) on this one, unlike the other two. It moves no
+                      rating and changes nothing Canvas will receive — it only records that the
+                      criteria, not the drafted total, are the ones to go by. Retiring the
+                      readiness tick for that would ask for a no-op to be re-confirmed.
+                    */
+                    onKeepActual={() => {
+                      if (!state.rubric) return;
+                      updateRubricAt(state.activeRubricIndex, settleStatedTotal(state.rubric));
+                    }}
+                  />
+                )}
 
                 {/* Preview Table */}
                 <div className="overflow-x-auto mb-6 border rounded-2xl">
@@ -1623,18 +1712,32 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
                 aria-hidden="true"
               />
-              <p className="text-sm text-amber-900">
-                <span className="font-bold">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-amber-900">
                   {flaggedRubrics.length === 1
-                    ? 'One rubric will not be worth what it says'
-                    : `${flaggedRubrics.length} rubrics will not be worth what they say`}
-                  :
-                </span>{' '}
-                {flaggedRubrics.map((rubric) => rubric.title).join(', ')}. Open{' '}
-                {flaggedRubrics.length === 1 ? 'it' : 'each of them'} above to see the totals and
-                decide. Deploying anyway is allowed — the points Canvas receives are the ones shown
-                on each rubric.
-              </p>
+                    ? 'One rubric is not worth the points it was asked for'
+                    : `${flaggedRubrics.length} rubrics are not worth the points they were asked for`}
+                </p>
+                {/* The figures, not just the names. Someone told only that a rubric is wrong goes
+                    looking for the problem in the document, where there is now nothing to find —
+                    the document states the real total, and the total that was asked for appears
+                    nowhere in it. */}
+                <ul className="mt-1 space-y-0.5">
+                  {flaggedRubrics.map(({ rubric, report }, i) => (
+                    <li key={i} className="text-sm text-amber-900">
+                      <strong>{rubric.title}</strong>
+                      {report.totalsDisagree
+                        ? ` — worth ${report.actual} points, asked for ${report.intended}.`
+                        : ' — its point ranges overlap.'}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-sm text-amber-900">
+                  Open {flaggedRubrics.length === 1 ? 'it' : 'each one'} above to choose how to fix
+                  it. Deploying anyway is allowed — Canvas receives the points shown on each
+                  rubric.
+                </p>
+              </div>
             </div>
           )}
 

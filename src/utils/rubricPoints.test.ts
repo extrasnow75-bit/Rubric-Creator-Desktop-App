@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  pointsFindings,
+  checkRubricPoints,
+  hasPointsProblem,
   readBand,
   repairRatingBands,
-  rubricsWithFindings,
+  rubricsWithPointsProblems,
   settleStatedTotal,
 } from './rubricPoints';
 import { canvasTotal, rescaleRubric } from './rescaleRubric';
@@ -175,17 +176,45 @@ describe('repairRatingBands', () => {
   });
 });
 
-describe('pointsFindings', () => {
-  it('catches the rubric whose criteria add up to three times its stated total', () => {
-    const findings = pointsFindings(part2);
+describe('checkRubricPoints', () => {
+  it('reports the rubric whose criteria add up to three times what was asked for', () => {
+    const report = checkRubricPoints(part2);
 
-    expect(findings).toHaveLength(1);
-    expect(findings[0].kind).toBe('total');
-    expect(findings[0].text).toContain('300');
-    expect(findings[0].text).toContain('100');
+    expect(report.actual).toBe(300);
+    expect(report.intended).toBe(100);
+    expect(report.criteriaCount).toBe(3);
+    expect(report.totalsDisagree).toBe(true);
+    expect(hasPointsProblem(report)).toBe(true);
   });
 
-  it('says nothing about a rubric whose numbers agree', () => {
+  /* The signature the notice names out loud, because it is checkable against the screen. */
+  it('recognises every criterion having been given the whole total', () => {
+    expect(checkRubricPoints(part2).everyCriterionHasWholeTotal).toBe(true);
+  });
+
+  it('does not claim that signature when the criteria merely fail to add up', () => {
+    const lopsided = rubric(
+      'lopsided',
+      [
+        criterion('a', ['60-50', '50-30', '30-15', '15-0'], 60),
+        criterion('b', ['60-50', '50-30', '30-15', '15-0'], 60),
+      ],
+      100,
+    );
+    const report = checkRubricPoints(lopsided);
+
+    expect(report.totalsDisagree).toBe(true);
+    expect(report.actual).toBe(120);
+    expect(report.everyCriterionHasWholeTotal).toBe(false);
+  });
+
+  it('never claims it for a single-criterion rubric, where it means nothing', () => {
+    const only = rubric('only', [criterion('a', ['100-85', '85-70', '70-50', '50-0'], 100)], 50);
+
+    expect(checkRubricPoints(only).everyCriterionHasWholeTotal).toBe(false);
+  });
+
+  it('finds nothing wrong with a rubric whose numbers agree', () => {
     const ok = rubric(
       'Part 3: Mapping the Engine',
       [
@@ -196,60 +225,63 @@ describe('pointsFindings', () => {
       100,
     );
 
-    expect(pointsFindings(ok)).toEqual([]);
+    expect(hasPointsProblem(checkRubricPoints(ok))).toBe(false);
   });
 
-  it('does not warn about a band that repairRatingBands will fix', () => {
-    // Part 5's overlap is repairable, so it is the repair's job, not a warning's.
-    expect(pointsFindings(part5).filter((f) => f.kind === 'band')).toEqual([]);
+  it('stays quiet about a band that repairRatingBands will fix', () => {
+    expect(checkRubricPoints(part5).bandProblems).toEqual([]);
   });
 
-  it('warns about a band that cannot be lined up mechanically', () => {
+  it('reports a band that cannot be lined up mechanically', () => {
     const impossible = rubric(
       'impossible',
       [criterion('Some criterion', ['20-16', '20-18', '18-6', '6-0'], 20)],
       20,
     );
-    const findings = pointsFindings(impossible).filter((f) => f.kind === 'band');
+    const report = checkRubricPoints(impossible);
 
-    expect(findings).toHaveLength(1);
-    expect(findings[0].text).toContain('Some criterion');
-    expect(findings[0].text).toContain('Proficient');
+    expect(report.bandProblems).toHaveLength(1);
+    expect(report.bandProblems[0]).toContain('Some criterion');
+    expect(report.bandProblems[0]).toContain('Proficient');
+    expect(hasPointsProblem(report)).toBe(true);
   });
 
-  it('stops warning once the ratings have been rescaled to the stated total', () => {
-    // The warning compares the rubric against itself, so a rescale settles it without the
-    // originally requested total having to be remembered.
+  it('stops reporting once the ratings have been rescaled to the total that was asked for', () => {
     const rescaled = rescaleRubric(part2, 100);
 
-    expect(pointsFindings(part2)).toHaveLength(1);
     expect(canvasTotal(rescaled)).toBe(100);
-    expect(pointsFindings(rescaled)).toEqual([]);
+    expect(hasPointsProblem(checkRubricPoints(rescaled))).toBe(false);
   });
 
   it('is quiet about an empty rubric rather than reporting a zero mismatch', () => {
-    expect(pointsFindings(rubric('empty', [], 100))).toEqual([]);
+    const report = checkRubricPoints(rubric('empty', [], 100));
+
+    expect(report.totalsDisagree).toBe(false);
+    expect(hasPointsProblem(report)).toBe(false);
   });
 });
 
-describe('rubricsWithFindings', () => {
-  it('picks out only the rubrics that need looking at', () => {
-    const flagged = rubricsWithFindings([part5, part2]);
+describe('rubricsWithPointsProblems', () => {
+  it('picks out only the rubrics that need looking at, with their figures', () => {
+    const flagged = rubricsWithPointsProblems([part5, part2]);
 
-    expect(flagged.map((r) => r.title)).toEqual(['Part 2: The Internal Compass']);
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0].rubric.title).toBe('Part 2: The Internal Compass');
+    expect(flagged[0].report.actual).toBe(300);
+    expect(flagged[0].report.intended).toBe(100);
   });
 
   it('handles an empty list', () => {
-    expect(rubricsWithFindings([])).toEqual([]);
+    expect(rubricsWithPointsProblems([])).toEqual([]);
   });
 });
 
 describe('settleStatedTotal', () => {
-  it('clears the warning by accepting what the criteria add up to', () => {
+  it('clears the report by accepting what the criteria add up to', () => {
     const settled = settleStatedTotal(part2);
 
     expect(settled.totalPoints).toBe(300);
-    expect(pointsFindings(settled)).toEqual([]);
+    expect(hasPointsProblem(checkRubricPoints(settled))).toBe(false);
   });
 
   it('moves no rating, so Canvas receives exactly what it would have before', () => {
@@ -274,7 +306,7 @@ describe('settleStatedTotal', () => {
     expect(settleStatedTotal(part2).totalPoints).toBe(300);
   });
 
-  it('leaves a already-consistent rubric alone', () => {
+  it('leaves an already-consistent rubric alone', () => {
     expect(settleStatedTotal(part5).totalPoints).toBe(100);
   });
 });

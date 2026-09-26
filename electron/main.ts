@@ -381,6 +381,12 @@ ipcMain.handle(
 )
 
 ipcMain.handle(
+  'gemini:suggestPointSplit',
+  (_e, a: { criteria: string[]; totalPoints: number; jobId?: string }) =>
+    withJob(a.jobId, (s) => gemini.suggestPointSplit(a.criteria, a.totalPoints, s)),
+)
+
+ipcMain.handle(
   'gemini:generateRubricFromDescription',
   (
     _e,

@@ -171,6 +171,8 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('gemini:extractRubricMetadata', a),
     validateAssignmentDescription: (a: unknown): Promise<unknown> =>
       ipcRenderer.invoke('gemini:validateAssignmentDescription', a),
+    suggestPointSplit: (a: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('gemini:suggestPointSplit', a),
     generateRubricFromDescription: (a: unknown): Promise<unknown> =>
       ipcRenderer.invoke('gemini:generateRubricFromDescription', a),
     generateRubricFromScreenshot: (a: unknown): Promise<unknown> =>

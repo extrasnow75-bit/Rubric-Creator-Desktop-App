@@ -187,6 +187,21 @@ export const validateAssignmentDescription = (
     window.api.gemini.validateAssignmentDescription({ text, jobId }),
   );
 
+/**
+ * Ask the AI how to weight a rubric's criteria. Returns one number per criterion, in order.
+ *
+ * Not passed through `chained`: it returns numbers, not a rubric. What comes back is checked by
+ * `applyPointSplit` before it touches anything.
+ */
+export const suggestPointSplit = (
+  criteria: string[],
+  totalPoints: number,
+  signal?: AbortSignal,
+): Promise<number[]> =>
+  withCancellation(signal, (jobId) =>
+    window.api.gemini.suggestPointSplit({ criteria, totalPoints, jobId }),
+  );
+
 /** `target` narrows the rubric to one deliverable; omit it for the assignment as a whole. */
 export const generateRubricFromDescription = (
   assignmentDescription: string,

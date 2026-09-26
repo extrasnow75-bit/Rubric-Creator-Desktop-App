@@ -89,7 +89,25 @@ export function rescaleRubric(rubric: RubricData, newTotal: number): RubricData 
   if (oldTotal <= 0 || newTotal < 0 || newTotal === oldTotal) return rubric;
 
   const currentMaxes = rubric.criteria.map((c) => leadingPoints(c.exemplary));
-  const newMaxes = allocatePoints(currentMaxes, newTotal);
+  return withCriterionMaxes(rubric, allocatePoints(currentMaxes, newTotal));
+}
+
+/**
+ * Give each criterion an exact new maximum, keeping every word and every proportion inside it.
+ *
+ * Split out of `rescaleRubric` so that two different questions can share one answer. Rescaling
+ * works out the new maximums proportionally — "the same rubric, worth 75 instead of 100". A
+ * weighted split is handed its maximums from somewhere else entirely, because the proportions
+ * that were there are the thing being replaced: when a mis-drafted rubric gives every criterion
+ * the full budget, rescaling it can only ever produce an even split, since even is all the
+ * information that survived.
+ *
+ * Both then need the identical, fiddly part — scale each rating string by its criterion's own
+ * factor, land the top rating on the allotted number exactly, and leave the notation alone.
+ */
+export function withCriterionMaxes(rubric: RubricData, newMaxes: number[]): RubricData {
+  const currentMaxes = rubric.criteria.map((c) => leadingPoints(c.exemplary));
+  const newTotal = newMaxes.reduce((sum, n) => sum + n, 0);
 
   const criteria: RubricCriterion[] = rubric.criteria.map((criterion, i) => {
     const oldMax = currentMaxes[i];
@@ -113,4 +131,31 @@ export function rescaleRubric(rubric: RubricData, newTotal: number): RubricData 
   });
 
   return { ...rubric, criteria, totalPoints: newTotal };
+}
+
+/**
+ * Apply a weighting worked out elsewhere — one number per criterion, in order.
+ *
+ * The shares are checked here rather than trusted, because the only caller gets them from the
+ * AI: wrong length, a negative, a non-number or a set that sums to nothing all mean the answer
+ * is unusable, and the rubric comes back untouched so the caller can say so. Shares that are
+ * individually fine but do not add up to `total` are not rejected — they are re-apportioned with
+ * the same largest-remainder allocation rescaling uses, so a model that returns 50/30/30 for a
+ * hundred points still lands on a hundred with its weighting intact.
+ */
+export function applyPointSplit(
+  rubric: RubricData,
+  shares: number[],
+  total: number,
+): RubricData | null {
+  if (shares.length !== rubric.criteria.length || shares.length === 0) return null;
+  if (!shares.every((n) => Number.isFinite(n) && n >= 0)) return null;
+  if (shares.reduce((sum, n) => sum + n, 0) <= 0) return null;
+  if (!Number.isFinite(total) || total <= 0) return null;
+
+  const rounded = shares.map((n) => Math.round(n));
+  const exact =
+    rounded.reduce((sum, n) => sum + n, 0) === total ? rounded : allocatePoints(rounded, total);
+
+  return withCriterionMaxes(rubric, exact);
 }

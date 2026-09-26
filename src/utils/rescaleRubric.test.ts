@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { allocatePoints, canvasTotal, leadingPoints, rescaleRubric } from './rescaleRubric';
+import {
+  allocatePoints,
+  applyPointSplit,
+  canvasTotal,
+  leadingPoints,
+  rescaleRubric,
+} from './rescaleRubric';
 import type { RubricData } from '../types';
 
 const rating = (points: string) => ({ text: 'some wording', points });
@@ -160,5 +166,75 @@ describe('rescaleRubric', () => {
     expect(out.criteria[0].exemplary.points).toBe('40');
     expect(out.criteria[1].exemplary.points).toBe('see notes');
     expect(canvasTotal(out)).toBe(40);
+  });
+});
+
+describe('applyPointSplit', () => {
+  /* The state this exists for: every criterion given the whole hundred-point budget. */
+  const mis = (): RubricData => ({
+    title: 'Part 2: The Internal Compass',
+    totalPoints: 100,
+    criteria: [
+      criterion("Articulating the 'Why'", ['100-85', '85-70', '70-50', '50-0'], 100),
+      criterion('Ethical Frameworks Application', ['100-85', '85-70', '70-50', '50-0'], 100),
+      criterion('Authentic Leadership Alignment', ['100-85', '85-70', '70-50', '50-0'], 100),
+    ],
+  });
+
+  it('applies a weighting that rescaling could never have produced', () => {
+    const out = applyPointSplit(mis(), [50, 25, 25], 100)!;
+
+    expect(out.criteria.map((c) => leadingPoints(c.exemplary))).toEqual([50, 25, 25]);
+    expect(canvasTotal(out)).toBe(100);
+    expect(out.totalPoints).toBe(100);
+  });
+
+  it('keeps every word, changing only the numbers', () => {
+    const before = mis();
+    const out = applyPointSplit(before, [50, 25, 25], 100)!;
+
+    expect(out.criteria.map((c) => c.exemplary.text)).toEqual(
+      before.criteria.map((c) => c.exemplary.text),
+    );
+    expect(out.criteria.map((c) => c.category)).toEqual(before.criteria.map((c) => c.category));
+  });
+
+  it('re-apportions shares that do not add up, rather than refusing them', () => {
+    // A model returning 50/30/30 has a usable weighting and bad arithmetic. Keep the first.
+    const out = applyPointSplit(mis(), [50, 30, 30], 100)!;
+
+    expect(canvasTotal(out)).toBe(100);
+    expect(leadingPoints(out.criteria[0].exemplary)).toBeGreaterThan(
+      leadingPoints(out.criteria[1].exemplary),
+    );
+  });
+
+  it('rounds fractional shares and still lands on the total exactly', () => {
+    const out = applyPointSplit(mis(), [33.4, 33.3, 33.3], 100)!;
+
+    expect(canvasTotal(out)).toBe(100);
+  });
+
+  it('refuses a reply of the wrong length', () => {
+    expect(applyPointSplit(mis(), [50, 50], 100)).toBeNull();
+    expect(applyPointSplit(mis(), [40, 20, 20, 20], 100)).toBeNull();
+  });
+
+  it('refuses negatives, non-numbers and an all-zero split', () => {
+    expect(applyPointSplit(mis(), [-10, 60, 50], 100)).toBeNull();
+    expect(applyPointSplit(mis(), [NaN, 50, 50], 100)).toBeNull();
+    expect(applyPointSplit(mis(), [0, 0, 0], 100)).toBeNull();
+  });
+
+  it('refuses a total that is not a positive number', () => {
+    expect(applyPointSplit(mis(), [50, 25, 25], 0)).toBeNull();
+    expect(applyPointSplit(mis(), [50, 25, 25], NaN)).toBeNull();
+  });
+
+  it('does not mutate the rubric it is given', () => {
+    const before = mis();
+    applyPointSplit(before, [50, 25, 25], 100);
+
+    expect(before.criteria.map((c) => c.exemplary.points)).toEqual(['100-85', '100-85', '100-85']);
   });
 });
