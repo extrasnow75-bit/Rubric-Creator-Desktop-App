@@ -20,6 +20,7 @@ import {
 } from '../types';
 import { repairRatingBands } from '../utils/rubricPoints';
 import { ipcErrorMessage } from '../utils/ipcErrorMessage';
+import { preserveTotalAcrossEdit } from '../utils/preserveTotal';
 import { alignByTitle, chunk } from '../utils/rubricBatching';
 
 // These mirror the declarations in electron/ipc/gemini.ts. Kept in step by hand: the two
@@ -237,16 +238,30 @@ export const extractRubricFromDocument = (
     window.api.gemini.extractRubricFromDocument({ documentText, jobId }),
   );
 
-export const applyRubricChanges = (
+/**
+ * Apply a change request, then hold the rubric to what it was worth.
+ *
+ * "Add a criterion for grammar" says nothing about points, so the model adds the row at the same
+ * weight as the ones beside it and a 500-point rubric comes back worth 600 — correct arithmetic
+ * for a question nobody asked. preserveTotalAcrossEdit divides the original budget across the new
+ * set instead, and stands aside entirely when the request did mention points, because then the
+ * user has said what they want and the model was answering them.
+ *
+ * After `chained`, deliberately: the bands have to be lined up before anything reads a criterion's
+ * points off its top rating, which is exactly what rescaling does.
+ */
+export const applyRubricChanges = async (
   rubric: RubricData,
   changeRequest: string,
   signal?: AbortSignal,
-): Promise<RubricData> =>
-  chained(
+): Promise<RubricData> => {
+  const edited = await chained(
     withCancellation(signal, (jobId) =>
       window.api.gemini.applyRubricChanges({ rubric, changeRequest, jobId }),
     ),
   );
+  return preserveTotalAcrossEdit(rubric, edited, changeRequest);
+};
 
 // ─── CSV ──────────────────────────────────────────────────────────────────────
 

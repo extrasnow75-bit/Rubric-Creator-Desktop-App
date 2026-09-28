@@ -1,5 +1,21 @@
 ## What's new in v0.9.22
 
+### Adding a criterion no longer makes the rubric worth more
+
+Ask for "a criterion for grammar and APA 7 formatting" and the AI would add the row at the same
+weight as the ones beside it — so a rubric you had set at 500 points came back worth 600, and
+deployed to Canvas twenty per cent heavier than the assignment it grades. The edit was not wrong:
+the request said nothing about points, so nothing told the model to take any away from anywhere.
+Nothing in the app noticed either.
+
+The rule now: **if your request does not mention points, the total does not move.** Adding a
+criterion divides the same budget further; removing one gives its share back to the rest. Your
+500-point rubric stays a 500-point rubric however many criteria it ends up with.
+
+If your request *does* mention points — "add a grammar criterion worth 50", "make the first one
+40", "reweight these", "split it 50/50" — the app stands aside completely and the new totals
+stand, because you have said what you want.
+
 ### The "update your document" prompt now has the button in it
 
 After a change run, the green box said your Google Doc still held the previous rubrics and to
