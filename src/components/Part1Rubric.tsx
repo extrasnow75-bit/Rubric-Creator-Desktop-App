@@ -164,6 +164,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
   const [changesConfirmed, setChangesConfirmed] = useState(false);
 
   /** What the last run did, shown where the button was. Cleared when a new run starts. */
+  /**
+   * Why the run slowed down, when it did.
+   *
+   * Null in the ordinary case. Set once, when Google first pushes back and the pool drops from
+   * three rubrics at a time to one. It outlives the progress bar deliberately: the run it explains
+   * is the one the user is looking at the results of, and "why did that take so long" is asked
+   * afterwards rather than during.
+   */
+  const [paceNotice, setPaceNotice] = useState<string | null>(null);
   const [changeSummary, setChangeSummary] = useState<string | null>(null);
 
   /** Rubrics the last run actually changed, marked on the switcher so they can be checked. */
@@ -525,6 +534,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
   ) => {
     setIsGenerating(true);
     setError(null);
+    setPaceNotice(null);
 
     startProgress(entries.length, true);
 
@@ -538,50 +548,99 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
      */
     const signal = getAbortSignal();
 
-    const made: RubricData[] = [];
-    const failed: string[] = [];
+    /*
+      Three at a time, dropping to one at the first sign of strain.
+
+      Sequential drafting is why an eight-part document took four minutes: nine round trips to
+      Gemini, each waiting for the one before it. Nothing required that — the rubrics are
+      independent, and the only reason to serialise them was the free tier's rate limit.
+
+      So it starts at three and listens. gemini:retry already fires the moment a call begins
+      waiting out a busy model or a rate limit, which is a better trigger than a failure: it
+      arrives before anything has been lost, and it is typed rather than matched out of a message.
+      One notice is enough to finish the run one rubric at a time, and to say so, because a run
+      that quietly halves its own speed is indistinguishable from a run that is stuck.
+
+      It never goes back up within a run. Whatever made Google push back is not usually over in
+      thirty seconds, and a pace that oscillates would be worse than the slow one.
+    */
+    const CONCURRENT_DRAFTS = 3;
+
+    const drafted: Array<RubricData | null> = new Array(entries.length).fill(null);
+    const failedAt: Array<string | null> = new Array(entries.length).fill(null);
     let firstFailure: string | null = null;
+    let done = 0;
+
+    // A ref rather than state: the pool reads it between batches, and a re-render is neither
+    // needed nor fast enough to be trusted here.
+    const oneAtATime = { current: entries.length === 1 };
+    const unsubscribeRetry = window.api.gemini.onRetry((notice) => {
+      if (!notice.waiting || oneAtATime.current) return;
+      oneAtATime.current = true;
+      setPaceNotice(
+        notice.reason === 'busy'
+          ? "Google's AI service is busy, so the rest of the rubrics are being written one at a time. This is slower but far more likely to finish."
+          : 'Gemini asked for a slower pace, so the rest of the rubrics are being written one at a time. This is slower but far more likely to finish.',
+      );
+    });
+
+    const describeRun = () => {
+      const remaining = entries.length - done;
+      if (entries.length === 1) return 'Generating rubric criteria...';
+      const width = Math.min(oneAtATime.current ? 1 : CONCURRENT_DRAFTS, remaining);
+      return width > 1
+        ? `Writing ${width} rubrics at once (${done} of ${entries.length} done)...`
+        : `Writing "${entries[done]?.title || 'the rubric'}" (${done + 1} of ${entries.length})...`;
+    };
+
+    const draftOne = async (i: number) => {
+      const entry = entries[i];
+      try {
+        // `signal` third: without it withCancellation never sends gemini:cancel, so Stop did
+        // nothing and the user watched a dead button through the retry back-off.
+        drafted[i] = await generateRubricFromDescription(
+          assignmentDescription,
+          { ...settings, totalPoints: entry.points },
+          signal,
+          entry.target,
+        );
+      } catch (err: any) {
+        if (signal.aborted) return;
+        // One rubric failing does not cost the others; it is named at the end instead.
+        failedAt[i] = entry.title || 'the rubric';
+        /*
+          The reason, kept.
+
+          This used to discard `err` entirely, and that is how an eight-rubric run could fail
+          eight times over and still report "Try again, or shorten the description" — advice
+          aimed at a description that was never the problem. Gemini had said what was wrong on
+          every one of those attempts; nothing carried it this far. The first one is the one
+          worth showing: the rest are the same failure repeating.
+        */
+        if (!firstFailure) firstFailure = ipcErrorMessage(err);
+      } finally {
+        done += 1;
+        setProgress({
+          currentStep: describeRun(),
+          percentage: done / entries.length,
+          itemsProcessed: done,
+        });
+      }
+    };
 
     try {
-      for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i];
-        if (signal.aborted) break;
+      setProgress({ currentStep: describeRun(), percentage: 0, itemsProcessed: 0 });
 
-        setProgress({
-          currentStep:
-            entries.length === 1
-              ? 'Generating rubric criteria...'
-              : `Writing "${entry.title}" (${i + 1} of ${entries.length})...`,
-          percentage: i / entries.length,
-          itemsProcessed: i,
-        });
-
-        try {
-          // `signal` third: without it withCancellation never sends gemini:cancel, so Stop did
-          // nothing and the user watched a dead button through the retry back-off.
-          const rubric = await generateRubricFromDescription(
-            assignmentDescription,
-            { ...settings, totalPoints: entry.points },
-            signal,
-            entry.target,
-          );
-          made.push(rubric);
-        } catch (err: any) {
-          if (signal.aborted) break;
-          // One rubric failing does not cost the others; it is named at the end instead.
-          failed.push(entry.title || 'the rubric');
-          /*
-            The reason, kept.
-
-            This used to discard `err` entirely, and that is how an eight-rubric run could fail
-            eight times over and still report "Try again, or shorten the description" — advice
-            aimed at a description that was never the problem. Gemini had said what was wrong on
-            every one of those attempts; nothing carried it this far. The first one is the one
-            worth showing: the rest are the same failure repeating.
-          */
-          if (!firstFailure) firstFailure = ipcErrorMessage(err);
-        }
+      let next = 0;
+      while (next < entries.length && !signal.aborted) {
+        const width = oneAtATime.current ? 1 : CONCURRENT_DRAFTS;
+        const batch: number[] = [];
+        while (batch.length < width && next < entries.length) batch.push(next++);
+        await Promise.all(batch.map(draftOne));
       }
+
+      const made = drafted.filter((r): r is RubricData => r !== null);
+      const failed = failedAt.filter((t): t is string => t !== null);
 
       if (made.length > 0) {
         setProgress({ currentStep: 'Finalizing...', percentage: 0.95 });
@@ -631,6 +690,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
       setTimeout(() => stopProgress(), 500);
     } finally {
+      // The listener belongs to this run. Left attached, a later run's first retry notice would
+      // slow down a pool that is no longer there.
+      unsubscribeRetry();
       setIsGenerating(false);
     }
   };
@@ -1441,6 +1503,17 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                 {state.error && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-2xl mt-6">
                     <p className="text-sm text-red-700 font-bold">{state.error}</p>
+                  </div>
+                )}
+
+                {/*
+                  Amber, not red, and it sits below the error rather than replacing it: nothing
+                  has failed here. It answers the question a slow run provokes — is this stuck? —
+                  and it is a status rather than a problem, so it never takes the error's colour.
+                */}
+                {paceNotice && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl mt-6" role="status">
+                    <p className="text-sm text-amber-800">{paceNotice}</p>
                   </div>
                 )}
 

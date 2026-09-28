@@ -1,3 +1,25 @@
+## What's new in v0.9.23
+
+### Rubrics are drafted three at a time
+
+An eight-part assignment made nine separate requests to Gemini, each waiting for the one before
+it — which is where four minutes went. Nothing required that: the rubrics do not depend on each
+other, and the only reason for the queue was the free tier's rate limit.
+
+Three are now written at once. An eight-part document that took around four minutes should take
+closer to a minute and a half.
+
+**If Google pushes back, it drops to one at a time and says so.** The app already knows the moment
+a request starts waiting on a busy service or a rate limit — that is the amber line added in
+v0.9.21 — and one of those is enough to finish the run one rubric at a time:
+
+> Google's AI service is busy, so the rest of the rubrics are being written one at a time. This is
+> slower but far more likely to finish.
+
+The notice stays on screen after the run, because "why did that take so long" is a question asked
+afterwards rather than during. The pace never speeds back up mid-run: whatever made Google push
+back is rarely over in thirty seconds, and a speed that oscillates would be worse than the slow one.
+
 ## What's new in v0.9.22
 
 ### Adding a criterion no longer makes the rubric worth more
