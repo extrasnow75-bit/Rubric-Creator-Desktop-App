@@ -36,6 +36,16 @@ interface DriveDocResult {
   message?: string
 }
 
+/** What a Gemini call is waiting for, pushed from the main process while it waits. */
+export interface GeminiRetryNotice {
+  /** True while a wait is in progress, false the moment the call finishes either way. */
+  waiting: boolean
+  attempt: number
+  of: number
+  waitSeconds: number
+  reason: 'busy' | 'rate-limit'
+}
+
 declare global {
   interface Window {
     api: {
@@ -189,6 +199,11 @@ declare global {
           totalPoints: number
           jobId?: string
         }): Promise<number[]>
+        /**
+         * Fires while a Gemini call is waiting out a busy model or a rate limit, and once more
+         * with `waiting: false` when it stops. Returns an unsubscribe function.
+         */
+        onRetry(callback: (notice: GeminiRetryNotice) => void): () => void
         generateRubricFromDescription(a: {
           assignmentDescription: string
           settings: GenerationSettings

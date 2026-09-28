@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+/** What a Gemini call is waiting for. Mirrors GeminiRetryNotice in electron/ipc/gemini.ts. */
+interface RetryNotice {
+  waiting: boolean
+  attempt: number
+  of: number
+  waitSeconds: number
+  reason: 'busy' | 'rate-limit'
+}
+
 /** Mirrors DriveFile in ipc/googleDrive.ts. Declared here so the preload stays standalone. */
 interface DriveFile {
   id: string
@@ -176,6 +185,15 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('gemini:validateAssignmentDescription', a),
     suggestPointSplit: (a: unknown): Promise<unknown> =>
       ipcRenderer.invoke('gemini:suggestPointSplit', a),
+    /**
+     * Fires while a Gemini call is waiting out a busy model or a rate limit, and once more with
+     * `waiting: false` when it stops. Returns an unsubscribe function.
+     */
+    onRetry: (callback: (notice: RetryNotice) => void): (() => void) => {
+      const listener = (_e: unknown, notice: RetryNotice) => callback(notice)
+      ipcRenderer.on('gemini:retry', listener)
+      return () => ipcRenderer.removeListener('gemini:retry', listener)
+    },
     generateRubricFromDescription: (a: unknown): Promise<unknown> =>
       ipcRenderer.invoke('gemini:generateRubricFromDescription', a),
     generateRubricFromScreenshot: (a: unknown): Promise<unknown> =>

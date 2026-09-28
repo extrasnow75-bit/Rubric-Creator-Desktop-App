@@ -1,3 +1,51 @@
+## What's new in v0.9.21
+
+### Every failure now says whose problem it is
+
+When a run failed, the natural response was to start replacing things — a new Gemini key, then a
+new key in a different Google account, then a look at the Canvas token. None of that touches a
+busy Google server, and each attempt costs real time and leaves the setup worse than it started.
+
+So every AI failure the app recognises now names the owner of the problem *and rules out the
+wrong fixes by name*:
+
+- **Google's AI service is busy** — at Google's end. Your Gemini key, your Google account, your
+  Canvas token and your assignment description are all fine, and **a new key, in this Google
+  account or any other, will not help**, because every key reaches the same busy service. It
+  usually clears within a few minutes.
+- **The key has used up today's free requests** — the key itself is fine; replacing it does not
+  give you more. The allowance resets tomorrow.
+- **Requests are going out too fast** — nothing is wrong with the key, your Google account or your
+  Canvas token. A minute usually clears it.
+- **The key was rejected** — this one *is* the key specifically, and not your Google sign-in, your
+  Canvas token, or Boise State's Canvas. Check it on the Dashboard.
+- **The model is no longer offered** — the app's problem, not yours. A new key will not fix it.
+
+Anything the app does not recognise shows Google's own words untouched, with no claim about whose
+fault it is. A confident guess would be worse than none.
+
+### You can see it retrying now
+
+The app already retried a busy service, but said nothing while it did. From the outside, "retrying,
+four attempts to go" and "stopped dead" looked identical — the only difference being that the
+working one took longer, which reads as the worse of the two.
+
+While it waits, the progress bar now says so in amber: **"Google's AI service is busy — waiting
+20s, then trying again (attempt 3 of 5). Nothing is wrong with your key or your account."** It
+clears the moment the call finishes, either way.
+
+### The time estimate was fiction
+
+It divided the time so far by how far along the run was — but "how far along" only updated when an
+item *finished*. So all the way through an item, the fraction sat still while the clock kept
+running, and the estimate climbed the whole time. One run showed **20 minutes** two and a half
+minutes in, on a document that had barely started; the same run half an hour earlier would have
+claimed 40.
+
+It now measures how long the finished items actually took and projects from that, so the figure
+only moves when something real completes. Where nothing has finished yet there is no basis for an
+estimate, so none is shown and the elapsed clock stands on its own.
+
 ## What's new in v0.9.20
 
 ### When Google's AI is busy, the app now says so — and waits it out

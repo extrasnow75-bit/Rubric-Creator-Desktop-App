@@ -58,6 +58,14 @@ export interface ProgressState {
   itemsProcessed: number;
   totalItems: number;
   canCancel: boolean;
+  /**
+   * What the app is waiting on right now, when it is waiting rather than working.
+   *
+   * Null in the ordinary case. Set while a Gemini call sits out a busy model or a rate limit, so
+   * that a recovering run stops looking like a hung one — from the outside those were identical,
+   * and the reasonable response to a hang is to start changing settings that were never wrong.
+   */
+  waitingNote: string | null;
 }
 
 // =========================

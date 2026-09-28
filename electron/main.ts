@@ -646,6 +646,20 @@ app.whenReady().then(() => {
   // course opens while everything else stays shut.
   setAllowedCanvasHost(readSettings().canvasCourseUrl ?? null)
 
+  /*
+    Let the window see what the Gemini calls are waiting for.
+
+    Retries were announced only to the main process console, which a packaged app does not show
+    anywhere. So an eight-rubric run that was quietly recovering from a busy model looked
+    identical to one that had stopped dead: same spinner, same step text, for minutes at a time.
+    gemini.ts keeps no reference to any window, so the send is supplied from here.
+  */
+  gemini.setRetryNotifier((notice) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('gemini:retry', notice)
+    }
+  })
+
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

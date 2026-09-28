@@ -70,6 +70,19 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
   const abortControllerRef = useRef<AbortController | null>(null);
   const progressStartTimeRef = useRef<number>(0);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  /**
+   * How long the finished items actually took — the only honest basis for an estimate.
+   *
+   * The old estimate divided elapsed time by `percentage`, which every loop sets at the *start*
+   * of an item. So through the whole of item 2 the percentage sat frozen at 1/8 while the clock
+   * kept running, and the estimate climbed the entire time: 2m 31s at one-eighth done read as
+   * 20 minutes, and would have read as 40 if that item had taken twice as long. It described the
+   * item in progress, not the run.
+   *
+   * Recording elapsed-at-completion instead gives a real per-item average, and it only moves when
+   * an item genuinely finishes.
+   */
+  const completionMarkRef = useRef<{ items: number; elapsed: number } | null>(null);
 
   const [state, setState] = useState<SessionState>({
     currentStep: AppMode.DASHBOARD,
@@ -98,6 +111,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       bytesProcessed: 0,
       totalBytes: 0,
       itemsProcessed: 0,
+      waitingNote: null,
       totalItems: 0,
       canCancel: false,
     },
@@ -253,6 +267,18 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, []);
 
   const setProgress = useCallback((progress: Partial<ProgressState>) => {
+    // Outside the updater deliberately: React may call an updater twice, and a mark taken twice
+    // would record the second call's clock against the first call's work.
+    if (
+      typeof progress.itemsProcessed === 'number' &&
+      progress.itemsProcessed > (completionMarkRef.current?.items ?? 0)
+    ) {
+      completionMarkRef.current = {
+        items: progress.itemsProcessed,
+        elapsed: Date.now() - progressStartTimeRef.current,
+      };
+    }
+
     setState((prev) => ({
       ...prev,
       progress: { ...prev.progress, ...progress },
@@ -262,6 +288,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
   const startProgress = useCallback((totalItems: number = 1, canCancel: boolean = true) => {
     abortControllerRef.current = new AbortController();
     progressStartTimeRef.current = Date.now();
+    completionMarkRef.current = null;
 
     setState((prev) => ({
       ...prev,
@@ -274,6 +301,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
         bytesProcessed: 0,
         totalBytes: 0,
         itemsProcessed: 0,
+        waitingNote: null,
         totalItems,
         canCancel,
       },
@@ -286,13 +314,22 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     progressIntervalRef.current = setInterval(() => {
       setState((prev) => {
         const elapsed = Date.now() - progressStartTimeRef.current;
-        const percentageDecimal = prev.progress.percentage > 0
-          ? prev.progress.percentage
-          : (prev.progress.totalItems > 0
-              ? prev.progress.itemsProcessed / prev.progress.totalItems
-              : 0);
-        const estimatedTotal = percentageDecimal > 0 ? elapsed / percentageDecimal : 0;
-        const remaining = Math.max(0, estimatedTotal - elapsed);
+
+        /*
+          No finished item, no estimate.
+
+          A single sample is the minimum this can be honest about, and a run of one long call has
+          no sample at all until it is over. Showing nothing is better than showing a number
+          derived from a hardcoded percentage: 0.3 through a document scan never meant "three
+          tenths of the time", and the figure it produced was fiction presented to four digits.
+          ProgressDisplay hides the estimate while this is 0, so the elapsed clock stands alone.
+        */
+        const mark = completionMarkRef.current;
+        const estimatedTotal =
+          mark && mark.items > 0 && prev.progress.totalItems > 0
+            ? (mark.elapsed / mark.items) * prev.progress.totalItems
+            : 0;
+        const remaining = estimatedTotal > 0 ? Math.max(0, estimatedTotal - elapsed) : 0;
 
         return {
           ...prev,
@@ -379,6 +416,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
         bytesProcessed: 0,
         totalBytes: 0,
         itemsProcessed: 0,
+        waitingNote: null,
         totalItems: 0,
         canCancel: false,
       },
@@ -589,6 +627,37 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
         isGoogleAuthenticated: false,
         googleUser: null,
         googleAuthError: 'Your Google sign-in expired. Sign in again to use Drive.',
+      }));
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  /**
+   * Show what a Gemini call is waiting for, while it waits.
+   *
+   * The retries themselves were already working — a run that used to die on a busy model now
+   * recovers — but nothing said so. The only visible difference between "retrying, four attempts
+   * to go" and "stopped dead" was that the first one took longer, which reads as the worse of the
+   * two. A run spent two and a half minutes on its first rubric, succeeded, and still looked
+   * broken enough to be worth replacing an API key over.
+   *
+   * Deliberately worded as Google's problem, not the user's, because that is what it is and
+   * because the alternative reading sends people off changing credentials that were never
+   * involved.
+   */
+  useEffect(() => {
+    const unsubscribe = window.api.gemini.onRetry((notice) => {
+      setState((prev) => ({
+        ...prev,
+        progress: {
+          ...prev.progress,
+          waitingNote: notice.waiting
+            ? notice.reason === 'busy'
+              ? `Google's AI service is busy — waiting ${notice.waitSeconds}s, then trying again (attempt ${notice.attempt} of ${notice.of}). Nothing is wrong with your key or your account.`
+              : `Sending requests too quickly for Google — waiting ${notice.waitSeconds}s, then trying again (attempt ${notice.attempt} of ${notice.of}).`
+            : null,
+        },
       }));
     });
 

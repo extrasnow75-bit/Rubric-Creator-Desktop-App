@@ -40,6 +40,40 @@ let client: GoogleGenAI | null = null;
 let chatSession: Chat | null = null;
 
 /**
+ * What the app is waiting for, pushed to the window while it waits.
+ *
+ * A retry that nobody can see is indistinguishable from a hung app. The warnings below went to
+ * the main process console, which in a packaged build is nowhere — so a run that was busily
+ * recovering from a 503 looked exactly like one that had stopped dead, and the reasonable
+ * response to that is to start changing things that were never wrong.
+ *
+ * A module-level hook rather than a parameter because retryWithBackoff is called from seventeen
+ * places and none of them has any business knowing about windows. main.ts supplies the send.
+ */
+export interface GeminiRetryNotice {
+  /** True while a wait is in progress, false the moment the call finishes either way. */
+  waiting: boolean;
+  attempt: number;
+  of: number;
+  waitSeconds: number;
+  reason: 'busy' | 'rate-limit';
+}
+
+let retryNotifier: ((notice: GeminiRetryNotice) => void) | null = null;
+
+export function setRetryNotifier(fn: ((notice: GeminiRetryNotice) => void) | null): void {
+  retryNotifier = fn;
+}
+
+function announceRetry(notice: GeminiRetryNotice): void {
+  try {
+    retryNotifier?.(notice);
+  } catch {
+    // Telling the user what is happening must never be the reason the work fails.
+  }
+}
+
+/**
  * Primary model — everything except reading a screenshot.
  *
  * Chosen for its free-tier quota, not its price. Every user of this app brings their own free key
@@ -221,50 +255,67 @@ async function retryWithBackoff<T>(
   let lastError: any;
   let attempt = 0;
   let limit = maxRetries;
+  let announced = false;
 
-  while (attempt < limit) {
-    if (signal?.aborted) throw new Error('Request cancelled');
-    try {
-      return await fn();
-    } catch (error: any) {
-      lastError = error;
+  try {
+    while (attempt < limit) {
+      if (signal?.aborted) throw new Error('Request cancelled');
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
 
-      const overloaded = isModelOverloaded(error);
-      if (isHardQuotaLimit(error)) throw error;                        // spent for the day — stop
-      if (!overloaded && !isTemporaryRateLimit(error)) throw error;    // not something waiting fixes
+        const overloaded = isModelOverloaded(error);
+        if (isHardQuotaLimit(error)) throw error;                        // spent for the day — stop
+        if (!overloaded && !isTemporaryRateLimit(error)) throw error;    // not something waiting fixes
 
-      // An overloaded model is cheap to re-ask, so it gets a longer run of shorter waits. Raised
-      // once rather than per attempt, so a call that starts rate-limited and turns overloaded
-      // does not keep extending its own budget.
-      if (overloaded && limit === maxRetries) limit = maxRetries + OVERLOAD_EXTRA_ATTEMPTS;
+        // An overloaded model is cheap to re-ask, so it gets a longer run of shorter waits. Raised
+        // once rather than per attempt, so a call that starts rate-limited and turns overloaded
+        // does not keep extending its own budget.
+        if (overloaded && limit === maxRetries) limit = maxRetries + OVERLOAD_EXTRA_ATTEMPTS;
 
-      if (attempt === limit - 1) break; // last attempt — fail now rather than sleep first
+        if (attempt === limit - 1) break; // last attempt — fail now rather than sleep first
 
-      const base = (overloaded ? OVERLOAD_INITIAL_DELAY_MS : initialDelayMs) * Math.pow(2, attempt);
-      const delay = Math.round(base * (1 - JITTER + Math.random() * JITTER * 2));
-      console.warn(
-        `${overloaded ? 'Model overloaded' : 'Rate limit hit'}. Retrying in ${(delay / 1000).toFixed(1)}s… (attempt ${attempt + 1}/${limit})`,
-      );
-      await new Promise<void>((resolve, reject) => {
-        const onAbort = () => { clearTimeout(timer); cleanup(); reject(new Error('Request cancelled')); };
-        const cleanup = () => signal?.removeEventListener('abort', onAbort);
-        const timer = setTimeout(() => { cleanup(); resolve(); }, delay);
-        signal?.addEventListener('abort', onAbort, { once: true });
-      });
+        const base = (overloaded ? OVERLOAD_INITIAL_DELAY_MS : initialDelayMs) * Math.pow(2, attempt);
+        const delay = Math.round(base * (1 - JITTER + Math.random() * JITTER * 2));
+        console.warn(
+          `${overloaded ? 'Model overloaded' : 'Rate limit hit'}. Retrying in ${(delay / 1000).toFixed(1)}s… (attempt ${attempt + 1}/${limit})`,
+        );
+        announceRetry({
+          waiting: true,
+          attempt: attempt + 1,
+          of: limit,
+          waitSeconds: Math.round(delay / 1000),
+          reason: overloaded ? 'busy' : 'rate-limit',
+        });
+        announced = true;
+        await new Promise<void>((resolve, reject) => {
+          const onAbort = () => { clearTimeout(timer); cleanup(); reject(new Error('Request cancelled')); };
+          const cleanup = () => signal?.removeEventListener('abort', onAbort);
+          const timer = setTimeout(() => { cleanup(); resolve(); }, delay);
+          signal?.addEventListener('abort', onAbort, { once: true });
+        });
 
-      attempt++;
+        attempt++;
+      }
+    }
+
+    /*
+      Rewritten on the way out, not swallowed.
+
+      Everything above this line has already established what went wrong, and the raw error says it
+      too — in a JSON body wrapped in an HTTP status. geminiFailureMessage turns the ones we know
+      into a sentence, and passes Google's own text through for the ones we do not. Nothing is
+      hidden: the original is kept on `cause` for anyone reading a log.
+    */
+    throw Object.assign(new Error(geminiFailureMessage(lastError)), { cause: lastError });
+  } finally {
+    // Whichever way this ended -- returned, threw, or was cancelled mid-wait -- the app is no
+    // longer waiting on Google, and the line saying it is must come down with it.
+    if (announced) {
+      announceRetry({ waiting: false, attempt: 0, of: 0, waitSeconds: 0, reason: 'busy' });
     }
   }
-
-  /*
-    Rewritten on the way out, not swallowed.
-
-    Everything above this line has already established what went wrong, and the raw error says it
-    too — in a JSON body wrapped in an HTTP status. geminiFailureMessage turns the ones we know
-    into a sentence, and passes Google's own text through for the ones we do not. Nothing is
-    hidden: the original is kept on `cause` for anyone reading a log.
-  */
-  throw Object.assign(new Error(geminiFailureMessage(lastError)), { cause: lastError });
 }
 
 // ─── Local .docx extraction ──────────────────────────────────────────

@@ -53,6 +53,15 @@ const ProgressDisplay: React.FC<ProgressDisplayProps> = ({ progress, onStop }) =
                   {progress.itemsProcessed} of {progress.totalItems} items processed
                 </p>
               )}
+              {/*
+                Amber, and inside the existing status region so it is announced when it appears.
+                Amber rather than red because nothing has failed — the app is recovering — and
+                rather than grey because a line nobody notices does not answer the question the
+                user is actually asking, which is whether this thing has stopped.
+              */}
+              {progress.waitingNote && (
+                <p className="text-xs text-amber-700 font-bold mt-0.5">{progress.waitingNote}</p>
+              )}
             </div>
           </div>
 
