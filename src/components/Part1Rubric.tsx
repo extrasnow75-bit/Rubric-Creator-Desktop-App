@@ -1953,9 +1953,41 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                             not, and nothing said so. */}
                         <p className="text-sm text-green-800 mt-1">
                           {state.savedDoc
-                            ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — use “Update the Google Doc” above to bring it in line.'
+                            ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones.'
                             : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
                         </p>
+                        {/*
+                          The action, in the box that asks for it.
+
+                          This used to end with "use the button above", and the button was a card
+                          and a scroll away — far enough that the reasonable move was to press the
+                          nearest document control instead, which creates a second document rather
+                          than updating the first. Telling someone what to do next and then making
+                          them go and find it is most of a usability problem on its own.
+
+                          The same two handlers as the document card, deliberately: this is a
+                          shortcut to the existing actions, not a second way of doing them.
+                        */}
+                        {state.savedDoc && (
+                          <div className="flex flex-wrap items-center gap-3 mt-3">
+                            <button
+                              type="button"
+                              onClick={handleUpdateDoc}
+                              disabled={savingToDrive}
+                              className="px-4 py-2 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark transition-all active:scale-95 disabled:opacity-50"
+                            >
+                              {savingToDrive ? 'Updating…' : 'Update the Google Doc'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleExportToDrive}
+                              disabled={savingToDrive}
+                              className="text-sm text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
+                            >
+                              Create a new one instead
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

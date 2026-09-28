@@ -1,3 +1,17 @@
+## What's new in v0.9.22
+
+### The "update your document" prompt now has the button in it
+
+After a change run, the green box said your Google Doc still held the previous rubrics and to
+*"use Update the Google Doc above"* — and that button was a card and a scroll away. Telling
+someone what to do next and then making them go and find it is most of a usability problem on its
+own, and the nearest document control does something different: it creates a second document
+rather than updating the first.
+
+**Update the Google Doc** and **Create a new one instead** now sit inside that green box, directly
+under the sentence asking for them. They are the same two actions as the document card above, not
+a second way of doing it.
+
 ## What's new in v0.9.21
 
 ### Every failure now says whose problem it is
