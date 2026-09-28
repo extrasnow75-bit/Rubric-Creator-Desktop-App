@@ -22,6 +22,12 @@ import { extractDocxText } from './docxText'
 import { buildRubricCsv, ExtractedCriterion } from './rubricCsv'
 import { getGeminiApiKey } from './credentials'
 import {
+  geminiFailureMessage,
+  isHardQuotaLimit,
+  isModelOverloaded,
+  isTemporaryRateLimit,
+} from './geminiErrors'
+import {
   GenerationSettings,
   PointStyle,
   ProcessingType,
@@ -182,32 +188,25 @@ async function throttle(signal?: AbortSignal): Promise<void> {
 // ─── Retry with exponential back-off ────────────────────────────────
 
 /**
- * True when the 429 includes "limit: 0" — a hard daily cap.
- * Retrying won't help; the user needs a fresh project/key.
- */
-function isHardQuotaLimit(error: any): boolean {
-  return String(error?.message || error || '').includes('limit: 0');
-}
-
-/**
- * True for temporary rate-limit 429s that ARE worth retrying
- * (e.g. hit 15 RPM but daily quota is fine).
- */
-function isTemporaryRateLimit(error: any): boolean {
-  const msg = String(error?.message || error || '');
-  return (
-    (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) &&
-    !isHardQuotaLimit(error)
-  );
-}
-
-/**
- * Retry `fn` up to `maxRetries` times on temporary 429s using
- * exponential back-off with ±20 % jitter (60 s → 120 s → 240 s).
- * Hard "limit: 0" errors and non-quota errors surface immediately.
+ * Retry `fn` on the two failures that are worth waiting out, with ±20 % jitter.
  *
- * Defaults are tuned for batch-then-split: 3 retries starting at 60 s
- * gives Gemini free-tier quota a full minute to reset between attempts.
+ * The two get different waits because they are different problems:
+ *
+ *   Rate limit (429) — the per-minute ceiling. A minute is roughly how long it takes to clear,
+ *     so the wait starts at 60 s and doubles: 60 → 120 → 240.
+ *
+ *   Overloaded (503) — Google's own servers turning requests away. Google's wording is that
+ *     these spikes are usually temporary, and a minute of silence per attempt is both longer
+ *     than needed and long enough that the run looks hung. Starts at 5 s: 5 → 10 → 20, and gets
+ *     two extra attempts, because each one is cheap.
+ *
+ * 503 was not retried at all until now. isTemporaryRateLimit matches 429 only, so an overloaded
+ * model fell through to "not a quota error — stop" and killed the call on its first attempt. A
+ * whole eight-rubric run died that way, one rubric at a time, with the message blaming the
+ * description.
+ *
+ * Hard "limit: 0" caps and everything else still surface immediately — waiting cannot fix a key
+ * that is out of requests for the day, and it cannot fix a bad key at all.
  */
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
@@ -216,28 +215,56 @@ async function retryWithBackoff<T>(
   initialDelayMs = 60000,
 ): Promise<T> {
   const JITTER = 0.2; // ±20 %
+  const OVERLOAD_INITIAL_DELAY_MS = 5000;
+  const OVERLOAD_EXTRA_ATTEMPTS = 2;
+
   let lastError: any;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  let attempt = 0;
+  let limit = maxRetries;
+
+  while (attempt < limit) {
     if (signal?.aborted) throw new Error('Request cancelled');
     try {
       return await fn();
     } catch (error: any) {
       lastError = error;
-      if (isHardQuotaLimit(error)) throw error;     // hard daily cap — stop
-      if (!isTemporaryRateLimit(error)) throw error; // non-quota error — stop
-      // Temporary rate limit — wait then retry with jitter
-      const base = initialDelayMs * Math.pow(2, attempt);
+
+      const overloaded = isModelOverloaded(error);
+      if (isHardQuotaLimit(error)) throw error;                        // spent for the day — stop
+      if (!overloaded && !isTemporaryRateLimit(error)) throw error;    // not something waiting fixes
+
+      // An overloaded model is cheap to re-ask, so it gets a longer run of shorter waits. Raised
+      // once rather than per attempt, so a call that starts rate-limited and turns overloaded
+      // does not keep extending its own budget.
+      if (overloaded && limit === maxRetries) limit = maxRetries + OVERLOAD_EXTRA_ATTEMPTS;
+
+      if (attempt === limit - 1) break; // last attempt — fail now rather than sleep first
+
+      const base = (overloaded ? OVERLOAD_INITIAL_DELAY_MS : initialDelayMs) * Math.pow(2, attempt);
       const delay = Math.round(base * (1 - JITTER + Math.random() * JITTER * 2));
-      console.warn(`Rate limit hit. Retrying in ${(delay / 1000).toFixed(1)}s… (attempt ${attempt + 1}/${maxRetries})`);
+      console.warn(
+        `${overloaded ? 'Model overloaded' : 'Rate limit hit'}. Retrying in ${(delay / 1000).toFixed(1)}s… (attempt ${attempt + 1}/${limit})`,
+      );
       await new Promise<void>((resolve, reject) => {
         const onAbort = () => { clearTimeout(timer); cleanup(); reject(new Error('Request cancelled')); };
         const cleanup = () => signal?.removeEventListener('abort', onAbort);
         const timer = setTimeout(() => { cleanup(); resolve(); }, delay);
         signal?.addEventListener('abort', onAbort, { once: true });
       });
+
+      attempt++;
     }
   }
-  throw lastError;
+
+  /*
+    Rewritten on the way out, not swallowed.
+
+    Everything above this line has already established what went wrong, and the raw error says it
+    too — in a JSON body wrapped in an HTTP status. geminiFailureMessage turns the ones we know
+    into a sentence, and passes Google's own text through for the ones we do not. Nothing is
+    hidden: the original is kept on `cause` for anyone reading a log.
+  */
+  throw Object.assign(new Error(geminiFailureMessage(lastError)), { cause: lastError });
 }
 
 // ─── Local .docx extraction ──────────────────────────────────────────

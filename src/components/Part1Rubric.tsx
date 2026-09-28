@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { useCopyAction } from '../hooks/useCopyAction';
+import { ipcErrorMessage } from '../utils/ipcErrorMessage';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { AppMode, PointStyle, ProcessingType, GenerationSettings, RubricData } from '../types';
 import { generateCsvFromRubricObject } from '../utils/rubricCsv';
@@ -539,6 +540,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
 
     const made: RubricData[] = [];
     const failed: string[] = [];
+    let firstFailure: string | null = null;
 
     try {
       for (let i = 0; i < entries.length; i++) {
@@ -568,6 +570,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
           if (signal.aborted) break;
           // One rubric failing does not cost the others; it is named at the end instead.
           failed.push(entry.title || 'the rubric');
+          /*
+            The reason, kept.
+
+            This used to discard `err` entirely, and that is how an eight-rubric run could fail
+            eight times over and still report "Try again, or shorten the description" — advice
+            aimed at a description that was never the problem. Gemini had said what was wrong on
+            every one of those attempts; nothing carried it this far. The first one is the one
+            worth showing: the rest are the same failure repeating.
+          */
+          if (!firstFailure) firstFailure = ipcErrorMessage(err);
         }
       }
 
@@ -599,11 +611,20 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
       }
 
       if (failed.length > 0) {
-        setError(
+        /*
+          What went wrong first, then what it cost.
+
+          That order because the reason is the part the user can act on, and because naming eight
+          rubrics before saying why buries it. `firstFailure` is Gemini's own sentence where the
+          failure was one this app recognises, and Google's text where it was not — see
+          geminiErrors.ts. It is only ever missing if the catch above never ran, which the
+          failed.length check already rules out.
+        */
+        const scope =
           made.length === 0
-            ? `Could not generate ${failed.join(', ')}. Try again, or shorten the description.`
-            : `Generated ${made.length} of ${entries.length}. Could not write ${failed.join(', ')}.`,
-        );
+            ? `None of the rubrics could be written (${failed.join(', ')}).`
+            : `Wrote ${made.length} of ${entries.length}. Could not write ${failed.join(', ')}.`;
+        setError(firstFailure ? `${firstFailure} ${scope}` : scope);
       } else if (made.length === 0 && !signal.aborted) {
         setError('Nothing was generated. Try again, or shorten the description.');
       }

@@ -1,3 +1,40 @@
+## What's new in v0.9.20
+
+### When Google's AI is busy, the app now says so — and waits it out
+
+An eight-rubric run failed on every rubric and reported *"Could not generate … Try again, or
+shorten the description."* The description was never the problem. Gemini had answered every
+attempt with a plain statement of what was wrong — **"This model is currently experiencing high
+demand. Spikes in demand are usually temporary"** — and the app threw that away, kept only the
+fact that something failed, and printed advice that sent the user off editing a description and
+then off replacing an API key. Neither would have helped.
+
+Two faults behind it, both fixed.
+
+**The reason was discarded.** Part 1 caught each failure, noted which rubric it belonged to, and
+dropped the error itself. Whatever Gemini said never reached the screen. It does now, and it
+leads the message rather than trailing it, because the reason is the part you can act on. Five
+failures the app recognises are put into plain words:
+
+- **Google's AI service is busy** — at Google's end, not your key, your description, or this app
+- **The key has used up today's free requests** — it resets tomorrow; the key is fine
+- **Requests are going out too fast** — a minute usually clears it
+- **The key was rejected** — check it on the Dashboard
+- **The model is no longer offered** — a fix in the app, not something you can change
+
+Anything else shows Google's own words, untouched. The app never invents a reason it does not
+have.
+
+**A busy model was never retried.** The retry logic recognised one kind of temporary failure —
+being asked to slow down — and treated everything else as fatal. A busy server, which is the most
+temporary failure of the lot and the one Google itself describes as usually passing, fell through
+and killed the request on its first attempt. It is now retried five times, starting at five
+seconds and doubling. Most runs that used to fail outright will simply take slightly longer.
+
+Being asked to slow down still waits a full minute between attempts, as before. Nothing waits out
+a key that is out of requests for the day, or a key the service will not accept — waiting cannot
+fix either.
+
 ## What's new in v0.9.19
 
 This includes everything from v0.9.18, which was only ever built for testing and never released.
