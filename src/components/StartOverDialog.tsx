@@ -65,8 +65,8 @@ export const StartOverDialog: React.FC<Props> = ({ isOpen, hasUnsavedWork, onCan
         </div>
         <p className="text-sm text-gray-700 mb-5">
           {hasUnsavedWork
-            ? 'Anything you have not saved to your computer or to Google Drive will be gone. Rubrics already deployed to Canvas stay there, and your Gemini key, Canvas token and Google sign-in are kept.'
-            : 'This clears the screen and takes you back to the start. Nothing you have made is waiting to be saved, and your Gemini key, Canvas token and Google sign-in are kept.'}
+            ? 'Anything you have not saved to your computer or to Google Drive will be gone. Rubrics already deployed to Canvas stay there, and your AI key, Canvas token and Google sign-in are kept.'
+            : 'This clears the screen and takes you back to the start. Nothing you have made is waiting to be saved, and your AI key, Canvas token and Google sign-in are kept.'}
         </p>
         <div className="flex gap-2">
           <button

@@ -9,6 +9,7 @@ import {
   UploadHistoryItem,
   ProgressState,
   GoogleUser,
+  AiProvider,
 } from '../types';
 
 // Create context
@@ -47,6 +48,10 @@ const SessionContext = createContext<{
   // Gemini API Key
   /** Stores the key in the OS keychain. Rejects if no keychain is available. */
   setUserGeminiApiKey: (key: string | null) => Promise<void>;
+  /** Same for a BoiseState.ai key. */
+  setUserBoiseStateApiKey: (key: string | null) => Promise<void>;
+  /** Choose which service does the AI work. Persisted by the main process. */
+  setAiProvider: (provider: AiProvider) => Promise<void>;
   // Canvas API Token
   /** Stores the token in the OS keychain. Rejects if no keychain is available. */
   setUserCanvasApiToken: (token: string | null) => Promise<void>;
@@ -99,6 +104,8 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     },
     // Gemini API Key
     geminiKeyStatus: null,
+    boiseStateKeyStatus: null,
+    aiProvider: 'gemini',
     // Canvas API Token
     canvasTokenStatus: null,
     // V.2 fields
@@ -378,6 +385,8 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       // Preserve credentials and V.2 setup across session clears
       geminiKeyStatus: prev.geminiKeyStatus,
+      boiseStateKeyStatus: prev.boiseStateKeyStatus,
+      aiProvider: prev.aiProvider,
       canvasTokenStatus: prev.canvasTokenStatus,
       courseUrl: prev.courseUrl,
       isGoogleAuthenticated: prev.isGoogleAuthenticated,
@@ -415,6 +424,17 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     await window.api.credentials.setGeminiApiKey(key);
     const status = await window.api.credentials.geminiKeyStatus();
     setState((prev) => ({ ...prev, geminiKeyStatus: status }));
+  }, []);
+
+  const setUserBoiseStateApiKey = useCallback(async (key: string | null) => {
+    await window.api.credentials.setBoiseStateApiKey(key);
+    const status = await window.api.credentials.boiseStateKeyStatus();
+    setState((prev) => ({ ...prev, boiseStateKeyStatus: status }));
+  }, []);
+
+  const setAiProvider = useCallback(async (provider: AiProvider) => {
+    await window.api.ai.setProvider(provider);
+    setState((prev) => ({ ...prev, aiProvider: provider }));
   }, []);
 
   /**
@@ -535,15 +555,19 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     // encrypted in the OS keychain, the URL in settings.json. Neither is read from localStorage.
     void (async () => {
       const empty = { hasValue: false, hint: '' };
-      const [canvas, gemini, savedCourseUrl] = await Promise.all([
+      const [canvas, gemini, boiseState, provider, savedCourseUrl] = await Promise.all([
         window.api.credentials.canvasTokenStatus().catch(() => empty),
         window.api.credentials.geminiKeyStatus().catch(() => empty),
+        window.api.credentials.boiseStateKeyStatus().catch(() => empty),
+        window.api.ai.getProvider().catch(() => 'gemini' as AiProvider),
         window.api.canvas.getCourseUrl().catch(() => null),
       ]);
       setState((prev) => ({
         ...prev,
         canvasTokenStatus: canvas,
         geminiKeyStatus: gemini,
+        boiseStateKeyStatus: boiseState,
+        aiProvider: provider,
         courseUrl: savedCourseUrl,
       }));
     })();
@@ -629,6 +653,8 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     clearSession,
     newBatch,
     setUserGeminiApiKey,
+    setUserBoiseStateApiKey,
+    setAiProvider,
     setUserCanvasApiToken,
     setCourseUrl,
     startGoogleAuth,

@@ -2,12 +2,16 @@ import { app, BrowserWindow, ipcMain, dialog, shell, clipboard } from 'electron'
 import { join } from 'path'
 import { writeFile } from 'fs/promises'
 import { isAllowedExternalUrl, setAllowedCanvasHost } from './ipc/externalLinks'
-import { readSettings, updateSettings } from './ipc/settings'
+import { readSettings, updateSettings, getAiProvider } from './ipc/settings'
+import type { AiProvider } from './ipc/settings'
+import { validateBoiseStateApiKey } from './ipc/boiseStateClient'
 import {
   setCanvasToken,
   canvasTokenStatus,
   setGeminiApiKey,
   geminiKeyStatus,
+  setBoiseStateApiKey,
+  boiseStateKeyStatus,
   type CredentialStatus,
 } from './ipc/credentials'
 import { pushRubric, verifyToken, getCourseName } from './ipc/canvas'
@@ -222,6 +226,28 @@ ipcMain.handle('credentials:setGeminiApiKey', (_e, key: string | null) => {
 
 ipcMain.handle('credentials:geminiKeyStatus', (): CredentialStatus => geminiKeyStatus())
 
+ipcMain.handle('credentials:setBoiseStateApiKey', (_e, key: string | null) => {
+  setBoiseStateApiKey(key)
+  gemini.resetClient()
+})
+
+ipcMain.handle('credentials:boiseStateKeyStatus', (): CredentialStatus => boiseStateKeyStatus())
+
+// ─── AI service choice ────────────────────────────────────────────────────────
+//
+// Which service answers is a preference, not a secret, so it lives in settings.json. The renderer
+// may change it — it is the user's own choice, and neither value sends anything anywhere new:
+// both services are reached from this process, with keys this process holds.
+
+ipcMain.handle('ai:getProvider', (): AiProvider => getAiProvider())
+
+ipcMain.handle('ai:setProvider', (_e, provider: AiProvider) => {
+  if (provider !== 'gemini' && provider !== 'boisestate') return
+  updateSettings({ aiProvider: provider })
+  // The cached client and the chat history belong to the previous service.
+  gemini.resetClient()
+})
+
 // ─── Canvas ───────────────────────────────────────────────────────────────────
 
 /**
@@ -358,7 +384,11 @@ ipcMain.handle(
 ipcMain.handle('gemini:cancel', (_e, jobId: string) => cancelJob(jobId))
 
 // Validates a candidate key before it is saved, so this one takes the key directly.
-ipcMain.handle('gemini:validateKey', (_e, apiKey: string) => gemini.validateGeminiApiKey(apiKey))
+ipcMain.handle('gemini:validateKey', (_e, apiKey: string, provider?: AiProvider) =>
+  provider === 'boisestate'
+    ? validateBoiseStateApiKey(apiKey)
+    : gemini.validateGeminiApiKey(apiKey),
+)
 
 ipcMain.handle('gemini:startNewChat', () => gemini.startNewChat())
 

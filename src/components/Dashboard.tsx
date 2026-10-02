@@ -9,8 +9,9 @@ import {
 } from 'lucide-react';
 import { getRecentDocs, saveRecentDoc, RecentDoc } from '../utils/recentDocs';
 import { revealSection, REVEAL_DELAY_MS } from '../utils/revealSection';
-import { AppMode } from '../types';
-import { validateGeminiApiKey } from '../services/geminiService';
+import { AppMode, AiProvider } from '../types';
+import { validateApiKey } from '../services/geminiService';
+import { SegmentedChoice } from './SegmentedChoice';
 import { AnalyzeDeploySection, UploadedDocFile } from './AnalyzeDeploySection';
 import { Part1Rubric } from './Part1Rubric';
 import { ScreenshotConverter } from './ScreenshotConverter';
@@ -62,6 +63,8 @@ export const Dashboard: React.FC = () => {
     startGoogleAuth,
     signOutGoogle,
     setUserGeminiApiKey,
+    setUserBoiseStateApiKey,
+    setAiProvider,
     setUserCanvasApiToken,
     setCourseUrl,
     setCurrentStep,
@@ -71,10 +74,10 @@ export const Dashboard: React.FC = () => {
   } = useSession();
   const { pickFile } = useDrivePicker();
 
-  // ── Gemini API Key ──
+  // ── AI service key (Gemini or BoiseState.ai, whichever is chosen) ──
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [isValidatingKey, setIsValidatingKey] = useState(false);
-  const [keyValidationResult, setKeyValidationResult] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  const [keyValidationResult, setKeyValidationResult] = useState<'idle' | 'valid' | 'invalid' | 'unreachable'>('idle');
 
   // ── Canvas Token ──
   const [canvasTokenInput, setCanvasTokenInput] = useState('');
@@ -174,22 +177,27 @@ export const Dashboard: React.FC = () => {
 
   // ─── Derived validity ────────────────────────────────────────────────────────
 
-  const geminiValid = !!state.geminiKeyStatus?.hasValue;
+  const aiProvider = state.aiProvider;
+  const aiName = aiProvider === 'boisestate' ? 'BoiseState.ai' : 'Gemini';
+  const activeKeyStatus = aiProvider === 'boisestate' ? state.boiseStateKeyStatus : state.geminiKeyStatus;
+  // Only the key for the chosen service counts: a saved Gemini key does nothing while
+  // BoiseState.ai is selected, and saying "ready" then would send the user into a failed run.
+  const aiValid = !!activeKeyStatus?.hasValue;
   const canvasTokenValid = !!state.canvasTokenStatus?.hasValue;
   const googleSignedIn = state.isGoogleAuthenticated;
   const draftRubricValid =
     hasDraftRubric === 'yes' ? uploadedFiles.length > 0 : hasDraftRubric === 'no';
 
-  // Core setup = Gemini + Canvas Token (determines when workflow cards appear)
-  const coreSetupComplete = geminiValid && canvasTokenValid;
+  // Core setup = AI key + Canvas Token (determines when workflow cards appear)
+  const coreSetupComplete = aiValid && canvasTokenValid;
 
   // All setup done (including optional Google) = when collapsible auto-closes
-  const allSetupComplete = geminiValid && canvasTokenValid && googleSignedIn;
+  const allSetupComplete = aiValid && canvasTokenValid && googleSignedIn;
 
-  const allRequiredValid = geminiValid && canvasTokenValid && courseUrlValid && draftRubricValid;
+  const allRequiredValid = aiValid && canvasTokenValid && courseUrlValid && draftRubricValid;
 
   // ── Initial Setup header status text ──
-  const requiredRemaining = [!geminiValid, !canvasTokenValid].filter(Boolean).length;
+  const requiredRemaining = [!aiValid, !canvasTokenValid].filter(Boolean).length;
   const setupStatusText = allSetupComplete
     ? 'Complete'
     : requiredRemaining === 0 && !googleSignedIn
@@ -293,17 +301,33 @@ export const Dashboard: React.FC = () => {
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [courseUrlValid, canvasTokenValid, courseUrlInput]);
 
+  // The screenshot converter reads an image, which BoiseState.ai cannot take. If the user switches
+  // service while its panel is open, close it rather than leave a tool that will only fail.
+  useEffect(() => {
+    if (aiProvider === 'boisestate') setPhase1Mode((m) => (m === 'screenshot' ? 'none' : m));
+  }, [aiProvider]);
+
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
+
+  const saveAiKey = aiProvider === 'boisestate' ? setUserBoiseStateApiKey : setUserGeminiApiKey;
 
   const handleSaveApiKey = async () => {
     if (!apiKeyInput.trim()) return;
     setIsValidatingKey(true);
     setKeyValidationResult('idle');
-    const isValid = await validateGeminiApiKey(apiKeyInput.trim());
+    let isValid: boolean;
+    try {
+      isValid = await validateApiKey(apiKeyInput.trim(), aiProvider);
+    } catch {
+      // The service could not be reached, which says nothing about the key. Do not call it bad.
+      setKeyValidationResult('unreachable');
+      setIsValidatingKey(false);
+      return;
+    }
     if (isValid) {
       try {
-        await setUserGeminiApiKey(apiKeyInput.trim());
+        await saveAiKey(apiKeyInput.trim());
         setKeyValidationResult('valid');
         setApiKeyInput('');
       } catch {
@@ -318,9 +342,17 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleRemoveApiKey = async () => {
-    await setUserGeminiApiKey(null).catch(() => undefined);
+    await saveAiKey(null).catch(() => undefined);
     setKeyValidationResult('idle');
     setApiKeyInput('');
+  };
+
+  const handleChooseProvider = async (provider: AiProvider) => {
+    if (provider === aiProvider) return;
+    // Whatever was half-typed belongs to the other service's key.
+    setApiKeyInput('');
+    setKeyValidationResult('idle');
+    await setAiProvider(provider).catch(() => undefined);
   };
 
   const handleSaveCanvasToken = async () => {
@@ -585,8 +617,8 @@ export const Dashboard: React.FC = () => {
               <div className="flex flex-col items-end gap-1">
                 <div className="flex items-center gap-2">
                   <div
-                    title="Gemini API Key"
-                    className={`w-2.5 h-2.5 rounded-full transition-colors ${geminiValid ? 'bg-green-400' : 'bg-white/30'}`}
+                    title={`${aiName} API Key`}
+                    className={`w-2.5 h-2.5 rounded-full transition-colors ${aiValid ? 'bg-green-400' : 'bg-white/30'}`}
                   />
                   <div
                     title="Canvas API Token"
@@ -611,21 +643,39 @@ export const Dashboard: React.FC = () => {
           {isSetupOpen && (
             <div className="bg-gray-50 px-4 pb-4 pt-3 space-y-3 border border-gray-100 border-t-0 rounded-b-2xl">
 
-              {/* Card 1: Gemini API Key */}
-              <SetupCard isValid={geminiValid}>
+              {/* Card 1: AI service and its key */}
+              <SetupCard isValid={aiValid}>
                 <div className="flex items-center gap-2 mb-1">
                   <Key className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                  <h3 className="font-black text-lg text-gray-900">Gemini API Key</h3>
-                  {geminiValid && <Check className="w-4 h-4 text-green-500 ml-auto flex-shrink-0" />}
+                  <h3 className="font-black text-lg text-gray-900">AI Service</h3>
+                  {aiValid && <Check className="w-4 h-4 text-green-500 ml-auto flex-shrink-0" />}
                 </div>
-                {geminiValid ? (
+                <div className="mt-3 mb-3">
+                  <SegmentedChoice<AiProvider>
+                    label="Which AI should write and convert rubrics?"
+                    value={aiProvider}
+                    onChange={handleChooseProvider}
+                    options={[
+                      { value: 'boisestate', label: 'BoiseState.ai', hint: 'University service. No Google account needed.' },
+                      { value: 'gemini', label: 'Gemini', hint: 'Google. Free key from AI Studio.' },
+                    ]}
+                  />
+                </div>
+                {aiProvider === 'boisestate' && (
+                  <p className="text-xs text-gray-600 mb-3">
+                    Word documents and pasted text work. PDF files and the screenshot converter need Gemini,
+                    because BoiseState.ai cannot read files or images through its API. Each rubric you convert
+                    counts toward your monthly BoiseState.ai allowance.
+                  </p>
+                )}
+                {aiValid ? (
                   <div>
                     <div className="flex items-center gap-2 mt-2 mb-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full" />
                       <span className="text-sm font-bold text-green-700">API key active</span>
                     </div>
                     <p className="text-xs text-gray-600 font-mono mb-3">
-                      In your keychain, ending …{state.geminiKeyStatus?.hint}
+                      {aiName} key in your keychain, ending …{activeKeyStatus?.hint}
                     </p>
                     <button onClick={handleRemoveApiKey} className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-50 transition-all text-sm flex items-center justify-center gap-2">
                       <LogOut className="w-4 h-4" /> Remove Key
@@ -633,7 +683,11 @@ export const Dashboard: React.FC = () => {
                   </div>
                 ) : (
                   <div>
-                    <p className="text-sm text-gray-600 mb-3">Enter your free Google Gemini API key to enable AI features.</p>
+                    <p className="text-sm text-gray-600 mb-3">
+                      {aiProvider === 'boisestate'
+                        ? 'Enter your BoiseState.ai API key to enable AI features. Keys expire after 90 days.'
+                        : 'Enter your free Google Gemini API key to enable AI features.'}
+                    </p>
                     <input
                       type="password"
                       value={apiKeyInput}
@@ -648,6 +702,12 @@ export const Dashboard: React.FC = () => {
                         <span className="text-xs font-bold">Invalid API key. Please check and try again.</span>
                       </div>
                     )}
+                    {keyValidationResult === 'unreachable' && (
+                      <div className="flex items-center gap-2 mb-3 text-red-600">
+                        <X className="w-4 h-4" />
+                        <span className="text-xs font-bold">Could not reach {aiName} to check the key. Check your connection and try again.</span>
+                      </div>
+                    )}
                     <button
                       onClick={handleSaveApiKey}
                       disabled={!apiKeyInput.trim() || isValidatingKey}
@@ -655,9 +715,15 @@ export const Dashboard: React.FC = () => {
                     >
                       {isValidatingKey ? <><Loader2 className="w-4 h-4 animate-spin" /> Validating...</> : <><Check className="w-4 h-4" /> Save Key</>}
                     </button>
-                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1 mt-3 text-xs text-blue-600 hover:text-blue-800 font-bold hover:underline">
-                      Get a free key at aistudio.google.com <ExternalLink className="w-3 h-3" />
-                    </a>
+                    {aiProvider === 'boisestate' ? (
+                      <a href="https://boisestate.ai/api-keys" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1 mt-3 text-xs text-blue-600 hover:text-blue-800 font-bold hover:underline">
+                        Get a key at boisestate.ai/api-keys <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : (
+                      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1 mt-3 text-xs text-blue-600 hover:text-blue-800 font-bold hover:underline">
+                        Get a free key at aistudio.google.com <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
                 )}
               </SetupCard>
@@ -1209,7 +1275,8 @@ export const Dashboard: React.FC = () => {
               {/* Screenshot to Editable Doc */}
               <button
                 onClick={() => setPhase1Mode(phase1Mode === 'screenshot' ? 'none' : 'screenshot')}
-                className={`w-full p-6 rounded-b-2xl border-2 transition-all shadow-md flex items-start gap-6 group text-left ${
+                disabled={aiProvider === 'boisestate'}
+                className={`w-full p-6 rounded-b-2xl border-2 transition-all shadow-md flex items-start gap-6 group text-left disabled:opacity-60 disabled:cursor-not-allowed ${
                   phase1Mode === 'screenshot'
                     ? 'border-[#2B579A] bg-blue-50'
                     : 'border-gray-100 bg-white hover:border-[#2B579A] hover:bg-white'
@@ -1230,6 +1297,11 @@ export const Dashboard: React.FC = () => {
                     <p className="text-sm text-gray-600">
                       Convert Canvas rubric screenshots to a matching, editable, draft rubric (MS Word / Google Docs file).
                     </p>
+                    {aiProvider === 'boisestate' && (
+                      <p className="text-xs font-bold text-amber-700 mt-1">
+                        Needs Gemini — BoiseState.ai cannot read images. Switch under Initial Setup.
+                      </p>
+                    )}
                   </div>
                 </div>
               </button>
@@ -1248,7 +1320,7 @@ export const Dashboard: React.FC = () => {
             >
               <Part1Rubric
                 onAnalyzeDeploy={() => handleAnalyzeDeploy('no')}
-                canAnalyzeDeploy={geminiValid && canvasTokenValid}
+                canAnalyzeDeploy={aiValid && canvasTokenValid}
               />
             </div>
           )}
@@ -1262,7 +1334,7 @@ export const Dashboard: React.FC = () => {
             >
               <ScreenshotConverter
                 onAnalyzeDeploy={() => handleAnalyzeDeploy('no')}
-                canAnalyzeDeploy={geminiValid && canvasTokenValid}
+                canAnalyzeDeploy={aiValid && canvasTokenValid}
               />
             </div>
           )}

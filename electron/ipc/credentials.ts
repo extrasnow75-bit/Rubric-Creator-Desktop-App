@@ -1,7 +1,7 @@
 /**
  * Credentials, encrypted at rest by the OS keychain.
  *
- * Two secrets live here: the Canvas access token and the Gemini API key. The Google refresh
+ * Three secrets live here: the Canvas access token and the Gemini and BoiseState.ai API keys. The Google refresh
  * token has its own store in googleAuth.ts, for no better reason than that it is written by the
  * sign-in flow rather than by the user typing into a box.
  *
@@ -32,6 +32,7 @@ const CREDS_PATH = join(app.getPath('userData'), 'credentials.enc')
 interface StoredCredentials {
   canvasToken?: string
   geminiApiKey?: string
+  boiseStateApiKey?: string
 }
 
 /** What the renderer is allowed to know about a stored secret. */
@@ -122,3 +123,22 @@ export function geminiKeyStatus(): CredentialStatus {
   return statusOf(readAll().geminiApiKey)
 }
 
+
+// ─── BoiseState.ai API key ────────────────────────────────────────────────────
+
+export function setBoiseStateApiKey(key: string | null): void {
+  const creds = readAll()
+  const cleaned = key?.trim() ?? ''
+  if (cleaned) creds.boiseStateApiKey = cleaned
+  else delete creds.boiseStateApiKey
+  writeAll(creds)
+}
+
+/** Main-process only. Never expose this over IPC. */
+export function getBoiseStateApiKey(): string | null {
+  return readAll().boiseStateApiKey ?? null
+}
+
+export function boiseStateKeyStatus(): CredentialStatus {
+  return statusOf(readAll().boiseStateApiKey)
+}

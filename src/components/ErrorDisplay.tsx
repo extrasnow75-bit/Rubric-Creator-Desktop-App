@@ -11,6 +11,11 @@ import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 export function friendlyError(raw: string, compact = false): string {
   const msg = raw.toLowerCase();
 
+  // BoiseState.ai errors are written for the user already, and name the real fix (a key that
+  // expires every 90 days, a spent monthly allowance). The Gemini wording below would send them
+  // to Google AI Studio for a key that has nothing to do with it.
+  if (msg.includes('boisestate.ai')) return raw;
+
   if (msg.includes('no gemini api key') || msg.includes('please enter your api key')) {
     return compact
       ? 'No API key — add one on the Dashboard.'

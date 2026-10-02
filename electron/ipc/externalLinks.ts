@@ -33,6 +33,8 @@ const STATIC_ALLOWED_HOSTS = new Set([
   'drive.google.com',
   // Where the user gets a Gemini API key. Linked from Initial Setup and the Help Center.
   'aistudio.google.com',
+  // Where a BoiseState.ai API key is made. Linked from Initial Setup.
+  'boisestate.ai',
   // Instructure's public documentation — the Canvas token instructions cite it. This is not the
   // user's own Canvas instance; that is `canvasHost` below.
   'community.instructure.com',

@@ -12,6 +12,7 @@ describe('isAllowedExternalUrl', () => {
       'https://docs.google.com/document/d/abc/edit',
       'https://drive.google.com/open?id=abc',
       'https://aistudio.google.com',
+      'https://boisestate.ai/api-keys',
       'https://community.instructure.com/en/kb/articles/662901',
       'https://github.com/owner/repo/releases/latest',
       'https://boisestateecampus.atlassian.net/wiki/x/ABC',

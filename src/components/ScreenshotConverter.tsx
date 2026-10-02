@@ -24,7 +24,7 @@ interface ScreenshotConverterProps {
    * button promised using the pipeline that actually works.
    */
   onAnalyzeDeploy?: () => void;
-  /** False when the Gemini key or Canvas token is missing; conversion needs both. */
+  /** False when the AI key or Canvas token is missing; conversion needs both. */
   canAnalyzeDeploy?: boolean;
 }
 
@@ -1008,7 +1008,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                   {/* Say which gate is closed — a disabled button with no reason reads as broken. */}
                   <p id="screenshot-deploy-hint" className="text-xs text-gray-600 text-center mt-2">
                     {!canAnalyzeDeploy
-                      ? 'Add your Gemini API key and Canvas token in Initial Setup to deploy.'
+                      ? 'Add your AI service key and Canvas token in Initial Setup to deploy.'
                       : 'Button becomes active when the Canvas course URL has been entered.'}
                   </p>
 

@@ -4,11 +4,11 @@
  * Keep this in step with the preload by hand — there is no shared source, and a method that
  * exists here but not there fails silently at runtime as `undefined is not a function`.
  *
- * Note what is deliberately absent: nothing returns a Canvas token, a Gemini key or a Google
+ * Note what is deliberately absent: nothing returns a Canvas token, a Gemini or BoiseState.ai key or a Google
  * access token. Credentials travel renderer → main only, and come back as status. If a method
  * that returns one ever appears here, that is a bug, not a feature.
  */
-import type { RubricData, RubricMeta, GenerationSettings, Attachment } from '../types'
+import type { RubricData, RubricMeta, GenerationSettings, Attachment, AiProvider } from '../types'
 import type {
   CsvAnalysisResult,
   CsvRepairResult,
@@ -124,7 +124,8 @@ declare global {
          * accuracy of what is written here.
          */
         cancel(jobId: string): Promise<boolean>
-        validateKey(apiKey: string): Promise<boolean>
+        /** Rejects only when the service could not be reached at all (BoiseState.ai). */
+        validateKey(apiKey: string, provider?: AiProvider): Promise<boolean>
         startNewChat(): Promise<void>
         sendMessage(a: {
           text: string
@@ -204,6 +205,12 @@ declare global {
         /** Pass null to forget the stored key. */
         setGeminiApiKey(key: string | null): Promise<void>
         geminiKeyStatus(): Promise<CredentialStatus>
+        setBoiseStateApiKey(key: string | null): Promise<void>
+        boiseStateKeyStatus(): Promise<CredentialStatus>
+      }
+      ai: {
+        getProvider(): Promise<AiProvider>
+        setProvider(provider: AiProvider): Promise<void>
       }
       canvas: {
         setCourseUrl(url: string | null): Promise<{ ok: boolean; message?: string }>

@@ -243,6 +243,20 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
                 </a>
               </p>
             </div>
+            <div className="p-4 mt-3 bg-gray-50 border border-gray-100 rounded-2xl space-y-3">
+              <p className="text-sm font-black text-gray-900">How To Get a BoiseState.ai API Key</p>
+              <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
+                <li>Go to <a href="https://boisestate.ai/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">boisestate.ai/api-keys</a> and sign in with your Boise State account.</li>
+                <li>Click <span className="font-bold">Create API Key</span> and give it a name.</li>
+                <li>Copy the key right away. It is shown only once.</li>
+                <li>In this app, choose <span className="font-bold">BoiseState.ai</span> under Initial Setup and paste the key.</li>
+              </ol>
+              <p className="text-xs text-gray-600">
+                Keys expire after 90 days; make a new one when the app says yours was rejected. Every
+                request counts toward your monthly BoiseState.ai allowance. PDF files and the screenshot
+                converter need Gemini.
+              </p>
+            </div>
           </section>
 
           {/* Canvas Access Token — inline steps */}
@@ -348,6 +362,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
               <ul className="space-y-1 text-sm text-gray-600 ml-6">
                 <li><span className="font-semibold text-gray-700">Rubrics, CSV and repairs:</span> gemini-3.5-flash-lite</li>
                 <li><span className="font-semibold text-gray-700">Reading a screenshot:</span> gemini-3.8-flash</li>
+                <li><span className="font-semibold text-gray-700">With BoiseState.ai selected, everything:</span> Amazon Nova Pro (no screenshots)</li>
               </ul>
             </div>
           </section>

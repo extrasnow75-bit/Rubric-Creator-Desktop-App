@@ -20,7 +20,9 @@ import { GoogleGenAI, Chat, Type } from '@google/genai'
 import { createHash } from 'node:crypto'
 import { extractDocxText } from './docxText'
 import { buildRubricCsv, ExtractedCriterion } from './rubricCsv'
-import { getGeminiApiKey } from './credentials'
+import { getGeminiApiKey, getBoiseStateApiKey } from './credentials'
+import { getAiProvider } from './settings'
+import { createBoiseStateClient, BoiseStateError } from './boiseStateClient'
 import {
   GenerationSettings,
   PointStyle,
@@ -116,6 +118,13 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
  */
 const getClient = (): GoogleGenAI => {
   if (!client) {
+    if (getAiProvider() === 'boisestate') {
+      // Answers the two call shapes this file uses (see boiseStateClient.ts), so nothing below
+      // needs to know which service it is talking to. The cast is the honest description: it is
+      // a subset, not a GoogleGenAI.
+      client = createBoiseStateClient(getBoiseStateApiKey) as unknown as GoogleGenAI;
+      return client;
+    }
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
       throw new Error(
@@ -127,7 +136,7 @@ const getClient = (): GoogleGenAI => {
   return client;
 };
 
-/** Drop the cached client and chat after the stored key changes. */
+/** Drop the cached client and chat after the stored key or the chosen service changes. */
 export const resetClient = (): void => {
   client = null;
   chatSession = null;
@@ -186,6 +195,7 @@ async function throttle(signal?: AbortSignal): Promise<void> {
  * Retrying won't help; the user needs a fresh project/key.
  */
 function isHardQuotaLimit(error: any): boolean {
+  if (error instanceof BoiseStateError && error.hardQuota) return true;
   return String(error?.message || error || '').includes('limit: 0');
 }
 

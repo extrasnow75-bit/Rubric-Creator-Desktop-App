@@ -17,7 +17,7 @@ show for in-house apps.
 ## What it does
 
 **Part 1 — Create a rubric.** Paste an assignment description, or upload one as a Word, PDF or
-Google doc. Gemini drafts a four-level rubric which you can edit in place or revise by asking for
+Google doc. The AI you chose (Gemini or BoiseState.ai) drafts a four-level rubric which you can edit in place or revise by asking for
 changes in plain English.
 
 **Part 2 — Convert to CSV.** Turn a rubric document into the CSV format Canvas imports. Handles a
@@ -37,9 +37,14 @@ Three things, all under **Initial Setup** in the app:
 
 | | Needed for | Where to get it |
 |---|---|---|
-| **Gemini API key** | Everything AI-generated | [aistudio.google.com](https://aistudio.google.com) — free |
+| **AI service key** — Gemini *or* BoiseState.ai | Everything AI-generated | Gemini: [aistudio.google.com](https://aistudio.google.com), free. BoiseState.ai: [boisestate.ai/api-keys](https://boisestate.ai/api-keys), expires every 90 days |
 | **Canvas API token** | Uploading to Canvas | Canvas → Account → Settings → **+ New Access Token** |
 | **Google sign-in** | Drive browsing and Google Docs | Optional — the app works without it |
+
+**Choosing between them.** BoiseState.ai needs no Google account and keeps data inside the
+university's service, but its API accepts text only: PDF rubric documents and the screenshot
+converter need Gemini. It also draws on a monthly allowance. See `electron/ipc/boiseStateClient.ts`
+for how it is adapted to the calls the app makes.
 
 Generate a **dedicated** Canvas token for this app rather than reusing an existing one, and give
 it an expiry date. Revoke it in Canvas when you stop using the app. The app has a "Remove Token"
@@ -47,7 +52,7 @@ button that clears its local copy.
 
 ## Where your credentials live
 
-Your Canvas token and Gemini key are encrypted into your operating system's keychain — Windows
+Your Canvas token and your Gemini and BoiseState.ai keys are encrypted into your operating system's keychain — Windows
 Credential Manager or the macOS Keychain — and never leave your computer. Your Google sign-in is
 stored the same way.
 
@@ -87,7 +92,7 @@ src/               the React interface — no network access at all
 resources/         app icons (icon.svg is the source; make-icon.py rasterises it)
 ```
 
-The split is the design. Every network call — Canvas, Google Drive, Gemini — happens in the main
+The split is the design. Every network call — Canvas, Google Drive, Gemini, BoiseState.ai — happens in the main
 process, and every credential is read there. The renderer is served from `file://` under a
 Content-Security-Policy of `connect-src 'none'`, so it has no fetch, no XHR, no WebSocket and no
 beacon. It asks the main process for things and draws the results.

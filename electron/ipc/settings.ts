@@ -1,7 +1,7 @@
 /**
  * Plain user preferences, persisted across launches.
  *
- * No credentials live here — the Canvas token, the Gemini key and the Google refresh token all go
+ * No credentials live here — the Canvas token, the Gemini and BoiseState.ai keys and the Google refresh token all go
  * through safeStorage (see credentials.ts and googleAuth.ts) — so this is ordinary JSON on disk.
  * Read and write go through one module so that two features storing different keys in the same
  * file cannot clobber each other: every write is a read-modify-write of the whole object.
@@ -25,7 +25,11 @@ export interface RecentEntry {
   at: number
 }
 
+/** Which service does the AI work. Absent means Gemini, so existing installs are unchanged. */
+export type AiProvider = 'gemini' | 'boisestate'
+
 export interface Settings {
+  aiProvider?: AiProvider
   zoomLevel?: number
   /** The user ticked "Don't show this again" on the local-save notice. */
   hideLocalSaveNotice?: boolean
@@ -41,6 +45,10 @@ export function readSettings(): Settings {
   } catch {
     return {}
   }
+}
+
+export function getAiProvider(): AiProvider {
+  return readSettings().aiProvider === 'boisestate' ? 'boisestate' : 'gemini'
 }
 
 /** Merge `patch` into the stored settings. */

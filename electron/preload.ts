@@ -16,7 +16,7 @@ interface DriveFile {
  * Every method here is a deliberate grant, so the shape of this object is the app's real
  * security boundary. Two rules it follows, both of which matter more than they look:
  *
- *   1. No method returns a credential. The Canvas token, the Gemini key and the Google access
+ *   1. No method returns a credential. The Canvas token, the Gemini and BoiseState.ai keys and the Google access
  *      token are written in one direction only — renderer to keychain — and the reads come back
  *      as status, not secrets. The renderer cannot leak what it was never given.
  *   2. No method takes a URL that the main process will then fetch or open verbatim. Destinations
@@ -163,8 +163,8 @@ contextBridge.exposeInMainWorld('api', {
     /** Stops a running generation. The job id is chosen by the caller in geminiService.ts. */
     cancel: (jobId: string): Promise<boolean> => ipcRenderer.invoke('gemini:cancel', jobId),
     /** Checks a key the user has typed but not yet saved. */
-    validateKey: (apiKey: string): Promise<boolean> =>
-      ipcRenderer.invoke('gemini:validateKey', apiKey),
+    validateKey: (apiKey: string, provider?: 'gemini' | 'boisestate'): Promise<boolean> =>
+      ipcRenderer.invoke('gemini:validateKey', apiKey, provider),
     startNewChat: (): Promise<void> => ipcRenderer.invoke('gemini:startNewChat'),
     sendMessage: (a: unknown): Promise<string> => ipcRenderer.invoke('gemini:sendMessage', a),
     extractRubricMetadata: (a: unknown): Promise<unknown> =>
@@ -212,6 +212,17 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('credentials:setGeminiApiKey', key),
     geminiKeyStatus: (): Promise<{ hasValue: boolean; hint: string }> =>
       ipcRenderer.invoke('credentials:geminiKeyStatus'),
+    /** Same one-way shape as the Gemini key. */
+    setBoiseStateApiKey: (key: string | null): Promise<void> =>
+      ipcRenderer.invoke('credentials:setBoiseStateApiKey', key),
+    boiseStateKeyStatus: (): Promise<{ hasValue: boolean; hint: string }> =>
+      ipcRenderer.invoke('credentials:boiseStateKeyStatus'),
+  },
+  ai: {
+    /** Which service does the AI work. A preference, not a credential. */
+    getProvider: (): Promise<'gemini' | 'boisestate'> => ipcRenderer.invoke('ai:getProvider'),
+    setProvider: (provider: 'gemini' | 'boisestate'): Promise<void> =>
+      ipcRenderer.invoke('ai:setProvider', provider),
   },
   canvas: {
     /** Validates, stores, and pins this host for both API calls and external links. */

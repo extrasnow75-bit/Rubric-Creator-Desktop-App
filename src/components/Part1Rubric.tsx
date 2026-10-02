@@ -1648,7 +1648,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
         {onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas) && (
           <p id="deploy-blocked-reason" className="text-xs text-gray-600 mt-2 text-center">
             {!canAnalyzeDeploy
-              ? 'Add your Gemini API key and Canvas token in Initial Setup to deploy.'
+              ? 'Add your AI service key and Canvas token in Initial Setup to deploy.'
               : 'Tick the box above to confirm the rubric is ready.'}
           </p>
         )}

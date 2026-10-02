@@ -289,6 +289,12 @@ export interface SessionState {
    */
   geminiKeyStatus: CredentialStatus | null;
 
+  /** Same, for a BoiseState.ai key. Only the one for the chosen `aiProvider` is ever used. */
+  boiseStateKeyStatus: CredentialStatus | null;
+
+  /** Which service does the AI work. Kept in main; this is the renderer's copy. */
+  aiProvider: AiProvider;
+
   /**
    * Whether a Canvas token is saved, and its last four characters — never the token.
    *
@@ -348,3 +354,6 @@ export interface RubricConfig {
   useProxy: boolean;
   proxyService: string;
 }
+
+/** The services that can answer. Absent from settings means 'gemini'. */
+export type AiProvider = 'gemini' | 'boisestate';

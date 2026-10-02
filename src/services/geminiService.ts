@@ -17,6 +17,7 @@ import {
   RubricData,
   Attachment,
   RubricMeta,
+  AiProvider,
 } from '../types';
 import { ipcErrorMessage } from '../utils/ipcErrorMessage';
 import { alignByTitle, chunk } from '../utils/rubricBatching';
@@ -138,8 +139,8 @@ async function withCancellation<T>(
  * Takes the candidate directly, because at this point it is something the user has typed and not
  * yet committed. Once saved it goes to the OS keychain and is never read back out here.
  */
-export const validateGeminiApiKey = (apiKey: string): Promise<boolean> =>
-  window.api.gemini.validateKey(apiKey);
+export const validateApiKey = (apiKey: string, provider: AiProvider): Promise<boolean> =>
+  window.api.gemini.validateKey(apiKey, provider);
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
@@ -293,6 +294,17 @@ export const discoverRubricTitles = (
  */
 export const BATCH_RUBRIC_LIMIT = 8;
 
+/**
+ * The same limit for BoiseState.ai, whose answers are much shorter-lived.
+ *
+ * Its guide recommends 1,000–2,000 output tokens and the app asks for at most 4,096, against the
+ * 64k a Gemini batch can use. A rubric's CSV is on the order of a thousand tokens, so two fit with
+ * room and eight would be cut off mid-way — losing all eight, and spending the user's monthly
+ * allowance twice, because every call re-sends the whole document. If measurement shows more fit,
+ * raise this.
+ */
+export const BOISESTATE_BATCH_LIMIT = 2;
+
 /** A named subset of a document's rubrics, in one call. Names it cannot find are omitted. */
 export const generateCsvsForRubrics = (
   attachment: Attachment,
@@ -365,7 +377,9 @@ export async function generateCsvsChunked(
   const { signal, gapMs = 6000, onGroupStart, onResult, onNote } = options;
 
   const numbered = rubrics.map((r, index) => ({ ...r, index }));
-  const groups = chunk(numbered, BATCH_RUBRIC_LIMIT);
+  const provider = await window.api.ai.getProvider();
+  const groupSize = provider === 'boisestate' ? BOISESTATE_BATCH_LIMIT : BATCH_RUBRIC_LIMIT;
+  const groups = chunk(numbered, groupSize);
 
   // Pacing is measured from the start of the previous call, so a call that already took longer
   // than the gap adds no delay of its own. Zero means nothing has been called yet.
@@ -383,7 +397,7 @@ export async function generateCsvsChunked(
   if (groups.length > 1) {
     onNote?.(
       `Converting ${rubrics.length} rubrics in ${groups.length} groups of up to ` +
-        `${BATCH_RUBRIC_LIMIT}. Each group is independent — if one has trouble, only those ` +
+        `${groupSize}. Each group is independent — if one has trouble, only those ` +
         'rubrics are retried.',
     );
   }
