@@ -431,9 +431,12 @@ export async function generateCsvsChunked(
 
   if (groups.length > 1) {
     onNote?.(
-      `Converting ${rubrics.length} rubrics in ${groups.length} groups of up to ` +
-        `${BATCH_RUBRIC_LIMIT}. Each group is independent — if one has trouble, only those ` +
-        'rubrics are retried.',
+      // "draft rubrics to CSV files" rather than just "rubrics": a line earlier in the same log
+      // says the document was analysed, so "converting" on its own could as easily mean that
+      // step repeating. Naming both ends leaves nothing to infer.
+      `Converting ${rubrics.length} draft rubrics to CSV files in ${groups.length} groups of ` +
+        `up to ${BATCH_RUBRIC_LIMIT}. Each group is independent — if one has trouble, only ` +
+        'those rubrics are retried.',
     );
   }
 

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { getRecentDocs, saveRecentDoc, RecentDoc } from '../utils/recentDocs';
 import { revealSection, REVEAL_DELAY_MS } from '../utils/revealSection';
+import { RouteCard, RubricGridIcon, CanvasTargetIcon } from './RouteCard';
 import { AppMode } from '../types';
 import { validateGeminiApiKey } from '../services/geminiService';
 import { AnalyzeDeploySection, UploadedDocFile } from './AnalyzeDeploySection';
@@ -152,13 +153,29 @@ export const Dashboard: React.FC = () => {
     setDocUploadTab('google');
   }, [state.isGoogleAuthenticated]);
 
+
   const chooseDocUploadTab = (tab: 'local' | 'google') => {
     docUploadTabTouched.current = true;
     setDocUploadTab(tab);
   };
+  /** Whether the person asked for a file on their computer rather than a Google Doc. */
+  const [preferLocalOutput, setPreferLocalOutput] = useState(false);
   const [driveUrl, setDriveUrl] = useState('');
   const [isFetchingDriveUrl, setIsFetchingDriveUrl] = useState(false);
   const [driveUrlError, setDriveUrlError] = useState<string | null>(null);
+
+  /*
+    A failure that has since been fixed should stop claiming otherwise.
+
+    Fetching a Drive file while signed out leaves "You need to go to Initial Setup and sign into
+    Google first." on screen. Signing in then does exactly that — and the message stayed,
+    describing a state that no longer held, directly above a button that would now have worked.
+    Signing in is the only thing that can retire it, so it is retired here rather than on the
+    next attempt.
+  */
+  useEffect(() => {
+    if (state.isGoogleAuthenticated) setDriveUrlError(null);
+  }, [state.isGoogleAuthenticated]);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>(() => getRecentDocs());
   const [showRecentDocs, setShowRecentDocs] = useState(false);
   const pasteAreaRef = useRef<HTMLDivElement>(null);
@@ -372,6 +389,26 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  /**
+   * Take one of the three routes off the opening screen.
+   *
+   * `local` is set by a card's second link rather than its button. It does not change the route —
+   * the same flow runs either way — it says the person expects a file on their computer at the
+   * end, which makes the local save the primary button rather than the Google one further down.
+   * The person most likely to press it is the one whose Google sign-in has just failed, and
+   * making them discover the fallback mid-flow is the wrong order.
+   */
+  const chooseRoute = (route: 'draft' | 'screenshot' | 'deploy', local = false) => {
+    setPreferLocalOutput(local);
+    if (route === 'deploy') {
+      handleDraftRubricChange('yes');
+      return;
+    }
+    handleDraftRubricChange('no');
+    setPhase1Mode(route === 'draft' ? 'rubric' : 'screenshot');
+    setTimeout(() => revealSection(phase1Ref.current), REVEAL_DELAY_MS);
+  };
+
   // ── File handling ──
 
   const readFileAsBase64 = (file: File): Promise<string> =>
@@ -487,9 +524,7 @@ export const Dashboard: React.FC = () => {
       });
       setRecentDocs(getRecentDocs());
     } catch (err) {
-      setDriveUrlError(
-        `Could not open that file: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      setDriveUrlError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -509,9 +544,7 @@ export const Dashboard: React.FC = () => {
       setRecentDocs(getRecentDocs());
       setDriveUrl('');
     } catch (err) {
-      setDriveUrlError(
-        `Could not fetch file: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      setDriveUrlError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsFetchingDriveUrl(false);
     }
@@ -531,9 +564,7 @@ export const Dashboard: React.FC = () => {
           return [...prev, { name: file.name, data: file.base64, mimeType: file.mimeType }];
         });
       } catch (err) {
-        setDriveUrlError(
-          `Could not reload document: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        setDriveUrlError(err instanceof Error ? err.message : String(err));
       }
     }
   };
@@ -816,24 +847,57 @@ export const Dashboard: React.FC = () => {
         {/* ── Draft Rubric Document — appears once core setup is complete ── */}
         {coreSetupComplete && (
           <SetupCard isValid={draftRubricValid} noGlow>
-            <div className="flex items-center gap-2 mb-1">
-              <FileText className="w-4 h-4 flex-shrink-0" style={{ color: '#4285F4' }} />
-              <h3 className="font-black text-lg text-gray-900">Draft Rubric Document</h3>
-              {draftRubricValid && <Check className="w-4 h-4 text-green-500 ml-auto flex-shrink-0" />}
-            </div>
-            <p className="text-sm text-gray-600 mb-3">Do you already have a draft rubric document ready to deploy?</p>
+            {/*
+              Three doors, no question.
 
-            <div className="relative mb-4">
-              <select
-                value={hasDraftRubric}
-                onChange={(e) => handleDraftRubricChange(e.target.value as '' | 'yes' | 'no')}
-                className="w-full appearance-none px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-brand focus:outline-none transition-all bg-white font-medium text-gray-700 cursor-pointer"
-              >
-                <option value="">Select...</option>
-                <option value="yes">Yes - I have a draft rubric document</option>
-                <option value="no">No - I need to create one first</option>
-              </select>
-              <ChevronDown className="absolute right-3 top-3.5 w-4 h-4 text-gray-600 pointer-events-none" />
+              This was a dropdown asking "Do you already have a draft rubric document ready to
+              deploy?" — which made the user classify themselves, in the app's own vocabulary,
+              before the app had shown them anything it could do. Answering wrongly was invisible,
+              because both branches look like the whole app.
+
+              Three cards state the three things the app does and let the choice be made by
+              recognition instead. The icon pairs are the point: the blue rubric grid is the
+              OUTPUT of the first two and the INPUT of the third, so the set reads as a workflow
+              rather than three unrelated buttons, and the colours are the ones already used in
+              the stepper at the top of the window.
+            */}
+            <div className="space-y-4">
+              <RouteCard
+                from={<Lightbulb className="w-6 h-6 text-white" />}
+                fromClass="bg-amber-600"
+                to={<RubricGridIcon />}
+                toClass="bg-blue-700"
+                title="Draft rubrics from an assignment description"
+                description="Paste or upload the description. The app finds the separate parts of the assignment and writes a rubric for each one."
+                action="Start from a description"
+                onAction={() => chooseRoute('draft')}
+                alternative="or save to this computer instead (.html)"
+                onAlternative={() => chooseRoute('draft', true)}
+              />
+              <RouteCard
+                from={<Camera className="w-6 h-6 text-white" />}
+                fromClass="bg-violet-700"
+                to={<RubricGridIcon />}
+                toClass="bg-blue-700"
+                title="Draft a rubric from a screenshot"
+                description="Upload a picture of a rubric and the app rebuilds it as an editable draft. Useful when the only copy you have lives inside Canvas."
+                action="Start from a screenshot"
+                onAction={() => chooseRoute('screenshot')}
+                alternative="or save to this computer instead (.html)"
+                onAlternative={() => chooseRoute('screenshot', true)}
+              />
+              <RouteCard
+                from={<RubricGridIcon />}
+                fromClass="bg-blue-700"
+                to={<CanvasTargetIcon />}
+                toClass="bg-red-700"
+                title="Send draft rubrics you already have to Canvas"
+                description="Choose a finished rubric document. The app converts it to Canvas CSV files and deploys them to your course."
+                action="Choose a rubric document"
+                onAction={() => chooseRoute('deploy')}
+                alternative="or just save the CSV files to this computer"
+                onAlternative={() => chooseRoute('deploy', true)}
+              />
             </div>
 
             {/* "Yes" path — tabbed file upload area */}
@@ -1166,77 +1230,13 @@ export const Dashboard: React.FC = () => {
 
       {/* "No" path: Phase 1 selection cards (V.1 style) */}
       {hasDraftRubric === 'no' && (
-        <div className="mt-4">
-          <div className="bg-blue-50 border-l-4 border-[#2B579A] p-4 rounded-xl">
-            <h3 className="text-sm font-black text-[#2B579A] uppercase tracking-widest mb-4">
-              Phase 1: Create Phase
-            </h3>
-            <div className="space-y-1">
-
-              {/* Create Draft Rubric(s) */}
-              <button
-                onClick={() => setPhase1Mode(phase1Mode === 'rubric' ? 'none' : 'rubric')}
-                className={`w-full p-6 rounded-t-2xl border-2 transition-all shadow-md flex items-start gap-6 group text-left ${
-                  phase1Mode === 'rubric'
-                    ? 'border-[#2B579A] bg-blue-50'
-                    : 'border-gray-100 bg-white hover:border-[#2B579A] hover:bg-white'
-                }`}
-              >
-                <div className="flex items-center gap-2 pt-1 flex-shrink-0">
-                  <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center group-hover:bg-amber-200 transition-all">
-                    <Lightbulb className="w-6 h-6 text-amber-600" />
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-gray-600" />
-                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-all">
-                    <span className="text-[#2B579A] font-black text-sm">W</span>
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-black text-lg text-gray-900">Assignment Description to Rubric(s)</h3>
-                  <div className="mt-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="text-sm text-gray-600">
-                      Upload or paste an assignment description to generate one or more draft rubrics (MS Word or Google Docs) based on the eCampus Center template.
-                    </p>
-                  </div>
-                </div>
-              </button>
-
-              {/* OR divider */}
-              <div className="px-6 py-3 bg-blue-100 border-l-2 border-r-2 border-[#2B579A] flex items-center justify-center">
-                <p className="text-sm font-black text-[#2B579A]">or</p>
-              </div>
-
-              {/* Screenshot to Editable Doc */}
-              <button
-                onClick={() => setPhase1Mode(phase1Mode === 'screenshot' ? 'none' : 'screenshot')}
-                className={`w-full p-6 rounded-b-2xl border-2 transition-all shadow-md flex items-start gap-6 group text-left ${
-                  phase1Mode === 'screenshot'
-                    ? 'border-[#2B579A] bg-blue-50'
-                    : 'border-gray-100 bg-white hover:border-[#2B579A] hover:bg-white'
-                }`}
-              >
-                <div className="flex items-center gap-2 pt-1 flex-shrink-0">
-                  <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-all">
-                    <Camera className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-gray-600" />
-                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-all">
-                    <span className="text-[#2B579A] font-black text-sm">W</span>
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-black text-lg text-gray-900">Screenshot to Rubric(s)</h3>
-                  <div className="mt-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="text-sm text-gray-600">
-                      Convert Canvas rubric screenshots to a matching, editable, draft rubric (MS Word / Google Docs file).
-                    </p>
-                  </div>
-                </div>
-              </button>
-
-            </div>
-          </div>
-
+        <div className="max-w-2xl mx-auto px-6 pb-8">
+          {/*
+            The two Phase 1 cards that used to live here are gone: cards one and two on the
+            opening screen are the same two routes, and a user who has just pressed one of them
+            does not need to be offered the pair again under a different heading. phase1Mode is
+            already set by the time this renders, so the chosen tool appears directly.
+          */}
           {/* Inline Phase 1 content */}
           {phase1Mode === 'rubric' && (
             <div
@@ -1249,6 +1249,7 @@ export const Dashboard: React.FC = () => {
               <Part1Rubric
                 onAnalyzeDeploy={() => handleAnalyzeDeploy('no')}
                 canAnalyzeDeploy={geminiValid && canvasTokenValid}
+                preferLocalOutput={preferLocalOutput}
               />
             </div>
           )}

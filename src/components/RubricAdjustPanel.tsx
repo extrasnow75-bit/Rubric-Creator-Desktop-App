@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronRight, Info, Pencil, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Info, Pencil } from 'lucide-react';
 import type { RubricData } from '../types';
 import { canvasTotal, rescaleRubric } from '../utils/rescaleRubric';
 
@@ -32,7 +32,6 @@ interface Props {
    * Restore the deliverables checklist so the set can be chosen again, or undefined when there is
    * no plan to go back to (a rubric uploaded from a file never had one).
    */
-  onReplan?: () => void;
   /** Whether anything has reached Canvas yet, which changes what a further edit means. */
   deployedToCanvas: boolean;
   /** Disabled while a generation or revision is in flight. */
@@ -43,7 +42,6 @@ export const RubricAdjustPanel: React.FC<Props> = ({
   rubric,
   rubricIndex,
   onChange,
-  onReplan,
   deployedToCanvas,
   busy = false,
 }) => {
@@ -70,9 +68,7 @@ export const RubricAdjustPanel: React.FC<Props> = ({
    */
   const [draftName, setDraftName] = useState(rubric.title);
   const [points, setPoints] = useState(String(canvasTotal(rubric)));
-  const [confirmingReplan, setConfirmingReplan] = useState(false);
   const [note, setNote] = useState<{ kind: 'ok' | 'refused'; text: string } | null>(null);
-  const replanRef = useRef<HTMLButtonElement>(null);
 
   // The fields follow whatever rubric is open — a different one picked from the chips above, or
   // this one after an AI revision rewrote its title or its points.
@@ -81,13 +77,11 @@ export const RubricAdjustPanel: React.FC<Props> = ({
     setPoints(String(canvasTotal(rubric)));
   }, [rubric]);
 
-  // The confirmation message and the re-draft prompt belong to one rubric. Clearing them here
-  // rather than in the effect above is what lets "Renamed to X" survive the change that caused
-  // it: an edit gives this component a new `rubric` object, which would otherwise wipe the only
-  // evidence the rename happened.
+  // The confirmation message belongs to one rubric. Clearing it here rather than in the effect
+  // above is what lets "Renamed to X" survive the change that caused it: an edit gives this
+  // component a new `rubric` object, which would otherwise wipe the only evidence of the rename.
   useEffect(() => {
     setNote(null);
-    setConfirmingReplan(false);
   }, [rubricIndex]);
 
   const commitName = () => {
@@ -266,57 +260,6 @@ export const RubricAdjustPanel: React.FC<Props> = ({
         </div>
       )}
 
-      {onReplan && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          {!confirmingReplan ? (
-            <button
-              ref={replanRef}
-              onClick={() => setConfirmingReplan(true)}
-              disabled={busy}
-              className="flex items-center gap-2 text-sm font-bold text-brand hover:text-brand-dark underline underline-offset-2 disabled:opacity-50 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-            >
-              <RotateCcw className="w-4 h-4" aria-hidden="true" />
-              Choose the parts again and re-draft
-            </button>
-          ) : (
-            <div className="p-4 bg-white border-2 border-brand rounded-xl">
-              <p className="text-sm font-bold text-gray-900 mb-1">
-                Re-draft from the assignment description?
-              </p>
-              <p className="text-sm text-gray-700 mb-3">
-                This brings back the list of parts so you can change which ones get a rubric, their
-                names and their points — then writes every ticked rubric again from scratch.
-                <span className="font-bold">
-                  {' '}
-                  Everything currently on screen is replaced, including any changes you have
-                  applied.
-                </span>{' '}
-                Save your CSVs first if you want to keep them.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setConfirmingReplan(false);
-                    onReplan();
-                  }}
-                  className="px-4 py-2 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark transition-all active:scale-95"
-                >
-                  Choose the parts again
-                </button>
-                <button
-                  onClick={() => {
-                    setConfirmingReplan(false);
-                    replanRef.current?.focus();
-                  }}
-                  className="px-4 py-2 bg-gray-100 text-gray-900 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all"
-                >
-                  Keep what I have
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
       </div>
       )}
     </div>

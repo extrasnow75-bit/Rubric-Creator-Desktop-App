@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode, useRef, useEffect } from 'react';
+import { ipcErrorMessage } from '../utils/ipcErrorMessage';
 import {
   SessionState,
   AppMode,
@@ -557,23 +558,47 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
   // Main resolves one when it needs it and returns a clear "sign in again" message if it cannot,
   // which is also the right answer when a sign-in has quietly expired mid-session.
 
+  /*
+    Every Drive call, with Electron's IPC framing taken off the message.
+
+    Main writes these messages to be read — "You need to go to Initial Setup and sign into Google
+    first." — and the IPC boundary re-wraps each one as "Error invoking remote method
+    'drive:getDocText': Error: You need to…". Every component then prints that verbatim, so the
+    first thing a signed-out user saw was an internal channel name. geminiService has unwrapped
+    its errors all along; the Drive calls never did. Once here rather than at each call site,
+    because there are five of those and they drifted.
+  */
+  const unwrapped = async <T,>(run: () => Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (err) {
+      throw new Error(ipcErrorMessage(err));
+    }
+  };
+
   const extractGoogleDocText = useCallback(async (docUrl: string): Promise<string> => {
-    const resolved = await window.api.drive.resolveUrl(docUrl);
-    if (!resolved.ok) throw new Error(resolved.message);
-    return window.api.drive.getDocText(resolved.fileId);
+    return unwrapped(async () => {
+      const resolved = await window.api.drive.resolveUrl(docUrl);
+      if (!resolved.ok) throw new Error(resolved.message);
+      return window.api.drive.getDocText(resolved.fileId);
+    });
   }, []);
 
   const extractGoogleSheetCsv = useCallback(async (sheetUrl: string): Promise<string> => {
-    const resolved = await window.api.drive.resolveUrl(sheetUrl);
-    if (!resolved.ok) throw new Error(resolved.message);
-    return window.api.drive.getSheetCsv(resolved.fileId);
+    return unwrapped(async () => {
+      const resolved = await window.api.drive.resolveUrl(sheetUrl);
+      if (!resolved.ok) throw new Error(resolved.message);
+      return window.api.drive.getSheetCsv(resolved.fileId);
+    });
   }, []);
 
   const downloadDriveFile = useCallback(async (fileId: string): Promise<ArrayBuffer> => {
-    const bytes = await window.api.drive.downloadBytes(fileId);
-    // Uint8Array is what survives the IPC structured clone; mammoth and pdf.js want an
-    // ArrayBuffer. Slice to the view's own bounds so a pooled buffer cannot leak extra bytes.
-    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    return unwrapped(async () => {
+      const bytes = await window.api.drive.downloadBytes(fileId);
+      // Uint8Array is what survives the IPC structured clone; mammoth and pdf.js want an
+      // ArrayBuffer. Slice to the view's own bounds so a pooled buffer cannot leak extra bytes.
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    });
   }, []);
 
   // ── Initialization ─────────────────────────────────────────────────────────

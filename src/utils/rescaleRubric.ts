@@ -30,6 +30,11 @@ export function leadingPoints(rating: RubricRating): number {
   return match ? Number(match[0]) : 0;
 }
 
+/** How a criterion is recognised across an edit: its name, ignoring case and stray spacing. */
+export function criterionKey(criterion: RubricCriterion): string {
+  return (criterion.category ?? '').trim().toLowerCase();
+}
+
 /** Multiply every number in a string, keeping whatever text sits around them. */
 function scaleNumbers(text: string, factor: number): string {
   return text.replace(NUMBERS, (n) => String(Math.max(0, Math.round(Number(n) * factor))));
@@ -158,4 +163,88 @@ export function applyPointSplit(
     rounded.reduce((sum, n) => sum + n, 0) === total ? rounded : allocatePoints(rounded, total);
 
   return withCriterionMaxes(rubric, exact);
+}
+
+/**
+ * Give every criterion worth nothing a share of the rubric, taking it from the others.
+ *
+ * The case this exists for: "add a criterion about APA formatting". The model adds the row, keeps
+ * the rubric's total where it was by rewriting the existing criteria, and gives the new one **0
+ * points**. Nothing about that is an error — the arithmetic adds up, the rubric still says 100,
+ * and the new criterion is exactly what was asked for. It just cannot affect a grade. It renders,
+ * it converts to CSV, it deploys, and a marker can click it for nothing.
+ *
+ * The share is an even one: total ÷ criteria, rounded. Not the average of the others, which would
+ * over-weight a row nobody has argued for, and not the smallest existing weight, which would
+ * make the new criterion's worth depend on whichever existing one happened to be cheapest. An
+ * even share is the one split that needs no justification, and the user can always say what they
+ * actually wanted — a request that mentions points never reaches this code.
+ *
+ * The rest are then rescaled in proportion to fill what is left, so 40/40/20 plus a new criterion
+ * in a 100-point rubric becomes 30/30/15 plus 25.
+ *
+ * Returns null when there is nothing to do or nothing safe to do: no zero-worth criterion, every
+ * criterion worth nothing (there is nothing to take from), or a rubric too small to give each
+ * criterion even a single point. A rubric left alone is always better than one this function has
+ * guessed at.
+ */
+export function withZeroCriteriaShared(
+  rubric: RubricData,
+  total: number,
+  /**
+   * Criteria that may legitimately stay at nothing, by `category`.
+   *
+   * A rubric can hold a zero-weighted criterion on purpose — a checklist row, a "not assessed
+   * this time" placeholder — and an edit that leaves it alone has done nothing wrong. Only a
+   * criterion that arrived at zero *through* the edit is a mistake, so the caller says which
+   * ones were already there. Matching on the name rather than the position because an edit can
+   * add, remove and reorder criteria, which makes an index meaningless across it.
+   */
+  keptAtZero: ReadonlySet<string> = new Set(),
+): RubricData | null {
+  const maxes = rubric.criteria.map((c) => leadingPoints(c.exemplary));
+  const revivable = rubric.criteria.map(
+    (c, i) => maxes[i] <= 0 && !keptAtZero.has(criterionKey(c)),
+  );
+  const zeros = revivable.filter(Boolean).length;
+  if (zeros === 0 || maxes.every((m) => m <= 0)) return null;
+  if (total < maxes.length) return null;
+
+  const share = Math.max(1, Math.round(total / maxes.length));
+  if (share * zeros >= total) return null;
+
+  const forOthers = allocatePoints(
+    maxes.map((m) => (m > 0 ? m : 0)),
+    total - share * zeros,
+  );
+  const newMaxes = maxes.map((m, i) => (revivable[i] ? share : m > 0 ? forOthers[i] : 0));
+
+  /*
+    A criterion worth nothing has no band to scale — every number in its four ratings is already
+    0, so multiplying them keeps it at nothing. Its bands are borrowed from a criterion that has
+    one and scaled to its new worth, which also keeps the notation consistent: a rubric written
+    in ranges does not gain a single-value row, and one written in single values does not gain a
+    range.
+  */
+  const donorIndex = maxes.findIndex((m) => m > 0);
+  const donor = rubric.criteria[donorIndex];
+  const donorMax = maxes[donorIndex];
+
+  const shared = withCriterionMaxes(rubric, newMaxes);
+  const criteria = shared.criteria.map((criterion, i) => {
+    if (!revivable[i]) return criterion;
+
+    const factor = newMaxes[i] / donorMax;
+    const bands: Partial<RubricCriterion> = {};
+    for (const key of RATING_KEYS) {
+      bands[key] = { ...criterion[key], points: scaleNumbers(donor[key].points, factor) };
+    }
+    bands.exemplary = {
+      ...bands.exemplary!,
+      points: setLeadingNumber(bands.exemplary!.points, newMaxes[i]),
+    };
+    return { ...criterion, ...bands, totalPoints: newMaxes[i] } as RubricCriterion;
+  });
+
+  return { ...shared, criteria };
 }

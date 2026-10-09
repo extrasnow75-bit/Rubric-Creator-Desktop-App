@@ -16,7 +16,13 @@
  * AI proposes the words, a plain function decides the numbers.
  */
 import { RubricData } from '../types';
-import { canvasTotal, rescaleRubric } from './rescaleRubric';
+import {
+  canvasTotal,
+  criterionKey,
+  leadingPoints,
+  rescaleRubric,
+  withZeroCriteriaShared,
+} from './rescaleRubric';
 
 /**
  * Whether a change request says anything about points, weighting or totals.
@@ -54,7 +60,26 @@ export function preserveTotalAcrossEdit(
 
   const was = canvasTotal(before);
   const now = canvasTotal(after);
-  if (was <= 0 || now <= 0 || was === now) return after;
+  if (was <= 0 || now <= 0) return after;
 
-  return rescaleRubric(after, was);
+  const settled = was === now ? after : rescaleRubric(after, was);
+
+  /*
+    The total is only half of it.
+
+    A real run asked for a criterion about APA formatting and then one about grammar. The model
+    kept the rubric at its 100 points by rewriting the three existing criteria from 40/40/20 to
+    35/35/30 and giving both new ones **nothing**. The total never moved, so the check above
+    found nothing wrong and stood aside — correctly, by its own rule. Two criteria then rendered,
+    converted to CSV and deployed to Canvas unable to affect a grade.
+
+    So a second condition: no criterion may come out of an edit worth 0 unless it went in worth 0.
+    withZeroCriteriaShared gives each one an even share and rescales the rest to pay for it,
+    holding the total where it already is; it returns null, and nothing changes, wherever that
+    cannot be done sensibly.
+  */
+  const keptAtZero = new Set(
+    before.criteria.filter((c) => leadingPoints(c.exemplary) <= 0).map(criterionKey),
+  );
+  return withZeroCriteriaShared(settled, canvasTotal(settled), keptAtZero) ?? settled;
 }

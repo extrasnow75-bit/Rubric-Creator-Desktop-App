@@ -1,3 +1,71 @@
+## What's new in v0.9.24
+
+### A new opening screen
+
+The app used to open by asking **"Do you already have a draft rubric document ready to deploy?"**
+— which meant classifying yourself, in the app's own vocabulary, before it had shown you anything
+it could do. Answering wrongly was invisible, because both branches look like the whole app.
+
+Three cards now state the three things the app does:
+
+- **Draft rubrics from an assignment description**
+- **Draft a rubric from a screenshot**
+- **Send draft rubrics you already have to Canvas**
+
+Each shows what goes in and what comes out as a pair of icons. The blue rubric grid is the output
+of the first two cards and the input of the third, so the three together say how the app fits
+together before anything is clicked.
+
+**Every card offers a way through without Google.** "or save to this computer instead (.html)" on
+the first two, "or just save the CSV files to this computer" on the third. Taking that route makes
+the local save the main button for the rest of the run, instead of leaving you to find it. The
+person most likely to need it is the one whose Google sign-in has just failed, and that is exactly
+who is looking at this screen.
+
+### "Choose the parts again" has moved, and says what it does
+
+It sat at the bottom of **Adjust this rubric** — a panel headed "rename it or change its points"
+that promises "Changes here are instant and keep every word as written. No AI involved." The link
+underneath did the opposite: it discards every rubric and re-runs the AI over all of them. It also
+acted on the whole set where everything else in that panel acts on one rubric.
+
+It is now a button in the row with the other whole-set actions, reading **Start over from the
+description**. The confirmation it shows is unchanged — that text was always explicit about what
+is lost; the problem was that nothing before the click suggested you were near anything
+destructive.
+
+### Adding a criterion can no longer leave it worth nothing
+
+v0.9.22 stopped an edit changing a rubric's total. A real run then found the other half of the
+problem: asked for criteria covering APA formatting and grammar, the AI held the rubric at its 100
+points by rewriting the existing three from 40/40/20 to 35/35/30 and giving **both new criteria 0
+points**. The total never moved, so nothing noticed. Two criteria deployed to Canvas that render,
+can be clicked, and cannot affect a grade.
+
+Any criterion left worth nothing by an edit is now given an even share, with the others rescaled
+to pay for it and the total held where it was. A criterion that was *already* worth nothing before
+the edit is left alone — a zero-weighted row can be deliberate — and a request that mentions
+points still overrides all of it.
+
+### Two rubrics with the same name
+
+Canvas does not enforce unique rubric names, so a document holding two rubrics called the same
+thing deploys both and leaves the course with entries that can only be told apart by opening them.
+One real 39-rubric document had two such pairs. The deploy card now says so before you send them.
+It never blocks the deploy — duplicates are legal and sometimes intended.
+
+### Smaller things
+
+- **Signing in clears the sign-in error.** Being told to sign in, doing it, and finding the
+  message still there — directly above a button that would now work — is fixed.
+- **The sign-in message is one sentence:** "You need to go to Initial Setup and sign into Google
+  first."
+- **Google Drive errors no longer show their plumbing.** They arrived as *"Could not reload
+  document: Error invoking remote method 'drive:fetchForProcessing': Error: …"* with the real
+  sentence at the end. Every Drive call now strips that framing, as the AI calls always have.
+- **The conversion log names what it is making:** "Converting 39 draft rubrics to CSV files in 5
+  groups of up to 8."
+
 ## What's new in v0.9.23
 
 ### Rubrics are drafted three at a time

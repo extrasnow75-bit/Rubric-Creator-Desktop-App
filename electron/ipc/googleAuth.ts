@@ -289,13 +289,15 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
  *
  * Both routes here — never signed in, and a sign-in that has since died — leave them in the
  * same place and needing the same action, and the difference between the two is the app's
- * problem rather than theirs. So one sentence, naming what to do and why it is worth doing,
- * with no status code and no mention of tokens. The renderer italicises "Initial setup"
- * because it names a panel on screen.
+ * problem rather than theirs. So one sentence, naming the one thing to do, with no status code
+ * and no mention of tokens.
+ *
+ * It used to run to two sentences, the second offering the save-to-this-computer alternative.
+ * True, and useful somewhere — but not here: a person who has just been stopped needs the single
+ * next action, and burying it behind an alternative is how a message gets skimmed past. The
+ * fallback belongs on the screen where the choice is actually made.
  */
-const SIGN_IN_REQUIRED =
-  'Sign in to Google under Initial Setup so this can open in your Google Drive. ' +
-  'You can also save it to this computer instead, which needs no Google account.'
+const SIGN_IN_REQUIRED = 'You need to go to Initial Setup and sign into Google first.'
 
 /**
  * A refresh already in flight, so concurrent callers share one.

@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { useCopyAction } from '../hooks/useCopyAction';
 import { ipcErrorMessage } from '../utils/ipcErrorMessage';
+import { describeDuplicateTitles } from '../utils/duplicateTitles';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { AppMode, PointStyle, ProcessingType, GenerationSettings, RubricData } from '../types';
 import { generateCsvFromRubricObject } from '../utils/rubricCsv';
@@ -39,7 +40,8 @@ import type { RubricPlanRow } from '../utils/rubricPlan';
 import { DeliverableChecklist } from './DeliverableChecklist';
 import { RubricSwitcher } from './RubricSwitcher';
 import { SegmentedChoice } from './SegmentedChoice';
-import { Loader2, Download, FileText, CheckCircle, ArrowRight, RotateCw, Home, X, Clock, ChevronDown, ChevronUp, Link, Check, AlertTriangle } from 'lucide-react';
+import { Loader2, Download, FileText, CheckCircle, ArrowRight, RotateCw,
+  RotateCcw, Home, X, Clock, ChevronDown, ChevronUp, Link, Check, AlertTriangle } from 'lucide-react';
 import ErrorDisplay from './ErrorDisplay';
 import mammoth from 'mammoth';
 import { extractPdfText } from '../utils/pdfText';
@@ -48,9 +50,22 @@ import { getRecentDocs, saveRecentDoc, RecentDoc } from '../utils/recentDocs';
 interface Part1RubricProps {
   onAnalyzeDeploy?: () => void;
   canAnalyzeDeploy?: boolean;
+  /**
+   * The person asked for a file on their computer, not a Google Doc.
+   *
+   * Set when they took the "or save to this computer instead (.html)" route off the opening
+   * screen. It does not remove the Drive button — a sign-in that failed once may work later —
+   * it swaps which of the two is the primary, so the route they chose is the one that looks
+   * like the way forward.
+   */
+  preferLocalOutput?: boolean;
 }
 
-export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAnalyzeDeploy }) => {
+export const Part1Rubric: React.FC<Part1RubricProps> = ({
+  onAnalyzeDeploy,
+  canAnalyzeDeploy,
+  preferLocalOutput = false,
+}) => {
   const {
     state,
     setCurrentStep,
@@ -173,6 +188,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
    * afterwards rather than during.
    */
   const [paceNotice, setPaceNotice] = useState<string | null>(null);
+
+  /** The confirm card for re-drafting the whole set, opened from the button row. */
+  const [showStartOverCard, setShowStartOverCard] = useState(false);
   const [changeSummary, setChangeSummary] = useState<string | null>(null);
 
   /** Rubrics the last run actually changed, marked on the switcher so they can be checked. */
@@ -972,6 +990,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
     [state.rubric],
   );
 
+  /** Titles more than one rubric in this set is using. Null when they are all distinct. */
+  const duplicateWarning = React.useMemo(
+    () => describeDuplicateTitles(state.rubrics.map((r) => r.title)),
+    [state.rubrics],
+  );
+
   const flaggedRubrics = React.useMemo(
     () => rubricsWithPointsProblems(state.rubrics),
     [state.rubrics],
@@ -1704,7 +1728,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                         ? undefined
                         : 'Sign in to Google under Initial Setup to use this'
                     }
-                    className="flex-1 px-4 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:bg-gray-300 disabled:text-gray-400 transition-all text-sm flex items-center justify-center gap-2"
+                    className={`flex-1 px-4 py-3 rounded-xl font-bold disabled:bg-gray-300 disabled:text-gray-400 transition-all text-sm flex items-center justify-center gap-2 ${
+                      preferLocalOutput
+                        ? 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                        : 'bg-brand text-white hover:bg-brand-dark'
+                    }`}
                   >
                     {savingToDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                       <svg className="w-4 h-4 flex-shrink-0" viewBox="0 -960 960 960" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -1722,7 +1750,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   <button
                     onClick={handleSaveLocal}
                     disabled={savingLocal}
-                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-900 rounded-xl font-bold hover:bg-gray-200 disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm"
+                    className={`flex-1 px-4 py-3 rounded-xl font-bold disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm ${
+                      preferLocalOutput
+                        ? 'bg-brand text-white hover:bg-brand-dark'
+                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                    }`}
                   >
                     {savingLocal ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                     {savingLocal ? 'Saving\u2026' : 'Save to this computer'}
@@ -1768,7 +1800,78 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                     <RotateCw className="w-4 h-4" />
                     Request Changes
                   </button>
+                  {/*
+                    Moved here from the bottom of "Adjust this rubric", which was the wrong home
+                    for it twice over. That panel is headed "rename it or change its points" and
+                    promises "Changes here are instant and keep every word as written. No AI
+                    involved" — and this discards every rubric and re-runs the AI across all of
+                    them. It also acts on the whole set, where everything else in that panel acts
+                    on one rubric. A user reported not knowing what it did.
+
+                    "Start over" carries the scope and the cost; "from the description" names the
+                    input. Neither depends on remembering the word "parts" from a screen that is
+                    no longer on display.
+                  */}
+                  {lastPlan && (
+                    <button
+                      onClick={() => {
+                        setShowStartOverCard((open) => !open);
+                        setShowReplaceCard(false);
+                        setShowRequestChangesCard(false);
+                      }}
+                      aria-expanded={showStartOverCard}
+                      className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
+                        showStartOverCard
+                          ? 'bg-brand/10 text-brand border-2 border-brand'
+                          : 'bg-gray-100 text-gray-900 hover:bg-gray-200 border-2 border-transparent'
+                      }`}
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Start over from the description
+                    </button>
+                  )}
                 </div>
+
+                {/*
+                  The confirmation, unchanged in substance — it was always explicit about what is
+                  lost. The problem was never this text; it was that nothing before the click
+                  suggested you were near anything destructive.
+                */}
+                {showStartOverCard && lastPlan && (
+                  <div className="mb-6 p-4 bg-white border-2 border-brand rounded-2xl">
+                    <p className="text-sm font-bold text-gray-900 mb-1">
+                      Re-draft from the assignment description?
+                    </p>
+                    <p className="text-sm text-gray-700 mb-3">
+                      This brings back the list of parts so you can change which ones get a rubric,
+                      their names and their points — then writes every ticked rubric again from
+                      scratch.
+                      <span className="font-bold">
+                        {' '}
+                        Everything currently on screen is replaced, including any changes you have
+                        applied.
+                      </span>{' '}
+                      Save your CSVs first if you want to keep them.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowStartOverCard(false);
+                          setPlan(lastPlan);
+                        }}
+                        className="px-4 py-2 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark transition-all active:scale-95"
+                      >
+                        Choose the parts again
+                      </button>
+                      <button
+                        onClick={() => setShowStartOverCard(false)}
+                        className="px-4 py-2 bg-gray-100 text-gray-900 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all"
+                      >
+                        Keep what I have
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/*
                   The document, kept on screen rather than announced once and forgotten.
@@ -1900,7 +2003,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                     setReadyForCanvas(false);
                     setShowDeployCard(false);
                   }}
-                  onReplan={lastPlan ? () => setPlan(lastPlan) : undefined}
                   deployedToCanvas={state.deployedToCanvas}
                   busy={isGenerating || isApplyingChanges}
                 />
@@ -2133,6 +2235,25 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({ onAnalyzeDeploy, canAn
                   rubric.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/*
+            A second thing the set can be wrong about, in the same place and the same shape.
+
+            Canvas does not enforce unique rubric names, so a document holding two rubrics called
+            the same thing deploys both and leaves a course with entries nobody can tell apart
+            without opening them. Legal, occasionally intended, and never a reason to block the
+            deploy — so it states the clash and leaves the decision alone, exactly as the points
+            warning above does.
+          */}
+          {duplicateWarning && (
+            <div className="mb-6 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+              <AlertTriangle
+                className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                aria-hidden="true"
+              />
+              <p className="text-sm text-amber-900 min-w-0">{duplicateWarning}</p>
             </div>
           )}
 

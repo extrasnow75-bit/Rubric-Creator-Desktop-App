@@ -7,6 +7,7 @@
  * lives once in the main process (see fetchFileForProcessing) and once here, rather than in the
  * five places that used to repeat it.
  */
+import { ipcErrorMessage } from './ipcErrorMessage';
 
 export interface DriveFilePayload {
   name: string;
@@ -14,9 +15,27 @@ export interface DriveFilePayload {
   bytes: Uint8Array;
 }
 
-/** Fetch a Drive file as raw bytes, converting Google Docs to .docx on the way. */
+/**
+ * Fetch a Drive file as raw bytes, converting Google Docs to .docx on the way.
+ *
+ * The unwrapping matters as much as the fetch. Anything thrown in the main process comes back
+ * re-wrapped, so main's careful "You need to go to Initial Setup and sign into Google first."
+ * reached the screen as:
+ *
+ *     Could not reload document: Error invoking remote method 'drive:fetchForProcessing':
+ *     Error: You need to go to Initial Setup…
+ *
+ * — an internal channel name and the words "remote method" in front of the sentence somebody
+ * wrote to be read. geminiService has unwrapped its errors this way all along; the Drive calls
+ * never did. Doing it here rather than at each call site means the five callers cannot drift
+ * apart, and a sixth gets it for free.
+ */
 export async function fetchDriveFile(fileId: string): Promise<DriveFilePayload> {
-  return window.api.drive.fetchForProcessing(fileId);
+  try {
+    return await window.api.drive.fetchForProcessing(fileId);
+  } catch (err) {
+    throw new Error(ipcErrorMessage(err));
+  }
 }
 
 /**
