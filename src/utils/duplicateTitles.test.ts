@@ -58,7 +58,7 @@ describe('describeDuplicateTitles', () => {
   it('names the title and never tells the user they cannot deploy', () => {
     const said = describeDuplicateTitles(realDocument)!;
     expect(said).toContain('Discussion Board Rubric');
-    expect(said).toContain('Two rubrics share a name');
+    expect(said).toContain('2 rubrics share a name');
     expect(said).toMatch(/these will deploy/);
     expect(said).not.toMatch(/cannot|must|blocked/i);
   });
@@ -66,5 +66,12 @@ describe('describeDuplicateTitles', () => {
   it('switches to a count once more than one name clashes', () => {
     const said = describeDuplicateTitles(['A', 'A', 'B', 'B'])!;
     expect(said).toContain('2 names are used by more than one rubric');
+  });
+
+  it('counts the rubrics, not the names', () => {
+    // Three of a kind is one clash; saying "Two rubrics" of it contradicts the figure beside it.
+    const said = describeDuplicateTitles(['Discussion Rubric', 'Discussion Rubric', 'Discussion Rubric'])!;
+    expect(said).toContain('3 rubrics share a name');
+    expect(said).not.toContain('Two rubrics');
   });
 });

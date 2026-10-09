@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Info, Pencil } from 'lucide-react';
 import type { RubricData } from '../types';
 import { canvasTotal, rescaleRubric } from '../utils/rescaleRubric';
@@ -11,10 +11,10 @@ import { canvasTotal, rescaleRubric } from '../utils/rescaleRubric';
  * assignment, and for a point total, which is arithmetic. Worse, an AI rewrite is not guaranteed
  * to change only the thing asked for, so a rename could quietly reword a criterion.
  *
- * The third control is the honest version of "let me start over": it puts the deliverables
- * checklist back so the set of rubrics can be chosen again. That one *does* re-run generation and
- * throws away every edit, which is why it is a separate button behind a confirmation rather than
- * something that happens when a field changes.
+ * Starting over — putting the deliverables checklist back and re-running generation — used to
+ * sit at the bottom of this panel, which was the wrong home for it twice over: this panel
+ * promises instant, AI-free edits to one rubric, and that discards every rubric and re-runs the
+ * AI across all of them. It is a button in Part 1's run-wide row now.
  */
 
 interface Props {
@@ -28,10 +28,6 @@ interface Props {
   rubricIndex: number;
   /** Write the changed rubric back. Index is handled by the caller. */
   onChange: (rubric: RubricData) => void;
-  /**
-   * Restore the deliverables checklist so the set can be chosen again, or undefined when there is
-   * no plan to go back to (a rubric uploaded from a file never had one).
-   */
   /** Whether anything has reached Canvas yet, which changes what a further edit means. */
   deployedToCanvas: boolean;
   /** Disabled while a generation or revision is in flight. */

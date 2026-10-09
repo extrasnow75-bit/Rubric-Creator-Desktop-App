@@ -152,3 +152,44 @@ describe('a criterion worth nothing after an edit', () => {
     expect(settled.criteria.map((c) => leadingPoints(c.exemplary))).toEqual([2, 1, 0, 0, 0]);
   });
 });
+
+/**
+ * The fix itself could create the fault it removes.
+ *
+ * Found by review, not by use: repaying the surviving criteria proportionally rounds a small one
+ * to nothing. 1/33/66 plus two new criteria in a 100-point rubric produced 0/20/40/20/20 —
+ * two criteria revived by killing a third.
+ */
+describe('reviving a criterion never kills another', () => {
+  it('keeps the 1-point criterion alive', () => {
+    const settled = preserveTotalAcrossEdit(
+      rubric([1, 33, 66]),
+      rubric([1, 33, 66, 0, 0]),
+      'Add criteria for APA formatting and grammar',
+    );
+    const maxes = settled.criteria.map((c) => leadingPoints(c.exemplary));
+    expect(canvasTotal(settled)).toBe(100);
+    expect(Math.min(...maxes)).toBeGreaterThan(0);
+  });
+
+  it('holds for every lopsided split of 100 across three criteria', () => {
+    for (let a = 1; a < 98; a++) {
+      for (let b = 1; a + b < 99; b++) {
+        const c = 100 - a - b;
+        const settled = preserveTotalAcrossEdit(
+          rubric([a, b, c]),
+          rubric([a, b, c, 0, 0]),
+          'Add two criteria',
+        );
+        const maxes = settled.criteria.map((r) => leadingPoints(r.exemplary));
+        expect(Math.min(...maxes), `${a}/${b}/${c}`).toBeGreaterThan(0);
+        expect(canvasTotal(settled), `${a}/${b}/${c}`).toBe(100);
+      }
+    }
+  });
+
+  it('stands aside when there are not enough points to go round', () => {
+    const settled = preserveTotalAcrossEdit(rubric([2, 1]), rubric([2, 1, 0, 0]), 'Add two criteria');
+    expect(settled.criteria.map((c) => leadingPoints(c.exemplary))).toEqual([2, 1, 0, 0]);
+  });
+});

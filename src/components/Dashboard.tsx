@@ -5,7 +5,7 @@ import { fetchDriveFileAsBase64 } from '../utils/driveFile';
 import {
   Key, Check, X, Loader2, ExternalLink, Eye, EyeOff,
   LogOut, Link, FileText, Upload, ChevronDown, FolderOpen, Settings2,
-  Lightbulb, Camera, ArrowRight, Clipboard, HardDrive, Clock, ChevronUp,
+  Lightbulb, Camera, Clipboard, HardDrive, Clock, ChevronUp,
 } from 'lucide-react';
 import { getRecentDocs, saveRecentDoc, RecentDoc } from '../utils/recentDocs';
 import { revealSection, REVEAL_DELAY_MS } from '../utils/revealSection';
@@ -377,7 +377,7 @@ export const Dashboard: React.FC = () => {
     else setCourseUrl(null);
   };
 
-  const handleDraftRubricChange = (val: '' | 'yes' | 'no') => {
+  const handleDraftRubricChange = (val: 'yes' | 'no') => {
     setHasDraftRubricLocal(val);
     setPhase1Mode('none');
     if (val === 'no') {
@@ -405,8 +405,9 @@ export const Dashboard: React.FC = () => {
       return;
     }
     handleDraftRubricChange('no');
+    // No scroll here: the effect watching phase1Mode already reveals the same element after the
+    // same delay, and does it with a cancellable timer. A second one only risks fighting it.
     setPhase1Mode(route === 'draft' ? 'rubric' : 'screenshot');
-    setTimeout(() => revealSection(phase1Ref.current), REVEAL_DELAY_MS);
   };
 
   // ── File handling ──
@@ -895,9 +896,17 @@ export const Dashboard: React.FC = () => {
                 description="Choose a finished rubric document. The app converts it to Canvas CSV files and deploys them to your course."
                 action="Choose a rubric document"
                 onAction={() => chooseRoute('deploy')}
-                alternative="or just save the CSV files to this computer"
-                onAlternative={() => chooseRoute('deploy', true)}
               />
+              {/*
+                No alternative on this card, deliberately.
+
+                "or just save the CSV files to this computer" was drafted for it, and it would
+                have been a lie: this route produces CSVs only after a conversion run, which is
+                gated on a Canvas course URL, so the link offered a shortcut that does not exist.
+                It is also the card that needs it least — its own file picker already has a Local
+                tab beside the Google one, so the way through without Google is visible on the
+                next screen rather than promised on this one.
+              */}
             </div>
 
             {/* "Yes" path — tabbed file upload area */}
@@ -1228,7 +1237,6 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* "No" path: Phase 1 selection cards (V.1 style) */}
       {hasDraftRubric === 'no' && (
         <div className="max-w-2xl mx-auto px-6 pb-8">
           {/*
@@ -1262,6 +1270,7 @@ export const Dashboard: React.FC = () => {
               className="mt-4 focus:outline-none"
             >
               <ScreenshotConverter
+                preferLocalOutput={preferLocalOutput}
                 onAnalyzeDeploy={() => handleAnalyzeDeploy('no')}
                 canAnalyzeDeploy={geminiValid && canvasTokenValid}
               />

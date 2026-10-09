@@ -26,11 +26,20 @@ interface ScreenshotConverterProps {
   onAnalyzeDeploy?: () => void;
   /** False when the Gemini key or Canvas token is missing; conversion needs both. */
   canAnalyzeDeploy?: boolean;
+  /**
+   * The person asked for a file on their computer, not a Google Doc.
+   *
+   * Set when they took the "or save to this computer instead (.html)" route off the opening
+   * screen. It swaps which save is the primary button; it never removes the Drive one, since a
+   * sign-in that failed once may work later.
+   */
+  preferLocalOutput?: boolean;
 }
 
 export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
   onAnalyzeDeploy,
   canAnalyzeDeploy,
+  preferLocalOutput = false,
 }) => {
   const {
     state,
@@ -823,6 +832,25 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                     </svg>
                   )}
                   {savingToDrive ? 'Adding…' : 'Add to Drive'}
+                </button>
+                {/*
+                  The local save, which this screen has been missing since it was written.
+
+                  handleSaveLocal was defined and never called, so the only ways off this screen
+                  were "Open in Google Docs" and "Add to Drive" — both needing an account. The
+                  opening screen's "or save to this computer instead (.html)" led straight here
+                  and promised something the screen could not do.
+                */}
+                <button
+                  onClick={handleSaveLocal}
+                  className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
+                    preferLocalOutput
+                      ? 'bg-brand text-white hover:bg-brand-dark'
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                  }`}
+                >
+                  <Download className="w-4 h-4" />
+                  Save to this computer
                 </button>
                 <button
                   onClick={() => { setShowReplaceCard(true); setShowRequestChangesCard(false); }}

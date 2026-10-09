@@ -54,9 +54,17 @@ export function describeDuplicateTitles(titles: readonly string[]): string | nul
   if (clashes.length === 0) return null;
 
   const named = clashes.map((c) => `“${c.title}” (${c.count})`).join(', ');
+  /*
+    Counted off the rubrics, not the names.
+
+    This branched on how many titles clashed while the figure in brackets came from how many
+    rubrics held each one, so three rubrics called "Discussion Rubric" announced themselves as
+    "Two rubrics share a name: “Discussion Rubric” (3)" — a sentence that contradicts itself in
+    nine words.
+  */
   const subject =
     clashes.length === 1
-      ? 'Two rubrics share a name'
+      ? `${clashes[0].count} rubrics share a name`
       : `${clashes.length} names are used by more than one rubric`;
 
   return (

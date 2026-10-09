@@ -23,14 +23,16 @@ interface Props {
   action: string;
   onAction: () => void;
   /**
-   * The quieter second route, always a real capability.
+   * The quieter second route — omitted where there is no true one.
    *
-   * On this screen it is the local-file path. The person most likely to need it is the one whose
-   * Google sign-in has just failed, and they are standing here — making them start a flow to
-   * find out there is a way through without Google is the wrong order.
+   * On this screen it is the local-file path, for the person whose Google sign-in has just
+   * failed: making them start a flow to find out there is a way through without Google is the
+   * wrong order. It is optional because a card with no honest alternative must show none. A link
+   * promising something its destination cannot do is worse than no link, and worst for exactly
+   * the person who needed it.
    */
-  alternative: string;
-  onAlternative: () => void;
+  alternative?: string;
+  onAlternative?: () => void;
 }
 
 /** The app's own mark: a rubric table. Same grid as the title-bar icon, without the arrow. */
@@ -121,14 +123,16 @@ export const RouteCard: React.FC<Props> = ({
       {action}
     </button>
 
-    <div className="mt-2.5 text-center">
-      <button
-        type="button"
-        onClick={onAlternative}
-        className="text-sm text-brand hover:text-brand-dark underline underline-offset-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-      >
-        {alternative}
-      </button>
-    </div>
+    {alternative && onAlternative && (
+      <div className="mt-2.5 text-center">
+        <button
+          type="button"
+          onClick={onAlternative}
+          className="text-sm text-brand hover:text-brand-dark underline underline-offset-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+        >
+          {alternative}
+        </button>
+      </div>
+    )}
   </div>
 );

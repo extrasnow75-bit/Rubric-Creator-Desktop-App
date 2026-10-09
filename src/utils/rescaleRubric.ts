@@ -211,13 +211,30 @@ export function withZeroCriteriaShared(
   if (total < maxes.length) return null;
 
   const share = Math.max(1, Math.round(total / maxes.length));
-  if (share * zeros >= total) return null;
+  const positives = maxes.filter((m) => m > 0).length;
+  const budget = total - share * zeros;
+  if (budget < positives) return null;
 
+  /*
+    A point each, before anything is shared out in proportion.
+
+    Rescaling alone can zero a criterion, which would make this function commit the very fault it
+    exists to remove. 1/33/66 in a 100-point rubric plus two new criteria: the share is 20 each,
+    leaving 60 for the rest, and a proportional split of 60 rounds the 1-point criterion to
+    nothing. Reviving two criteria by killing a third is not a fix.
+
+    So each surviving criterion is given its point first and only the remainder is apportioned.
+    The total still lands exactly — (budget - positives) + positives — and the guard above
+    refuses the whole thing when there are not enough points to go round, which is the one case
+    where leaving the rubric alone really is the better answer.
+  */
   const forOthers = allocatePoints(
     maxes.map((m) => (m > 0 ? m : 0)),
-    total - share * zeros,
+    budget - positives,
   );
-  const newMaxes = maxes.map((m, i) => (revivable[i] ? share : m > 0 ? forOthers[i] : 0));
+  const newMaxes = maxes.map((m, i) =>
+    revivable[i] ? share : m > 0 ? forOthers[i] + 1 : 0,
+  );
 
   /*
     A criterion worth nothing has no band to scale — every number in its four ratings is already

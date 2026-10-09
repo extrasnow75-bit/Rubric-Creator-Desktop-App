@@ -1,5 +1,8 @@
 ## What's new in v0.9.24
 
+*Four faults found by review before release, all fixed below — the detail is at the end of this
+section.*
+
 ### A new opening screen
 
 The app used to open by asking **"Do you already have a draft rubric document ready to deploy?"**
@@ -65,6 +68,28 @@ It never blocks the deploy — duplicates are legal and sometimes intended.
   sentence at the end. Every Drive call now strips that framing, as the AI calls always have.
 - **The conversion log names what it is making:** "Converting 39 draft rubrics to CSV files in 5
   groups of up to 8."
+
+### Found by review before release
+
+Four problems in the work above, caught by a review pass rather than by use:
+
+- **The zero-point fix could create a zero-point criterion.** Repaying the surviving criteria in
+  proportion can round a small one away: 1/33/66 in a 100-point rubric, plus two new criteria,
+  came out 0/20/40/20/20 — two criteria revived by killing a third. Every criterion is now given
+  a point before anything is shared out, and where there are not enough points to go round the
+  rubric is left alone instead. Checked against all 4,753 ways of splitting 100 across three
+  criteria.
+- **The three panels in Part 1 were not mutually exclusive.** The new "Start over from the
+  description" closed the other two, but neither of them closed it — so its confirmation, with a
+  destructive button in it, could sit open above an unrelated change request, and survived a run.
+- **"Two rubrics share a name" said "Two" however many there were**, directly contradicting the
+  figure beside it when three rubrics shared a title.
+- **Two of the three "save to this computer" links led nowhere local.** The screenshot screen had
+  no local-save button at all — the code for one existed and was never wired up — so the link
+  promised exactly what that screen could not do, to exactly the person who needed it. It has the
+  button now. The third card's link has been removed rather than fixed: its CSVs only exist after
+  a conversion run, which needs a Canvas course URL first, so the offer was not true at the point
+  it was made. That card's own file picker already has a Local tab.
 
 ## What's new in v0.9.23
 

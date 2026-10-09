@@ -683,6 +683,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         setProgress({ percentage: 1, itemsProcessed: made.length });
         setShowReplaceCard(false);
         setShowRequestChangesCard(false);
+        setShowStartOverCard(false);
         setReadyForCanvas(false);
         setShowDeployCard(false);
       }
@@ -1774,6 +1775,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     onClick={() => {
                       setShowReplaceCard((open) => !open);
                       setShowRequestChangesCard(false);
+                      setShowStartOverCard(false);
                     }}
                     aria-expanded={showReplaceCard}
                     className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
@@ -1789,6 +1791,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     onClick={() => {
                       setShowRequestChangesCard((open) => !open);
                       setShowReplaceCard(false);
+                      setShowStartOverCard(false);
                     }}
                     aria-expanded={showRequestChangesCard}
                     className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
