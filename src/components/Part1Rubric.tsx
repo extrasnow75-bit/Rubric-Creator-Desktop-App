@@ -410,6 +410,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       }
 
       setAssignmentDescription(text);
+      await adoptSourceDoc(fileId, meta.mimeType, meta.name);
       saveRecentDoc({ name: meta.name, url: urlToSave, source: 'url' });
       setRecentDocs(getRecentDocs());
       setInputMode('text');
@@ -467,6 +468,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
       setAssignmentDescription(text);
       setPickedFileName(result.name);
+      await adoptSourceDoc(result.fileId, result.mimeType, result.name);
       saveRecentDoc({ name: result.name, fileId: result.fileId, mimeType: result.mimeType, source: 'picker' });
       setRecentDocs(getRecentDocs());
       setInputMode('text');
@@ -488,6 +490,40 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * one-row form with a foregone answer, so it is skipped entirely and the single rubric is
    * generated as it always was.
    */
+  /**
+   * Remember the Google Doc an edit run was loaded from, so changes go back into it.
+   *
+   * Without this, editing a document produced a *second* document: the app only knows how to
+   * update a file it created itself, and a file it was handed looked like nothing at all. The
+   * card then offered "Open in Google Docs", which makes a copy — the exact behaviour the
+   * version history work in 0.9.19 was meant to end.
+   *
+   * Only a native Google Doc is adopted. A .docx or a PDF in Drive cannot take a document's
+   * contents written back over it in any form worth having, so those still end in a new file,
+   * and the card says so.
+   *
+   * The version counter is recorded as it stands at load time, which is what makes the
+   * hand-edited warning honest later: it compares against the document as the app found it, so
+   * an edit made between opening and updating is still caught.
+   */
+  const adoptSourceDoc = async (fileId: string, mimeType: string, name: string) => {
+    if (!editing || mimeType !== 'application/vnd.google-apps.document') return;
+    try {
+      const check = await window.api.rubric.checkDriveDoc({ fileId });
+      if (!check.ok || check.status !== 'unchanged' || !check.version) return;
+      setSavedDoc({
+        fileId,
+        name: check.name ?? name,
+        version: check.version,
+        webViewLink: check.webViewLink ?? `https://docs.google.com/document/d/${fileId}/edit`,
+        adopted: true,
+      });
+    } catch {
+      // Not being able to adopt the document is not a reason to refuse to open its rubrics.
+      // The run still works; it just ends in a new document, which the card already allows for.
+    }
+  };
+
   const handleGenerateRubric = async () => {
     if (!assignmentDescription.trim()) {
       setError(
@@ -786,7 +822,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         setRevisedIndexes([]);
         setChangeSummary(null);
         setChangesConfirmed(false);
-        setSavedDoc(null);
+        /*
+          Forget the remembered document — except on an edit run, where it IS the document these
+          rubrics were just read out of. Clearing it there would leave the user with no way back
+          to their own file and an "Open in Google Docs" that makes a copy, which is the whole
+          problem this route exists to avoid.
+        */
+        if (!editing) setSavedDoc(null);
         setDocConflict(null);
         setDriveSaveSuccess(null);
         setProgress({ percentage: 1, itemsProcessed: made.length });
@@ -866,7 +908,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setSavingToDrive(true);
     setDriveSaveSuccess(null);
     try {
-      const result = await window.api.rubric.updateDriveDoc({ fileId: doc.fileId, ...docPayload() });
+      const result = await window.api.rubric.updateDriveDoc({
+        fileId: doc.fileId,
+        keepName: doc.adopted,
+        ...docPayload(),
+      });
       if (result.ok && result.fileId && result.webViewLink) {
         setSavedDoc({
           fileId: result.fileId,
@@ -1284,6 +1330,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         }
         setAssignmentDescription(text);
         setPickedFileName(doc.name);
+        await adoptSourceDoc(doc.fileId, mt, doc.name);
         setInputMode('text');
       } catch (err: any) {
         setError(`Failed to re-load document: ${err.message}`);
@@ -1325,7 +1372,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         </h3>
         <p className="text-sm text-gray-700">
           {editing
-            ? 'Choose a rubric document you already have, from this computer or from Google Drive. The app lists the rubrics in it and reads the ones you tick, so you can ask for changes in your own words. The revised rubrics can then go back to a Google Doc, to this computer, or straight to Canvas.'
+            ? 'Choose a rubric document you already have, from this computer or from Google Drive. The app lists the rubrics in it and reads the ones you tick, so you can ask for changes in your own words. A document opened from Google Drive can be updated in place afterwards — the same file, under the same link — and anything else is saved as a new file or sent straight to Canvas.'
             : 'Paste or upload an assignment description, or a screenshot of a rubric you already have. The app drafts a rubric you can edit, then opens it as a Google Doc or saves it to this computer. Part 2 turns it into a Canvas CSV, and Part 3 sends it to your course.'}
         </p>
       </div>
@@ -2194,7 +2241,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         {docCardState === 'conflict' ? (
                           <p className="text-sm text-amber-900 mt-1">
                             {docConflict === 'edited'
-                              ? 'That document has been edited since the app wrote it. Updating it replaces what is there now with the rubrics in this app. Google Docs keeps a version history, so the edit could be recovered under File → Version history — but it is easier not to lose it.'
+                              ? `That document has been edited ${
+                                  state.savedDoc?.adopted
+                                    ? 'since you opened it here'
+                                    : 'since the app wrote it'
+                                }. Updating it replaces what is there now with the rubrics in this app. Google Docs keeps a version history, so the edit could be recovered under File → Version history — but it is easier not to lose it.`
                               : docConflict === 'trashed'
                                 ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
                                 : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}

@@ -24,6 +24,13 @@ From there it is the screen you already know: the rubric table, Request Changes,
 card, Deploy to Canvas. The rubrics come in exactly as written — the app reads them, it does not
 redraft them — so your points and your wording survive the trip.
 
+**A rubric document opened from Google Drive is updated in place.** The same file, under the same
+link, with its own name left alone — the app renames documents it created so their timestamps stay
+honest, and does not rename yours. If you have edited that document in Google Docs since opening
+it here, the app says so and asks before overwriting. A document from this computer, or a .docx or
+PDF in Drive, is saved as a new file instead: those cannot take a Google Doc's contents written
+back over them in any form worth having.
+
 **The cards are now in the order a rubric lives in:** draft one from a description, draft one from
 a screenshot, edit ones you have, send them to Canvas. The Canvas card is last because it is the
 only one that leaves the app, and it now reads **Upload your existing draft rubrics to Canvas**.

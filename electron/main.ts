@@ -519,7 +519,21 @@ ipcMain.handle('rubric:checkDriveDoc', async (_e, args: { fileId: string; versio
     if (!state) return { ok: true as const, status: 'missing' as const }
     if (state.trashed) return { ok: true as const, status: 'trashed' as const, name: state.name }
     const status = args.version && state.version !== args.version ? 'edited' : 'unchanged'
-    return { ok: true as const, status, name: state.name, modifiedTime: state.modifiedTime }
+    /*
+      version and webViewLink go back as well, because this handler answers two questions now.
+      The old one is "has the document moved on since we wrote it", which needs only the status.
+      The new one is "what do I need to write back to a document the app did not create" — asked
+      when a rubric document is opened for editing — and that needs the counter to compare
+      against later, and the link to put on screen.
+    */
+    return {
+      ok: true as const,
+      status,
+      name: state.name,
+      modifiedTime: state.modifiedTime,
+      version: state.version,
+      webViewLink: state.webViewLink,
+    }
   } catch (e) {
     return { ok: false as const, message: e instanceof Error ? e.message : String(e) }
   }
@@ -535,7 +549,23 @@ ipcMain.handle('rubric:checkDriveDoc', async (_e, args: { fileId: string; versio
  */
 ipcMain.handle(
   'rubric:updateDriveDoc',
-  async (_e, args: { fileId: string; rubrics: RubricData[]; documentTitle?: string }) => {
+  async (
+    _e,
+    args: {
+      fileId: string
+      rubrics: RubricData[]
+      documentTitle?: string
+      /**
+       * Leave the file's name as it is.
+       *
+       * A document the app created is renamed on every write, so the timestamp in its name goes
+       * on describing its contents. A document the app was handed — one opened for editing — is
+       * named by whoever made it, and renaming someone's own file to suit this app's convention
+       * is not an edit they asked for.
+       */
+      keepName?: boolean
+    },
+  ) => {
     if (args.rubrics.length === 0) {
       return { ok: false as const, message: 'There is no rubric to save.' }
     }
@@ -543,7 +573,7 @@ ipcMain.handle(
       const written = await updateDriveFile({
         fileId: args.fileId,
         content: buildRubricSetHtml(args.rubrics, args.documentTitle),
-        name: docNameFor(args.rubrics, args.documentTitle),
+        name: args.keepName ? undefined : docNameFor(args.rubrics, args.documentTitle),
         sourceMimeType: 'text/html',
         targetMimeType: GOOGLE_DOC_MIME,
       })

@@ -101,6 +101,12 @@ export interface SavedRubricDoc {
   name: string;
   /** Drive's version counter as of our last write. */
   version: string;
+  /**
+   * True when the app did not create this document but was handed it — a rubric document opened
+   * for editing. Its name is the user's, so an update rewrites the contents and leaves the name
+   * alone; a document the app made is renamed on every write so its timestamp stays honest.
+   */
+  adopted?: boolean;
 }
 
 export interface RubricMeta {

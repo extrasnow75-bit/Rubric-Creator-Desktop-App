@@ -482,6 +482,8 @@ export async function updateDriveFile(args: {
 /** What a Drive file looks like right now. Null when it is not there at all. */
 export interface DriveFileState {
   name: string
+  /** Where the file opens in a browser. Needed to adopt a document the app did not create. */
+  webViewLink?: string
   /** RFC 3339, and it moves for any change — ours included, so record it after writing. */
   modifiedTime: string
   /** Drive's own counter for the file. A cheaper equality check than the timestamp. */
@@ -502,7 +504,7 @@ export interface DriveFileState {
 export async function describeDriveFile(rawFileId: string): Promise<DriveFileState | null> {
   const fileId = assertFileId(rawFileId)
   const params = new URLSearchParams({
-    fields: 'name,modifiedTime,version,trashed',
+    fields: 'name,modifiedTime,version,trashed,webViewLink',
     supportsAllDrives: 'true',
   })
 

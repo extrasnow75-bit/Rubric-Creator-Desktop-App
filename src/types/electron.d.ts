@@ -100,6 +100,8 @@ declare global {
           fileId: string
           rubrics: RubricData[]
           documentTitle?: string
+          /** Leave the file's name alone — for a document the app was handed, not one it made. */
+          keepName?: boolean
         }): Promise<DriveDocResult>
         /**
          * What has happened to that document since the app last wrote it.
@@ -116,6 +118,9 @@ declare global {
               status: 'unchanged' | 'edited' | 'trashed' | 'missing'
               name?: string
               modifiedTime?: string
+              /** Drive's counter as it stands now — record it when adopting a document. */
+              version?: string
+              webViewLink?: string
             }
           | { ok: false; message: string }
         >

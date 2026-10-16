@@ -968,7 +968,7 @@ export const Dashboard: React.FC = () => {
                 to={<RevisedRubricIcon />}
                 toClass="bg-blue-700"
                 title="Edit existing draft rubrics"
-                description="Choose a rubric document you already have. The app reads the rubrics in it so you can ask for changes, then writes the new versions into the same Google Doc."
+                description="Choose a rubric document you already have, from this computer or Google Drive. The app reads the rubrics in it so you can ask for changes. A Google Doc can then be updated in place; anything else is saved as a new file."
                 action="Choose rubrics to edit"
                 onAction={() => chooseRoute('edit')}
                 open={openRoute === 'edit'}
