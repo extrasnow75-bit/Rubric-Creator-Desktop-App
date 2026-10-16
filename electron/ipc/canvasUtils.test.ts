@@ -219,6 +219,58 @@ describe('buildRubricPayload', () => {
     })
   })
 
+  it('drops a criterion description that is a copy of the top rating', () => {
+    // The fault a course developer reported: every criterion arrived in Canvas with its highest
+    // band's words sitting in the Criterion Description field, to be deleted by hand.
+    const text = 'Gathers comprehensive, highly relevant facts with clear documentation.'
+    const result = buildRubricPayload(
+      `${HEADER}\nR,Research,"${text}",Exemplary,"${text}",35`,
+      '1',
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const criterion = result.payload.rubric.criteria['1'] as { long_description: string }
+    expect(criterion.long_description).toBe('')
+  })
+
+  it('ignores spacing and case when matching the top rating', () => {
+    const result = buildRubricPayload(
+      `${HEADER}\nR,Research,"Gathers  relevant   facts.",Exemplary,"gathers relevant facts.",35`,
+      '1',
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect((result.payload.rubric.criteria['1'] as { long_description: string }).long_description)
+      .toBe('')
+  })
+
+  it('keeps a criterion description that is the author\'s own words', () => {
+    const result = buildRubricPayload(
+      `${HEADER}\nR,Research,Thoroughness and accuracy of research.,Exemplary,Gathers relevant facts.,35`,
+      '1',
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect((result.payload.rubric.criteria['1'] as { long_description: string }).long_description)
+      .toBe('Thoroughness and accuracy of research.')
+  })
+
+  it('keeps a criterion description when only a lower band repeats it', () => {
+    // Only the top rating is matched: a gate that fired on any of four ratings would be four
+    // times as likely to throw away something a user wrote.
+    const header = `${HEADER},Rating Name,Rating Description,Points`
+    const row = 'R,Research,Needs work,Exemplary,Gathers relevant facts.,35,Poor,Needs work,0'
+    const result = buildRubricPayload(`${header}\n${row}`, '1')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect((result.payload.rubric.criteria['1'] as { long_description: string }).long_description)
+      .toBe('Needs work')
+  })
+
   it('reads repeating rating triples across the row', () => {
     const header = `${HEADER},Rating Name,Rating Description,Points`
     const row = 'R,Clarity,,Excellent,Top marks,10,Poor,Needs work,2'

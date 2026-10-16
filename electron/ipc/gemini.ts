@@ -407,7 +407,11 @@ You must produce CSV files that match the standard Canvas Rubric Import template
 2. **Column Order:**
    - Col A: Rubric Name.
    - Col B: Criteria Name.
-   - Col C: Criteria Description.
+   - Col C: Criteria Description. Leave this cell EMPTY unless the source gives the criterion a
+     description of its own, separate from its rating levels. Most rubrics do not: the criterion
+     name and the rating bands are the whole table. Never copy a rating's text into it — the
+     highest band least of all. Canvas shows this cell as the criterion's description directly
+     above the same words as a rating, and the user has to delete it by hand.
    - Col D: Criteria Enable Range ('TRUE' or 'FALSE').
    - Col E, F, G: Rating triplets (repeating).
 3. **Data Integrity:** Ratings MUST be ordered from HIGHEST points to LOWEST points.
@@ -1356,6 +1360,8 @@ RULES:
    that you supplied it.
 5. Ratings run HIGHEST points to LOWEST, left to right.
 6. Wrap any field containing a comma or a quotation mark in double quotes, doubling internal quotes.
+6b. "Criteria Description" stays empty unless the criterion has a description of its own. Never
+   copy a rating's text into it, and if the original CSV already does, empty the cell.
 7. Change as little as possible. Do not reword criteria or ratings that are not part of the problem,
    do not add criteria, and do not remove criteria.
 8. If a point value is missing and must be supplied, infer it from the surrounding rating values and

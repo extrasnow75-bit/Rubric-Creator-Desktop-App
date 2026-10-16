@@ -219,6 +219,27 @@ export function parseRatingPoints(raw: string | undefined | null): number | null
  * the column order is not stable across them. Rating columns repeat in groups of three
  * (name, description, points) from the first rating column to the end of the row.
  */
+/**
+ * Two cells holding the same words, give or take the spacing a CSV picks up on its way through a
+ * spreadsheet.
+ *
+ * Used for one job: catching a criterion description that is really a copy of the top rating.
+ * A conversion has no column of its own to put a criterion description in — most source rubrics
+ * do not write one, because the criterion name and the bands are the whole table — and the model
+ * fills the empty cell with the nearest plausible text, which is the band above it. Canvas then
+ * shows those words twice: once as the criterion's description and once as its highest rating,
+ * and a course developer deletes them by hand on every criterion of every rubric.
+ *
+ * Deliberately only the top rating. A lower band repeated there would be just as wrong, but it
+ * has never been seen, and a gate that drops a criterion description for matching any of four
+ * ratings has four times the chance of throwing away something a user actually wrote.
+ */
+function sameText(a: string, b: string): boolean {
+  const normalise = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
+  const left = normalise(a)
+  return left.length > 0 && left === normalise(b)
+}
+
 export function buildRubricPayload(csvContent: string, courseId: string): PayloadResult {
   const data = parseCSV(csvContent)
   if (data.length < 2) {
@@ -263,6 +284,7 @@ export function buildRubricPayload(csvContent: string, courseId: string): Payloa
     const criterionDesc = idxCriteriaDesc >= 0 ? row[idxCriteriaDesc] || '' : ''
     const ratings: Record<string, unknown> = {}
     let ratingCounter = 1
+    let topRatingDesc = ''
 
     for (let j = idxRatingStart; j < row.length; j += 3) {
       const rTitle = row[j]
@@ -291,6 +313,8 @@ export function buildRubricPayload(csvContent: string, courseId: string): Payloa
         continue
       }
 
+      if (ratingCounter === 1) topRatingDesc = rDesc
+
       ratings[String(ratingCounter)] = {
         description: rTitle.trim(),
         long_description: rDesc.trim(),
@@ -304,7 +328,7 @@ export function buildRubricPayload(csvContent: string, courseId: string): Payloa
 
     criteria[criterionKey] = {
       description: criterionName,
-      long_description: criterionDesc,
+      long_description: sameText(criterionDesc, topRatingDesc) ? '' : criterionDesc,
       ratings,
       ...(enableRange ? { criterion_use_range: true } : {}),
     }

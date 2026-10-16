@@ -193,3 +193,83 @@ describe('reviving a criterion never kills another', () => {
     expect(settled.criteria.map((c) => leadingPoints(c.exemplary))).toEqual([2, 1, 0, 0]);
   });
 });
+
+describe('whole points', () => {
+  const maxesOf = (r: RubricData) => r.criteria.map((c) => leadingPoints(c.exemplary));
+
+  /**
+   * The run that prompted this: a 100-point rubric at 4 / 21 / 35 / 20 / 20, asked to be worth
+   * 50. The model halved every number and handed back two criteria worth ten and a half.
+   */
+  it('rounds the model\'s halves while holding the total it was asked for', () => {
+    const before = rubric([4, 21, 35, 20, 20]);
+    const after = rubric([2, 10.5, 17.5, 10, 10]);
+
+    const result = preserveTotalAcrossEdit(before, after, 'Make this rubric worth 50 points');
+
+    expect(maxesOf(result)).toEqual([2, 10, 18, 10, 10]);
+    expect(canvasTotal(result)).toBe(50);
+  });
+
+  it('rounds the lower bands too', () => {
+    const before = rubric([100]);
+    const after = rubric([50]);
+    after.criteria[0].exemplary.points = '17.5';
+    after.criteria[0].proficient.points = '13.25';
+    after.criteria[0].developing.points = '6.5';
+    after.criteria[0].unsatisfactory.points = '0';
+
+    const result = preserveTotalAcrossEdit(before, after, 'make it worth 18 points');
+    const criterion = result.criteria[0];
+
+    for (const band of [
+      criterion.exemplary,
+      criterion.proficient,
+      criterion.developing,
+      criterion.unsatisfactory,
+    ]) {
+      for (const n of band.points.match(/\d+(?:\.\d+)?/g) ?? []) {
+        expect(Number.isInteger(Number(n))).toBe(true);
+      }
+    }
+  });
+
+  it('stands aside when the user asked for a decimal', () => {
+    const before = rubric([10, 10]);
+    const after = rubric([4.5, 4.5]);
+
+    const result = preserveTotalAcrossEdit(before, after, 'Make each criterion worth 4.5 points');
+
+    expect(maxesOf(result)).toEqual([4.5, 4.5]);
+  });
+
+  it('rounds even when the total did not move', () => {
+    // mentionsPoints is false and the total is unchanged, so nothing above this would look at it.
+    const before = rubric([40, 40, 20]);
+    const after = rubric([40, 39.5, 20.5]);
+
+    const result = preserveTotalAcrossEdit(before, after, 'Reword the second criterion');
+
+    expect(maxesOf(result).every(Number.isInteger)).toBe(true);
+    expect(canvasTotal(result)).toBe(100);
+  });
+
+  it('leaves a rubric that is already whole exactly as it is', () => {
+    const before = rubric([30, 30, 40]);
+    const after = rubric([25, 35, 40]);
+
+    const result = preserveTotalAcrossEdit(before, after, 'make the first one worth 25 points');
+
+    expect(result).toBe(after);
+  });
+
+  it('does not read a version number as a decimal on its own', () => {
+    const before = rubric([50, 50]);
+    const after = rubric([50, 25.5]);
+
+    // No point word anywhere, so this goes down the preserve-the-total path and still rounds.
+    const result = preserveTotalAcrossEdit(before, after, 'Add APA 7 formatting to the second');
+
+    expect(maxesOf(result).every(Number.isInteger)).toBe(true);
+  });
+})

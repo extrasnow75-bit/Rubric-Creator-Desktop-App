@@ -187,6 +187,16 @@ export const Dashboard: React.FC = () => {
 
   // ── Phase 1 inline mode ──
   const [phase1Mode, setPhase1Mode] = useState<'none' | 'rubric' | 'screenshot'>('none');
+  /**
+   * Whether the chosen route is folded away again.
+   *
+   * Pressing a route's button a second time puts the screen back to the three cards. Nothing is
+   * thrown away: the deploy route's file and course URL live in this component, and the two
+   * drafting tools are hidden rather than unmounted, so a half-written description is still
+   * there when the card is opened again. The route itself is remembered too, so "Close" and then
+   * the same button returns to exactly what was on screen.
+   */
+  const [routeCollapsed, setRouteCollapsed] = useState(false);
   const phase1Ref = useRef<HTMLDivElement>(null);
 
   // ─── Derived validity ────────────────────────────────────────────────────────
@@ -389,6 +399,17 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  /** Which card's route is on screen, or null when the three cards stand alone. */
+  const openRoute: 'draft' | 'screenshot' | 'deploy' | null = routeCollapsed
+    ? null
+    : hasDraftRubric === 'yes'
+      ? 'deploy'
+      : phase1Mode === 'rubric'
+        ? 'draft'
+        : phase1Mode === 'screenshot'
+          ? 'screenshot'
+          : null;
+
   /**
    * Take one of the three routes off the opening screen.
    *
@@ -399,6 +420,35 @@ export const Dashboard: React.FC = () => {
    * making them discover the fallback mid-flow is the wrong order.
    */
   const chooseRoute = (route: 'draft' | 'screenshot' | 'deploy', local = false) => {
+    // The button of the route already showing is the way back out of it, the same as every other
+    // disclosure in the app. Pressing a *different* card's button switches routes, and a switch
+    // always opens.
+    if (route === openRoute) {
+      setRouteCollapsed((collapsed) => !collapsed);
+      return;
+    }
+    openRouteFresh(route, local);
+  };
+
+  /**
+   * The card's quieter second link, which asks for the same route with a local file at the end.
+   *
+   * It never closes anything. Pressing "or save to this computer instead" on a card that is
+   * already open is someone changing their mind about the destination, not asking to put the
+   * screen away — and the route it would have folded up is the one holding their work.
+   */
+  const chooseLocalRoute = (route: 'draft' | 'screenshot') => {
+    setPreferLocalOutput(true);
+    if (route === openRoute) {
+      setRouteCollapsed(false);
+      return;
+    }
+    openRouteFresh(route, true);
+  };
+
+  /** Switch to a route from scratch: the shared half of the two handlers above. */
+  function openRouteFresh(route: 'draft' | 'screenshot' | 'deploy', local: boolean) {
+    setRouteCollapsed(false);
     setPreferLocalOutput(local);
     if (route === 'deploy') {
       handleDraftRubricChange('yes');
@@ -408,7 +458,7 @@ export const Dashboard: React.FC = () => {
     // No scroll here: the effect watching phase1Mode already reveals the same element after the
     // same delay, and does it with a cancellable timer. A second one only risks fighting it.
     setPhase1Mode(route === 'draft' ? 'rubric' : 'screenshot');
-  };
+  }
 
   // ── File handling ──
 
@@ -872,8 +922,9 @@ export const Dashboard: React.FC = () => {
                 description="Paste or upload the description. The app finds the separate parts of the assignment and writes a rubric for each one."
                 action="Start from a description"
                 onAction={() => chooseRoute('draft')}
+                open={openRoute === 'draft'}
                 alternative="or save to this computer instead (.html)"
-                onAlternative={() => chooseRoute('draft', true)}
+                onAlternative={() => chooseLocalRoute('draft')}
               />
               <RouteCard
                 from={<Camera className="w-6 h-6 text-white" />}
@@ -884,8 +935,9 @@ export const Dashboard: React.FC = () => {
                 description="Upload a picture of a rubric and the app rebuilds it as an editable draft. Useful when the only copy you have lives inside Canvas."
                 action="Start from a screenshot"
                 onAction={() => chooseRoute('screenshot')}
+                open={openRoute === 'screenshot'}
                 alternative="or save to this computer instead (.html)"
-                onAlternative={() => chooseRoute('screenshot', true)}
+                onAlternative={() => chooseLocalRoute('screenshot')}
               />
               <RouteCard
                 from={<RubricGridIcon />}
@@ -896,6 +948,7 @@ export const Dashboard: React.FC = () => {
                 description="Choose a finished rubric document. The app converts it to Canvas CSV files and deploys them to your course."
                 action="Choose a rubric document"
                 onAction={() => chooseRoute('deploy')}
+                open={openRoute === 'deploy'}
               />
               {/*
                 No alternative on this card, deliberately.
@@ -910,7 +963,7 @@ export const Dashboard: React.FC = () => {
             </div>
 
             {/* "Yes" path — tabbed file upload area */}
-            {hasDraftRubric === 'yes' && (
+            {openRoute === 'deploy' && (
               <div className="space-y-3">
 
                 {/* Tabs */}
@@ -1149,7 +1202,7 @@ export const Dashboard: React.FC = () => {
           draftRubricValid is already "a document has been chosen" on this branch, so gating on
           it makes the two cards strictly sequential: fill this one, then the next appears.
         */}
-        {coreSetupComplete && hasDraftRubric === 'yes' && draftRubricValid && (
+        {coreSetupComplete && openRoute === 'deploy' && draftRubricValid && (
           <SetupCard isValid={courseVerified}>
             <div className="flex items-center gap-2 mb-1">
               <Link className="w-4 h-4 text-blue-600 flex-shrink-0" />
@@ -1214,7 +1267,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* "Yes" path: Analyze & Deploy button */}
-      {hasDraftRubric === 'yes' && !showAnalyze && (
+      {openRoute === 'deploy' && !showAnalyze && (
         <div className="mt-6">
           <button
             onClick={() => handleAnalyzeDeploy('yes')}
@@ -1238,7 +1291,12 @@ export const Dashboard: React.FC = () => {
       )}
 
       {hasDraftRubric === 'no' && (
-        <div className="max-w-2xl mx-auto px-6 pb-8">
+        /*
+          Hidden, not unmounted. Part1Rubric and ScreenshotConverter hold the pasted description,
+          the chosen settings and the picked file in their own state, so taking them off the tree
+          to close a card would throw away the very thing the person was in the middle of.
+        */
+        <div className={`max-w-2xl mx-auto px-6 pb-8 ${routeCollapsed ? 'hidden' : ''}`}>
           {/*
             The two Phase 1 cards that used to live here are gone: cards one and two on the
             opening screen are the same two routes, and a user who has just pressed one of them

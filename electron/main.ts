@@ -16,7 +16,12 @@ import { checkRepair } from './ipc/csvRepair'
 import { signIn, getStatus, clearTokens } from './ipc/googleAuth'
 import { withJob, cancelJob } from './ipc/jobs'
 import * as gemini from './ipc/gemini'
-import { buildRubricSetHtml, rubricFileName, timestampedName } from './ipc/rubricHtml'
+import {
+  buildRubricSetHtml,
+  namedAsRubric,
+  rubricFileName,
+  timestampedName,
+} from './ipc/rubricHtml'
 import type { Attachment, GenerationSettings, RubricData } from './ipc/geminiTypes'
 import {
   listFiles,
@@ -496,7 +501,8 @@ ipcMain.handle(
 
 /** The name a rubric set goes into Drive under, stamped with the moment it was written. */
 function docNameFor(rubrics: RubricData[], documentTitle?: string): string {
-  return timestampedName(documentTitle?.trim() || rubrics[0]?.title || 'Rubric')
+  const base = documentTitle?.trim() || rubrics[0]?.title || ''
+  return timestampedName(namedAsRubric(base, rubrics.length > 1))
 }
 
 /**

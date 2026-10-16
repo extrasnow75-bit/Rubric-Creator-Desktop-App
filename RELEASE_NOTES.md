@@ -1,3 +1,89 @@
+## What's new in v0.9.25
+
+### The first rating no longer lands in the Criterion Description
+
+An eCampus course developer deployed several rubrics to a sandbox and found that every criterion
+arrived in Canvas with its top rating's words repeated in the **Criterion Description** field —
+the same sentence twice, once as the description and once as the highest band, to be deleted by
+hand on every criterion of every rubric.
+
+The conversion was doing as it was told. The instructions named the Criteria Description column
+and never said what to do when the source rubric has no description of its own — which is most of
+them, because the criterion name and the rating bands are the whole table. Faced with an empty
+cell and no guidance, the AI filled it with the nearest plausible text, which is the band directly
+beside it.
+
+Two changes, because a prompt is a request: the instructions now say to leave that cell empty
+unless the criterion really has a description of its own, and the app itself drops a criterion
+description that turns out to be a copy of the top rating, whatever wrote the CSV. That second
+check also covers a repaired CSV, a hand-built one, and a Google Sheet a colleague edited.
+
+**Rubrics already in Canvas are not fixed by this.** Once a rubric is deployed it belongs to
+Canvas, and this app can only add rubrics, never edit one it sent earlier — redeploying creates a
+second copy rather than correcting the first. For rubrics already in a course there are two
+routes: delete the stray description by hand in Canvas, or delete the rubric there and deploy it
+again from this version. With more than two or three rubrics the second is less work.
+
+### Half-points are gone
+
+Asked to make a 100-point rubric worth 50, the AI halved every number and handed back criteria
+worth 10.5 and 17.5. Canvas accepts decimals without complaint, so nothing stopped it, but nobody
+writes a ten-and-a-half-point criterion on purpose.
+
+The app no longer produces a fractional point of its own accord. Your total is held exactly where
+you asked for it and the criteria underneath it are rounded, with the leftover point going to
+whichever criterion was cut hardest — so 2 / 10.5 / 17.5 / 10 / 10 becomes 2 / 10 / 18 / 10 / 10,
+still 50 points. The rating bands are rounded too, not just the criterion totals.
+
+**If you ask for a decimal, you get a decimal.** "Make each one worth 4.5" is a number you chose,
+and the app stands aside. Rubrics read in from a document or a screenshot are never touched
+either: those numbers are yours, not the AI's.
+
+This narrows something the v0.9.22 notes said — that a request mentioning points made the app
+stand aside completely. Your totals still stand exactly as asked. What the model does underneath
+them is now tidied.
+
+### The document card has moved to where the document is used
+
+The card naming your Google Doc sat above the rubric table, while every action on that document —
+updating it, replacing it, saving a copy — happened further down the screen, after the rubrics had
+been read and changed. It is now the last thing in the review area, directly above Deploy to
+Canvas.
+
+**It is also one card instead of three.** A box naming the document, an amber warning when that
+document had been edited by hand, and a green box reporting a change run were three separate
+panels about one file, stacking on top of each other, with three of their five buttons doing the
+same two things. They are now a single card that changes with the situation: green when a run has
+just finished, amber when the document has been edited since the app wrote it, and plain when
+there is simply a document to open.
+
+**Open in Google Docs and Save to this computer have moved into it.** That leaves three buttons in
+the row above — Upload Replacement, Request Changes and Start over — which are the three that
+change the rubrics themselves. Five buttons in that row had squeezed every label onto three
+cramped lines.
+
+### Saved documents say they are rubrics
+
+A document written from "Part 1: Systems Analysis" was filed in Drive under exactly that name,
+which is indistinguishable from the assignment description it was written from — very likely
+sitting in the same folder. It is now **Part 1: Systems Analysis Rubric (2026-10-15 11.00am)**,
+and "Rubrics" where the document holds several. A title that already ends in "Rubric" is left
+alone.
+
+A document holding several rubrics now also names itself on its first page, as a heading above the
+first rubric, with each rubric a heading beneath it. The Google Docs outline sidebar shows the
+set's name and every rubric in it.
+
+### The three opening cards close again
+
+Each card's button opened its route and nothing put it away. Pressing the same button again now
+folds the route back up and returns you to the three cards — the same behaviour Request Changes
+and Start over already had.
+
+**Nothing is discarded by closing.** A half-written description, a chosen file and your settings
+are all still there when you open it again. The quieter "or save to this computer instead" link
+never closes anything; it only changes where the result is headed.
+
 ## What's new in v0.9.24
 
 *Four faults found by review before release, all fixed below — the detail is at the end of this

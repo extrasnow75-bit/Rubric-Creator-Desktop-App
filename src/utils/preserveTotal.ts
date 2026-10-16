@@ -17,10 +17,12 @@
  */
 import { RubricData } from '../types';
 import {
+  allocatePoints,
   canvasTotal,
   criterionKey,
   leadingPoints,
   rescaleRubric,
+  withCriterionMaxes,
   withZeroCriteriaShared,
 } from './rescaleRubric';
 
@@ -45,22 +47,85 @@ export function mentionsPoints(request: string): boolean {
 }
 
 /**
+ * A decimal the user typed themselves: "make it worth 4.5", "2.5 points each".
+ *
+ * Only a digit, a point and a digit counts. "APA 7" is not a decimal and neither is a full stop
+ * at the end of a sentence; the one way this misfires is a version number written out in a
+ * request that also mentions points ("APA 7.0 formatting, worth 10 points"), which costs nothing
+ * but a rounding pass that was not needed.
+ */
+const NAMED_DECIMAL = /\d+\.\d/;
+
+/** Every number in every rating of every criterion, in the order Canvas would read them. */
+function everyRatingNumber(rubric: RubricData): number[] {
+  const found: number[] = [];
+  for (const criterion of rubric.criteria) {
+    for (const rating of [
+      criterion.exemplary,
+      criterion.proficient,
+      criterion.developing,
+      criterion.unsatisfactory,
+    ]) {
+      for (const n of String(rating?.points ?? '').match(/\d+(?:\.\d+)?/g) ?? []) {
+        found.push(Number(n));
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * The same rubric in whole points.
+ *
+ * Asked for after a run that said "make this worth 50": the model halved a 100-point rubric and
+ * handed back 2 / 10.5 / 17.5 / 10 / 10. Canvas takes decimals without complaint, so nothing
+ * stopped it, but nobody writes a 10.5-point criterion on purpose and a grader reading one
+ * wonders what they have missed.
+ *
+ * The total is held where it is and the criteria underneath it are rounded, which is the one
+ * ordering that cannot surprise anyone: a user who asked for 50 points gets exactly 50. The
+ * allocation does the deciding — it floors every share and hands the leftover points to whichever
+ * criteria were cut hardest, with the larger criterion taking a tie — so 2 / 10.5 / 17.5 / 10 / 10
+ * becomes 2 / 10 / 18 / 10 / 10 rather than drifting to 49 or 51.
+ *
+ * The lower bands are rounded too, not only the criterion's own value. Canvas reads the top band
+ * for what the criterion is worth, but the ones below it are what a grader clicks, and a rubric
+ * that reads 18 / 13 / 6.5 / 0 is no better than one that reads 10.5 at the top.
+ */
+export function wholePointsOnly(rubric: RubricData): RubricData {
+  if (everyRatingNumber(rubric).every(Number.isInteger)) return rubric;
+
+  const maxes = rubric.criteria.map((c) => leadingPoints(c.exemplary));
+  const target = Math.round(maxes.reduce((sum, n) => sum + n, 0));
+  if (target <= 0) return rubric;
+
+  return withCriterionMaxes(rubric, allocatePoints(maxes, target));
+}
+
+/**
  * The edited rubric, rescaled back to what it was worth before, when that is the right thing.
  *
- * Returns `after` untouched when the request mentioned points, when the total did not move, or
- * when either side is worth nothing — rescaling from or to zero has no meaning, and a rubric with
- * no readable points is one this function has no business rewriting.
+ * Returns `after` with its totals as the model wrote them when the request mentioned points, when
+ * the total did not move, or when either side is worth nothing — rescaling from or to zero has no
+ * meaning, and a rubric with no readable points is one this function has no business rewriting.
+ *
+ * Whichever way it goes, the points come out whole unless the request asked for a decimal. That
+ * narrows "the model's arithmetic stands" to what it was always meant to mean: the user's total
+ * stands, exactly as asked. What the model does underneath it is still the app's to tidy.
  */
 export function preserveTotalAcrossEdit(
   before: RubricData,
   after: RubricData,
   request: string,
 ): RubricData {
-  if (mentionsPoints(request)) return after;
+  const settle = (rubric: RubricData): RubricData =>
+    NAMED_DECIMAL.test(request) ? rubric : wholePointsOnly(rubric);
+
+  if (mentionsPoints(request)) return settle(after);
 
   const was = canvasTotal(before);
   const now = canvasTotal(after);
-  if (was <= 0 || now <= 0) return after;
+  if (was <= 0 || now <= 0) return settle(after);
 
   const settled = was === now ? after : rescaleRubric(after, was);
 
@@ -81,5 +146,5 @@ export function preserveTotalAcrossEdit(
   const keptAtZero = new Set(
     before.criteria.filter((c) => leadingPoints(c.exemplary) <= 0).map(criterionKey),
   );
-  return withZeroCriteriaShared(settled, canvasTotal(settled), keptAtZero) ?? settled;
+  return settle(withZeroCriteriaShared(settled, canvasTotal(settled), keptAtZero) ?? settled);
 }

@@ -1189,6 +1189,24 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setCurrentStep(AppMode.DASHBOARD);
   };
 
+  /**
+   * Which of its three states the document card is in.
+   *
+   * One card rather than three. It used to be a grey panel naming the document, an amber warning
+   * when that document had been edited by hand, and a green box reporting a change run — three
+   * separate panels about one document, stacking up on top of each other, with three of their
+   * five buttons doing the same two things.
+   *
+   * A conflict wins over a run summary because it is the thing that has to be settled before
+   * anything can be written; the summary is still shown inside it, so nothing is lost by the
+   * warning taking the colour.
+   */
+  const docCardState: 'conflict' | 'updated' | 'plain' = docConflict
+    ? 'conflict'
+    : changeSummary && !isApplyingChanges
+      ? 'updated'
+      : 'plain';
+
   return (
     <div className="flex flex-col items-center justify-center py-8">
       {/* About Phase 1 - Above Main Section */}
@@ -1713,53 +1731,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   </div>
                 </div>
 
-                {/* Secondary Actions */}
+                {/*
+                  Three buttons, and all three change the rubrics themselves.
+
+                  There were five. Open in Google Docs and Save to this computer have moved into
+                  the document card at the foot of this screen, where the rest of what can be
+                  done with a document already lives. Five in one row forced every label onto
+                  three cramped lines, and the two that left were the odd ones out anyway: these
+                  three alter what is on screen, those two send it somewhere.
+                */}
                 <div className="flex gap-3 mb-3">
-                  {/*
-                    One button, two jobs. Once a document exists this writes back to it, which is
-                    what keeps its link permanent and its Google Docs revision history worth
-                    reading; creating another copy is still available, from the card below, where
-                    it reads as the deliberate choice it is rather than the default.
-                  */}
-                  <button
-                    onClick={state.savedDoc ? handleUpdateDoc : handleExportToDrive}
-                    disabled={savingToDrive || !state.isGoogleAuthenticated}
-                    title={
-                      state.isGoogleAuthenticated
-                        ? undefined
-                        : 'Sign in to Google under Initial Setup to use this'
-                    }
-                    className={`flex-1 px-4 py-3 rounded-xl font-bold disabled:bg-gray-300 disabled:text-gray-400 transition-all text-sm flex items-center justify-center gap-2 ${
-                      preferLocalOutput
-                        ? 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                        : 'bg-brand text-white hover:bg-brand-dark'
-                    }`}
-                  >
-                    {savingToDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 -960 960 960" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M220-100q-17 0-34.5-10.5T160-135L60-310q-8-14-8-34.5t8-34.5l260-446q8-14 25.5-24.5T380-860h200q17 0 34.5 10.5T640-825l182 312q-23-6-47.5-8t-48.5 2L574-780H386L132-344l94 164h316q11 23 25.5 43t33.5 37H220Zm70-180-29-51 183-319h72l101 176q-17 13-31.5 28.5T560-413l-80-139-110 192h164q-7 19-10.5 39t-3.5 41H290Zm430 160v-120H600v-80h120v-120h80v120h120v80H800v120h-80Z"/>
-                      </svg>
-                    )}
-                    {savingToDrive
-                      ? state.savedDoc
-                        ? 'Updating\u2026'
-                        : 'Creating\u2026'
-                      : state.savedDoc
-                        ? 'Update the Google Doc'
-                        : 'Open in Google Docs'}
-                  </button>
-                  <button
-                    onClick={handleSaveLocal}
-                    disabled={savingLocal}
-                    className={`flex-1 px-4 py-3 rounded-xl font-bold disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm ${
-                      preferLocalOutput
-                        ? 'bg-brand text-white hover:bg-brand-dark'
-                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                    }`}
-                  >
-                    {savingLocal ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    {savingLocal ? 'Saving\u2026' : 'Save to this computer'}
-                  </button>
                   {/*
                     Both of these open a card below, and both are toggles rather than one-way
                     switches.
@@ -1874,117 +1855,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                       </button>
                     </div>
                   </div>
-                )}
-
-                {/*
-                  The document, kept on screen rather than announced once and forgotten.
-                  Creating it used to return a file id and a link that were both thrown away, so
-                  the only record of where the rubric went was a browser tab that may have opened
-                  behind the app window or on another screen.
-                */}
-                {state.savedDoc && (
-                  <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded-2xl">
-                    <p className="text-sm font-bold text-gray-900">Google Doc</p>
-                    <p className="text-sm text-gray-700 truncate" title={state.savedDoc.name}>
-                      {state.savedDoc.name}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-4 mt-2">
-                      {/* A plain link: the window's navigation guard sends it to the system
-                          browser, and Google Docs is already on the external-link allowlist. */}
-                      <a
-                        href={state.savedDoc.webViewLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-bold text-brand hover:text-brand-dark underline"
-                      >
-                        Open
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => state.savedDoc && copy(state.savedDoc.webViewLink)}
-                        className="text-sm font-bold text-brand hover:text-brand-dark underline"
-                      >
-                        {copyState === 'copied'
-                          ? 'Link copied'
-                          : copyState === 'failed'
-                            ? 'Could not copy'
-                            : 'Copy link'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleExportToDrive}
-                        disabled={savingToDrive}
-                        className="text-sm text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
-                      >
-                        Create a new one instead
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/*
-                  Stop short of overwriting, and say what would have been lost. Each reason gets
-                  its own offer, because "create a new one" is the only move for a document that
-                  is gone, whereas an edited one is a genuine choice.
-                */}
-                {docConflict && (
-                  <div
-                    role="status"
-                    className="mb-3 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl"
-                  >
-                    <AlertTriangle
-                      className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
-                      aria-hidden="true"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-amber-900">
-                        {docConflict === 'edited'
-                          ? 'That document has been edited since the app wrote it.'
-                          : docConflict === 'trashed'
-                            ? 'That document is in your Google Drive bin.'
-                            : 'That document is no longer in your Google Drive.'}
-                      </p>
-                      <p className="mt-1 text-sm text-amber-900">
-                        {docConflict === 'edited'
-                          ? 'Updating it replaces what is there now with the rubrics in this app. Google Docs keeps a version history, so the edit could be recovered under File → Version history — but it is easier not to lose it.'
-                          : 'Nothing can be written back to it, so the rubrics need a new document.'}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {docConflict === 'edited' && (
-                          <button
-                            type="button"
-                            onClick={writeDocUpdate}
-                            disabled={savingToDrive}
-                            className="px-3 py-1.5 rounded-xl text-sm font-medium bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
-                          >
-                            Overwrite it anyway
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleExportToDrive}
-                          disabled={savingToDrive}
-                          className="px-3 py-1.5 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
-                        >
-                          Create a new document
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDocConflict(null)}
-                          className="px-3 py-1.5 rounded-xl text-sm font-medium bg-white border border-amber-300 text-amber-900 hover:bg-amber-100"
-                        >
-                          Leave it alone
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {driveSaveSuccess && (
-                  <p className="text-xs text-green-700 font-bold text-center mb-3">✓ {driveSaveSuccess}</p>
-                )}
-                {!state.isGoogleAuthenticated && (
-                  <p className="text-xs text-gray-600 text-center mb-3">Sign in with Google on the Dashboard to enable Add to Drive.</p>
                 )}
 
                 {/*
@@ -2118,57 +1988,243 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   confirmation that disappears along with the thing it is confirming is no
                   confirmation at all. Live so it is announced rather than only drawn.
                 */}
+                {/*
+                  Everything about the document, at the point the document is finished with.
+
+                  It used to sit above the rubric table, which is where a user asked why: every
+                  action on the document happens after the rubric has been read and changed, and
+                  the card naming it sat a scroll above all of them. It is now the last thing in
+                  the review card, directly before Deploy to Canvas.
+
+                  One card in three states. A run summary that needs the document updated, a
+                  document edited by hand since the app wrote it, and the plain record of where
+                  the rubrics went are all the same question — what should happen to this file —
+                  so they share one set of buttons instead of stacking three panels with three
+                  versions of the same two actions.
+
+                  role="status" stays on the outside: the summary inside it is the result of a
+                  run that has just finished, and it is announced rather than only drawn.
+                */}
                 <div role="status" aria-live="polite">
-                  {changeSummary && !isApplyingChanges && (
-                    <div className="mb-3 flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl">
-                      <CheckCircle
-                        className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
-                        aria-hidden="true"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-green-900">{changeSummary}</p>
-                        {/* The gap someone actually hit: the table redraws, the document does
-                            not, and nothing said so. */}
-                        <p className="text-sm text-green-800 mt-1">
-                          {state.savedDoc
-                            ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones.'
-                            : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
-                        </p>
+                  <div
+                    className={`mb-3 p-4 rounded-2xl border ${
+                      docCardState === 'conflict'
+                        ? 'bg-amber-50 border-amber-200'
+                        : docCardState === 'updated'
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {docCardState === 'conflict' ? (
+                        <AlertTriangle
+                          className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                          aria-hidden="true"
+                        />
+                      ) : docCardState === 'updated' ? (
+                        <CheckCircle
+                          className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+
+                      <div className="min-w-0 flex-1">
+                        {/* The run first, where there has been one: it is why the rest matters. */}
+                        {changeSummary && !isApplyingChanges && (
+                          <p
+                            className={`text-sm font-bold ${
+                              docCardState === 'conflict' ? 'text-amber-900' : 'text-green-900'
+                            }`}
+                          >
+                            {changeSummary}
+                          </p>
+                        )}
+
+                        {docCardState === 'conflict' ? (
+                          <p className="text-sm text-amber-900 mt-1">
+                            {docConflict === 'edited'
+                              ? 'That document has been edited since the app wrote it. Updating it replaces what is there now with the rubrics in this app. Google Docs keeps a version history, so the edit could be recovered under File → Version history — but it is easier not to lose it.'
+                              : docConflict === 'trashed'
+                                ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
+                                : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
+                          </p>
+                        ) : changeSummary && !isApplyingChanges ? (
+                          /* The gap someone actually hit: the table redraws, the document does
+                             not, and nothing said so. */
+                          <p className="text-sm text-green-800 mt-1">
+                            {state.savedDoc
+                              ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones.'
+                              : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
+                          </p>
+                        ) : (
+                          <p className="text-sm font-bold text-gray-900">
+                            {state.savedDoc ? 'Google Doc' : 'Not saved yet'}
+                          </p>
+                        )}
+
                         {/*
-                          The action, in the box that asks for it.
-
-                          This used to end with "use the button above", and the button was a card
-                          and a scroll away — far enough that the reasonable move was to press the
-                          nearest document control instead, which creates a second document rather
-                          than updating the first. Telling someone what to do next and then making
-                          them go and find it is most of a usability problem on its own.
-
-                          The same two handlers as the document card, deliberately: this is a
-                          shortcut to the existing actions, not a second way of doing them.
+                          The document's own name, on screen rather than announced once and
+                          forgotten. Creating it used to return a file id and a link that were
+                          both thrown away, so the only record of where the rubrics went was a
+                          browser tab that may have opened behind the app or on another screen.
                         */}
                         {state.savedDoc && (
-                          <div className="flex flex-wrap items-center gap-3 mt-3">
-                            <button
-                              type="button"
-                              onClick={handleUpdateDoc}
-                              disabled={savingToDrive}
-                              className="px-4 py-2 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark transition-all active:scale-95 disabled:opacity-50"
+                          <>
+                            <p
+                              className="text-sm text-gray-700 truncate mt-2"
+                              title={state.savedDoc.name}
                             >
-                              {savingToDrive ? 'Updating…' : 'Update the Google Doc'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleExportToDrive}
-                              disabled={savingToDrive}
-                              className="text-sm text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
-                            >
-                              Create a new one instead
-                            </button>
-                          </div>
+                              {state.savedDoc.name}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-4 mt-1">
+                              {/* A plain link: the window's navigation guard sends it to the
+                                  system browser, and Google Docs is already on the external-link
+                                  allowlist. */}
+                              <a
+                                href={state.savedDoc.webViewLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-bold text-brand hover:text-brand-dark underline"
+                              >
+                                Open
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => state.savedDoc && copy(state.savedDoc.webViewLink)}
+                                className="text-sm font-bold text-brand hover:text-brand-dark underline"
+                              >
+                                {copyState === 'copied'
+                                  ? 'Link copied'
+                                  : copyState === 'failed'
+                                    ? 'Could not copy'
+                                    : 'Copy link'}
+                              </button>
+                            </div>
+                          </>
+                        )}
+
+                        {/*
+                          The buttons the state calls for, and never two that contradict.
+
+                          A conflict offers the three ways out of it and nothing else — Update
+                          sitting beside Overwrite would be the same button twice, once with the
+                          warning attached and once without.
+                        */}
+                        <div className="flex flex-wrap items-center gap-3 mt-3">
+                          {docCardState === 'conflict' ? (
+                            <>
+                              {docConflict === 'edited' && (
+                                <button
+                                  type="button"
+                                  onClick={writeDocUpdate}
+                                  disabled={savingToDrive}
+                                  className="px-3 py-2 rounded-xl text-sm font-medium bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                                >
+                                  Overwrite it anyway
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={handleExportToDrive}
+                                disabled={savingToDrive}
+                                className="px-3 py-2 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                              >
+                                Create a new document
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDocConflict(null)}
+                                className="px-3 py-2 rounded-xl text-sm font-medium bg-white border border-amber-300 text-amber-900 hover:bg-amber-100"
+                              >
+                                Leave it alone
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              {/*
+                                One button, two jobs. Once a document exists this writes back to
+                                it, which is what keeps its link permanent and its Google Docs
+                                revision history worth reading; creating another copy is the
+                                quieter link further along, where it reads as the deliberate
+                                choice it is rather than the default.
+                              */}
+                              <button
+                                type="button"
+                                onClick={state.savedDoc ? handleUpdateDoc : handleExportToDrive}
+                                disabled={savingToDrive || !state.isGoogleAuthenticated}
+                                title={
+                                  state.isGoogleAuthenticated
+                                    ? undefined
+                                    : 'Sign in to Google under Initial Setup to use this'
+                                }
+                                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:bg-gray-300 disabled:text-gray-500 flex items-center gap-2 ${
+                                  preferLocalOutput
+                                    ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    : 'bg-brand text-white hover:bg-brand-dark'
+                                }`}
+                              >
+                                {savingToDrive && <Loader2 className="w-4 h-4 animate-spin" />}
+                                {savingToDrive
+                                  ? state.savedDoc
+                                    ? 'Updating…'
+                                    : 'Creating…'
+                                  : state.savedDoc
+                                    ? 'Update the Google Doc'
+                                    : 'Open in Google Docs'}
+                              </button>
+
+                              {/*
+                                Available whether or not the user is signed in. Google sign-in is
+                                the part of this app most likely to be broken for someone, and a
+                                rubric they cannot get out of the app is worse than one in a
+                                slightly less convenient format.
+                              */}
+                              <button
+                                type="button"
+                                onClick={handleSaveLocal}
+                                disabled={savingLocal}
+                                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 ${
+                                  preferLocalOutput
+                                    ? 'bg-brand text-white hover:bg-brand-dark'
+                                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                }`}
+                              >
+                                {savingLocal ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Download className="w-4 h-4" />
+                                )}
+                                {savingLocal ? 'Saving…' : 'Save to this computer'}
+                              </button>
+
+                              {state.savedDoc && (
+                                <button
+                                  type="button"
+                                  onClick={handleExportToDrive}
+                                  disabled={savingToDrive}
+                                  className="text-sm text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
+                                >
+                                  Create a new one instead
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+
+                        {driveSaveSuccess && (
+                          <p className="text-xs text-green-700 font-bold mt-3">
+                            ✓ {driveSaveSuccess}
+                          </p>
+                        )}
+                        {!state.isGoogleAuthenticated && (
+                          <p className="text-xs text-gray-600 mt-3">
+                            You need to go to Initial Setup and sign into Google first to use the
+                            Google Docs route. Saving to this computer works either way.
+                          </p>
                         )}
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>

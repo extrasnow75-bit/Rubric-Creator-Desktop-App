@@ -4,6 +4,7 @@ import {
   buildRubricTable,
   buildRubricHtml,
   buildRubricSetHtml,
+  namedAsRubric,
   rubricFileName,
   timestampedName,
 } from './rubricHtml'
@@ -268,17 +269,75 @@ describe('buildRubricSetHtml heading structure', () => {
    */
   it('never wraps a heading in a styled container', () => {
     const html = buildRubricSetHtml([rubric, second])
-    expect(html).not.toMatch(/<div[^>]*style[^>]*>\s*<h1/)
+    expect(html).not.toMatch(/<div[^>]*style[^>]*>\s*<h[12]/)
   })
 
   it('carries the page break on the heading itself', () => {
     const html = buildRubricSetHtml([rubric, second])
-    expect(html).toMatch(/<h1 style="page-break-before:always;/)
+    expect(html).toMatch(/<h2 style="page-break-before:always;/)
   })
 
-  it('gives every rubric an h1', () => {
-    const html = buildRubricSetHtml([rubric, second, { ...rubric, title: 'Third' }])
-    expect((html.match(/<h1/g) ?? []).length).toBe(3)
+  it('heads the document with its own name and each rubric beneath it', () => {
+    const html = buildRubricSetHtml([rubric, second, { ...rubric, title: 'Third' }], 'Wicked Problems')
+    expect((html.match(/<h1/g) ?? []).length).toBe(1)
+    expect((html.match(/<h2/g) ?? []).length).toBe(3)
+    expect(html).toContain('>Wicked Problems Rubrics</h1>')
+  })
+
+  /**
+   * The document title says what it is, because both read-back routes work from the document's
+   * text with the heading levels flattened away. A bare assignment title at the top would reach
+   * the model looking like one more rubric with no table under it.
+   */
+  it('names the document a set of rubrics', () => {
+    const html = buildRubricSetHtml([rubric, second], 'Wicked Problems')
+    expect(html).toContain('Wicked Problems Rubrics')
+  })
+
+  it('escapes the document title too', () => {
+    const html = buildRubricSetHtml([rubric, second], 'A & B <script>')
+    expect(html).toContain('A &amp; B &lt;script&gt; Rubrics')
+    expect(html).not.toContain('<script>')
+  })
+
+  /** One rubric's title is already the document's subject; a title above it says nothing. */
+  it('adds no document title to a single rubric', () => {
+    const html = buildRubricSetHtml([rubric])
+    expect((html.match(/<h1/g) ?? []).length).toBe(1)
+    expect(html).not.toContain('<h2')
+    expect(html).toContain('>Essay Rubric</h1>')
+  })
+})
+
+describe('namedAsRubric', () => {
+  it('appends the word so the file is not mistaken for the assignment', () => {
+    expect(namedAsRubric('Part 1: Systems Analysis')).toBe('Part 1: Systems Analysis Rubric')
+  })
+
+  it('says Rubrics when the document holds several', () => {
+    expect(namedAsRubric('Wicked Problems', true)).toBe('Wicked Problems Rubrics')
+  })
+
+  it('leaves a title that already names itself a rubric', () => {
+    expect(namedAsRubric('Final Rubric')).toBe('Final Rubric')
+    expect(namedAsRubric('Final Rubrics', true)).toBe('Final Rubrics')
+  })
+
+  it('does not pluralise a title whose author chose the singular', () => {
+    expect(namedAsRubric('Final Rubric', true)).toBe('Final Rubric')
+  })
+
+  it('ignores case and stray spacing', () => {
+    expect(namedAsRubric('  Essay RUBRIC  ')).toBe('Essay RUBRIC')
+  })
+
+  it('stands alone when there is no title', () => {
+    expect(namedAsRubric('')).toBe('Rubric')
+    expect(namedAsRubric('   ', true)).toBe('Rubrics')
+  })
+
+  it('does not match a word that merely ends in those letters', () => {
+    expect(namedAsRubric('Lubric')).toBe('Lubric Rubric')
   })
 })
 

@@ -33,6 +33,16 @@ interface Props {
    */
   alternative?: string;
   onAlternative?: () => void;
+  /**
+   * Whether this card's route is the one currently showing below.
+   *
+   * The button is a disclosure, not a one-way door: pressing it again puts the screen back to
+   * the three cards, which is what every other expanding control in the app already does —
+   * Request Changes, Upload Replacement and Start over all close themselves. Nothing is
+   * discarded by closing; the route is hidden, not unloaded, so a half-written description and a
+   * chosen file are both still there when it is opened again.
+   */
+  open?: boolean;
 }
 
 /** The app's own mark: a rubric table. Same grid as the title-bar icon, without the arrow. */
@@ -84,8 +94,13 @@ export const RouteCard: React.FC<Props> = ({
   onAction,
   alternative,
   onAlternative,
+  open = false,
 }) => (
-  <div className="p-5 bg-white border border-gray-200 rounded-2xl">
+  <div
+    className={`p-5 bg-white rounded-2xl ${
+      open ? 'border-2 border-brand' : 'border border-gray-200'
+    }`}
+  >
     <div className="flex items-center gap-3">
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${fromClass}`}>
         {from}
@@ -118,9 +133,19 @@ export const RouteCard: React.FC<Props> = ({
     <button
       type="button"
       onClick={onAction}
-      className="w-full mt-4 px-4 py-3 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark transition-all active:scale-95"
+      aria-expanded={open}
+      className={`w-full mt-4 px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 ${
+        open
+          ? 'bg-brand/10 text-brand border-2 border-brand hover:bg-brand/20'
+          : 'bg-brand text-white hover:bg-brand-dark'
+      }`}
     >
-      {action}
+      {/*
+        An open card's button is the way back out, so it says so. Leaving it reading "Start from
+        a description" while it closes what it started would be a button lying about itself. The
+        card's own heading sits directly above, so one word is enough to say what is closing.
+      */}
+      {open ? 'Close' : action}
     </button>
 
     {alternative && onAlternative && (

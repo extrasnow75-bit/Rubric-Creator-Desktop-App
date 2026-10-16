@@ -185,8 +185,8 @@ export function buildRubricHtml(rubric: RubricData): string {
 export function buildRubricSetHtml(rubrics: RubricData[], documentTitle?: string): string {
   const title = documentTitle?.trim() || rubrics[0]?.title || 'Rubrics'
   /*
-   * Each heading is a top-level <h1> carrying its own page break — never an <h1> inside a styled
-   * <div>, which is what this used to be.
+   * Every heading is a top-level element carrying its own page break — never a heading inside a
+   * styled <div>, which is what this used to be.
    *
    * Google Docs imported the first rubric's title as Heading 1 and every later one as ordinary
    * bold text, and the only difference between them was that the later ones sat inside
@@ -195,15 +195,38 @@ export function buildRubricSetHtml(rubrics: RubricData[], documentTitle?: string
    * level with inline styles and they import correctly, which is what identifies the wrapper
    * rather than the inline style as the cause.
    *
-   * Real Heading 1s matter beyond appearance: they populate the Docs outline, so a document of
-   * eight rubrics can be navigated from the sidebar instead of scrolled.
+   * Real headings matter beyond appearance: they populate the Docs outline, so a document of
+   * eight rubrics can be navigated from the sidebar instead of scrolled. Where there are several,
+   * the document's own name is the Heading 1 and each rubric a Heading 2 beneath it, which is the
+   * shape the outline is for; a lone rubric keeps the Heading 1 for itself.
    */
+  /*
+   * The document names itself on its first page.
+   *
+   * Without this the file opens straight onto the first rubric's heading, so a printed copy or a
+   * PDF passed to a faculty developer says which rubric it starts with and nothing about what the
+   * set is. The name in Drive carried that, and a name in Drive does not survive being printed.
+   *
+   * Only when there are several rubrics. One rubric's own title is already the document's
+   * subject, and repeating it as a title above itself says nothing.
+   *
+   * It takes the "Rubrics" suffix for the same reason the file does — but here it earns its keep
+   * twice over. Both routes that read a saved document back work from its text, with the heading
+   * levels flattened away, so this line arrives at the model as one more line to account for.
+   * "Wicked Problems Rubrics" names itself as the document; the bare assignment title would sit
+   * there looking exactly like a ninth rubric with no table under it.
+   */
+  const heading = (level: 2 | 1, text: string, pageBreak: boolean) =>
+    `<h${level} style="${pageBreak ? 'page-break-before:always;' : ''}` +
+    `font-family:${FONT};font-size:${level === 1 ? 22 : 16}pt;">${escapeHtml(text)}</h${level}>`
+
+  const several = rubrics.length > 1
+  const docHeading = several ? heading(1, namedAsRubric(title, true), false) : ''
+
   const sections = rubrics
     .map(
       (rubric, i) =>
-        `<h1 style="${i > 0 ? 'page-break-before:always;' : ''}` +
-        `font-family:${FONT};font-size:16pt;">${escapeHtml(rubric.title)}</h1>` +
-        buildRubricTable(rubric),
+        heading(several ? 2 : 1, rubric.title, i > 0) + buildRubricTable(rubric),
     )
     .join('')
 
@@ -214,6 +237,7 @@ export function buildRubricSetHtml(rubrics: RubricData[], documentTitle?: string
     '<style>@page { size: landscape; margin: 0.5in; }' +
     `body { font-family: ${FONT}; margin: 24px; }</style>` +
     '</head><body>' +
+    docHeading +
     sections +
     '</body></html>'
   )
@@ -248,6 +272,28 @@ export function rubricFileName(rubric: RubricData, extension: string): string {
  * it — as does this app's own "Save to this computer". One format that survives every
  * destination beats a prettier one that gets rewritten to "6_25pm" on the way out.
  */
+/**
+ * The document's name says it holds a rubric: "Part 1: Systems Analysis Rubric".
+ *
+ * A rubric is named after the thing it marks, so without this the file in Drive is called "Part
+ * 1: Systems Analysis" — indistinguishable from the assignment description it was written from,
+ * which is very likely sitting in the same folder.
+ *
+ * Appended rather than prefixed, because that is how anyone would say it out loud. It costs the
+ * alphabetical grouping a prefix would give, which matters less than it sounds: the stamp already
+ * sorts a document's versions, and Drive is searched more often than it is browsed.
+ *
+ * A title that already ends in "Rubric" or "Rubrics" is left exactly as it is, in whichever
+ * number its author chose. Someone who has called their document "Final Rubric" does not want it
+ * renamed to "Final Rubric Rubrics".
+ */
+export function namedAsRubric(base: string, plural = false): string {
+  const stem = (base ?? '').trim()
+  if (!stem) return plural ? 'Rubrics' : 'Rubric'
+  if (/\brubrics?$/i.test(stem)) return stem
+  return `${stem} ${plural ? 'Rubrics' : 'Rubric'}`
+}
+
 export function timestampedName(base: string, when: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   const hours = when.getHours()

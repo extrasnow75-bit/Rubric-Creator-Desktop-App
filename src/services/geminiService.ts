@@ -20,7 +20,7 @@ import {
 } from '../types';
 import { repairRatingBands } from '../utils/rubricPoints';
 import { ipcErrorMessage } from '../utils/ipcErrorMessage';
-import { preserveTotalAcrossEdit } from '../utils/preserveTotal';
+import { preserveTotalAcrossEdit, wholePointsOnly } from '../utils/preserveTotal';
 import { alignByTitle, chunk } from '../utils/rubricBatching';
 
 // These mirror the declarations in electron/ipc/gemini.ts. Kept in step by hand: the two
@@ -203,7 +203,15 @@ export const suggestPointSplit = (
     window.api.gemini.suggestPointSplit({ criteria, totalPoints, jobId }),
   );
 
-/** `target` narrows the rubric to one deliverable; omit it for the assignment as a whole. */
+/**
+ * `target` narrows the rubric to one deliverable; omit it for the assignment as a whole.
+ *
+ * Whole points, because this is the app writing them. A model asked to split 100 across seven
+ * criteria has no reason not to answer 14.3, and nobody drafting a rubric by hand would. The
+ * rounding is not applied to a screenshot or a document — those numbers belong to whoever wrote
+ * them — nor to an edit, which has a request to read first: "make each one worth 4.5" is a
+ * decimal the user chose, and preserveTotalAcrossEdit is where that is noticed.
+ */
 export const generateRubricFromDescription = (
   assignmentDescription: string,
   settings: GenerationSettings,
@@ -219,7 +227,7 @@ export const generateRubricFromDescription = (
         target,
       }),
     ),
-  );
+  ).then(wholePointsOnly);
 
 export const generateRubricFromScreenshot = (
   imageData: { data: string; mimeType: string },
