@@ -19,6 +19,7 @@ import * as gemini from './ipc/gemini'
 import {
   buildRubricSetHtml,
   namedAsRubric,
+  restamped,
   rubricFileName,
   timestampedName,
 } from './ipc/rubricHtml'
@@ -556,14 +557,16 @@ ipcMain.handle(
       rubrics: RubricData[]
       documentTitle?: string
       /**
-       * Leave the file's name as it is.
+       * The document's current name, for one the app did not create.
        *
-       * A document the app created is renamed on every write, so the timestamp in its name goes
-       * on describing its contents. A document the app was handed — one opened for editing — is
-       * named by whoever made it, and renaming someone's own file to suit this app's convention
-       * is not an edit they asked for.
+       * Every document this app writes to carries the time it was last written, so an update
+       * always moves the stamp — otherwise a document edited at half past two goes on claiming
+       * eleven o'clock, which is worse than no stamp at all. What differs is the name under the
+       * stamp: a document the app made is named after its rubrics, while one it was handed keeps
+       * whatever its owner called it. Passing that name here is what keeps the second case
+       * theirs.
        */
-      keepName?: boolean
+      sourceName?: string
     },
   ) => {
     if (args.rubrics.length === 0) {
@@ -573,7 +576,9 @@ ipcMain.handle(
       const written = await updateDriveFile({
         fileId: args.fileId,
         content: buildRubricSetHtml(args.rubrics, args.documentTitle),
-        name: args.keepName ? undefined : docNameFor(args.rubrics, args.documentTitle),
+        name: args.sourceName
+          ? restamped(args.sourceName)
+          : docNameFor(args.rubrics, args.documentTitle),
         sourceMimeType: 'text/html',
         targetMimeType: GOOGLE_DOC_MIME,
       })

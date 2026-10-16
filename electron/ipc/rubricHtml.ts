@@ -294,6 +294,29 @@ export function namedAsRubric(base: string, plural = false): string {
   return `${stem} ${plural ? 'Rubrics' : 'Rubric'}`
 }
 
+/**
+ * The stamp a name already carries, if it carries one.
+ *
+ * Matched tightly — four-digit year, two-digit month and day, an hour with a full stop and am or
+ * pm, in brackets at the very end — because the only names this should recognise are ones
+ * timestampedName wrote. "Rubrics (final)" and "Essay (v2)" are somebody's own wording and are
+ * left exactly as they are.
+ */
+const STAMP = /\s*\(\d{4}-\d{2}-\d{2} \d{1,2}\.\d{2}[ap]m\)$/
+
+/**
+ * The same document name, stamped with now.
+ *
+ * Used when writing over a document the app did not create. Its name is the user's, so the name
+ * is kept and only its stamp moves — and where there is no stamp, one is added, because a
+ * document this app has just rewritten should say when that happened. "Course Rubrics FINAL"
+ * becomes "Course Rubrics FINAL (2026-10-16 6.30pm)", and stays that on every later write rather
+ * than growing a second stamp each time.
+ */
+export function restamped(name: string, when: Date = new Date()): string {
+  return timestampedName(name.replace(STAMP, ''), when)
+}
+
 export function timestampedName(base: string, when: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   const hours = when.getHours()

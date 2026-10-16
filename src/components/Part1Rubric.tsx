@@ -910,7 +910,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     try {
       const result = await window.api.rubric.updateDriveDoc({
         fileId: doc.fileId,
-        keepName: doc.adopted,
+        sourceName: doc.adopted ? doc.name : undefined,
         ...docPayload(),
       });
       if (result.ok && result.fileId && result.webViewLink) {
@@ -919,6 +919,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           webViewLink: result.webViewLink,
           name: result.name ?? doc.name,
           version: result.version ?? '',
+          // Carried, or a second update would treat the document as one of ours and rename it
+          // after its rubrics — undoing the whole point of keeping the owner's name.
+          adopted: doc.adopted,
         });
         setDocConflict(null);
         setDriveSaveSuccess('Google Doc updated. Same document, same link.');

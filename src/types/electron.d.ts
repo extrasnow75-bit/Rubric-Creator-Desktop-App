@@ -100,8 +100,12 @@ declare global {
           fileId: string
           rubrics: RubricData[]
           documentTitle?: string
-          /** Leave the file's name alone — for a document the app was handed, not one it made. */
-          keepName?: boolean
+          /**
+           * The document's current name, for one the app was handed rather than made.
+           *
+           * The stamp moves on every update either way; this keeps the name under it theirs.
+           */
+          sourceName?: string
         }): Promise<DriveDocResult>
         /**
          * What has happened to that document since the app last wrote it.

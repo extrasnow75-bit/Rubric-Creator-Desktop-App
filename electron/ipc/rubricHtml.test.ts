@@ -5,6 +5,7 @@ import {
   buildRubricHtml,
   buildRubricSetHtml,
   namedAsRubric,
+  restamped,
   rubricFileName,
   timestampedName,
 } from './rubricHtml'
@@ -306,6 +307,52 @@ describe('buildRubricSetHtml heading structure', () => {
     expect((html.match(/<h1/g) ?? []).length).toBe(1)
     expect(html).not.toContain('<h2')
     expect(html).toContain('>Essay Rubric</h1>')
+  })
+})
+
+describe('restamped', () => {
+  const at = (iso: string) => new Date(iso)
+
+  it('moves the stamp a document already carries', () => {
+    expect(
+      restamped('Part 1: Systems Analysis Rubric (2026-10-15 11.00am)', at('2026-10-16T18:30:00')),
+    ).toBe('Part 1: Systems Analysis Rubric (2026-10-16 6.30pm)')
+  })
+
+  it('stamps a name that has never had one', () => {
+    expect(restamped('Course Rubrics FINAL', at('2026-10-16T18:30:00'))).toBe(
+      'Course Rubrics FINAL (2026-10-16 6.30pm)',
+    )
+  })
+
+  /** Otherwise a document edited three times ends up with three stamps in its name. */
+  it('never adds a second stamp', () => {
+    let name = 'Essay Rubric'
+    for (const t of ['2026-10-16T09:00:00', '2026-10-16T12:00:00', '2026-10-16T18:30:00']) {
+      name = restamped(name, at(t))
+    }
+    expect(name).toBe('Essay Rubric (2026-10-16 6.30pm)')
+  })
+
+  it('leaves brackets that are not a stamp alone', () => {
+    expect(restamped('Rubrics (final)', at('2026-10-16T18:30:00'))).toBe(
+      'Rubrics (final) (2026-10-16 6.30pm)',
+    )
+    expect(restamped('Essay (v2)', at('2026-10-16T18:30:00'))).toBe(
+      'Essay (v2) (2026-10-16 6.30pm)',
+    )
+  })
+
+  it('only matches a stamp at the end', () => {
+    expect(restamped('(2026-10-15 11.00am) notes', at('2026-10-16T18:30:00'))).toBe(
+      '(2026-10-15 11.00am) notes (2026-10-16 6.30pm)',
+    )
+  })
+
+  it('falls back to Rubric when the name was only a stamp', () => {
+    expect(restamped('(2026-10-15 11.00am)', at('2026-10-16T18:30:00'))).toBe(
+      'Rubric (2026-10-16 6.30pm)',
+    )
   })
 })
 
