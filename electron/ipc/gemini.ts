@@ -1083,6 +1083,7 @@ export async function generateRubricFromScreenshot(
 export async function extractRubricFromDocument(
   documentText: string,
   signal?: AbortSignal,
+  rubricName?: string,
 ): Promise<RubricData> {
   await throttle(signal);
 
@@ -1090,10 +1091,24 @@ export async function extractRubricFromDocument(
     if (signal?.aborted) throw new Error('Request cancelled');
     const ai = getClient();
 
+    /*
+      One rubric out of a document that may hold many.
+
+      A document of eight rubrics used to be read as a single one — whichever the model decided
+      was the document's rubric — because nothing said which was wanted. The name comes from the
+      discovery pass that listed them, so it is the model's own wording for that heading and
+      matches the document exactly.
+    */
+    const whichOne = rubricName?.trim()
+      ? `This document contains SEVERAL rubrics. Extract ONLY the one titled "${rubricName.trim()}", ` +
+        `and ignore every other rubric in the document completely. If no rubric by that name is ` +
+        `there, take the one whose title is closest to it.`
+      : 'The following document contains an existing rubric.'
+
     const prompt = `
     Act as an expert in instructional design and assessment.
 
-    The following document contains an existing rubric. Extract and structure it into the RubricData JSON format.
+    ${whichOne} Extract and structure it into the RubricData JSON format.
     Do NOT generate new content, modify criteria, or change any point values.
     Simply read what is already there and return it in the required JSON structure.
 

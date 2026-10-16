@@ -65,7 +65,63 @@ export const RubricGridIcon: React.FC = () => (
   </svg>
 );
 
-/** Where rubrics end up. The same target the stepper uses for the Canvas step. */
+/**
+ * The rubric grid again, marked as revised.
+ *
+ * The star sits on the tile's corner rather than inside the 24px grid: inside, it competes with
+ * the grid's own strokes and disappears. The outline is the tile's colour, so the points keep a
+ * clean edge instead of dissolving into the blue — which matters here more than anywhere, since
+ * both tiles on that card are the same blue and the star is the only thing telling them apart.
+ */
+export const RevisedRubricIcon: React.FC = () => (
+  <span className="relative">
+    <RubricGridIcon />
+    <span className="absolute -top-2.5 -right-2.5 leading-none">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="#eab308"
+        stroke="#1d4ed8"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 2.5l2.9 5.9 6.6.95-4.75 4.65 1.1 6.5L12 17.4l-5.85 3.1 1.1-6.5L2.5 9.35l6.6-.95z" />
+      </svg>
+    </span>
+  </span>
+);
+
+/**
+ * Canvas's own mark, drawn the way Canvas Extractor Tools draws it.
+ *
+ * Eight arc segments and eight dots around one centre, rather than a copied logo file — the same
+ * geometry, so the two apps show the same thing to the same people on the same day. It replaces
+ * a pair of concentric circles with a filled middle, which at 24px was a record button.
+ */
+export const CanvasLogoIcon: React.FC = () => (
+  <svg width="24" height="24" viewBox="0 0 100 100" fill="#fff" aria-hidden="true">
+    <path d="M 38 14 A 12 12 0 0 0 62 14 Z" />
+    <path d="M 38 14 A 12 12 0 0 0 62 14 Z" transform="rotate(45,50,50)" />
+    <path d="M 38 14 A 12 12 0 0 0 62 14 Z" transform="rotate(90,50,50)" />
+    <path d="M 38 14 A 12 12 0 0 0 62 14 Z" transform="rotate(135,50,50)" />
+    <path d="M 38 14 A 12 12 0 0 0 62 14 Z" transform="rotate(180,50,50)" />
+    <path d="M 38 14 A 12 12 0 0 0 62 14 Z" transform="rotate(225,50,50)" />
+    <path d="M 38 14 A 12 12 0 0 0 62 14 Z" transform="rotate(270,50,50)" />
+    <path d="M 38 14 A 12 12 0 0 0 62 14 Z" transform="rotate(315,50,50)" />
+    <circle cx="50" cy="28" r="5" transform="rotate(22.5,50,50)" />
+    <circle cx="50" cy="28" r="5" transform="rotate(67.5,50,50)" />
+    <circle cx="50" cy="28" r="5" transform="rotate(112.5,50,50)" />
+    <circle cx="50" cy="28" r="5" transform="rotate(157.5,50,50)" />
+    <circle cx="50" cy="28" r="5" transform="rotate(202.5,50,50)" />
+    <circle cx="50" cy="28" r="5" transform="rotate(247.5,50,50)" />
+    <circle cx="50" cy="28" r="5" transform="rotate(292.5,50,50)" />
+    <circle cx="50" cy="28" r="5" transform="rotate(337.5,50,50)" />
+  </svg>
+);
+
+/** Kept for the stepper, which still uses the target for its Canvas step. */
 export const CanvasTargetIcon: React.FC = () => (
   <svg
     width="24"
@@ -124,6 +180,8 @@ export const RouteCard: React.FC<Props> = ({
         <line x1="4" y1="12" x2="19" y2="12" />
         <polyline points="13 6 19 12 13 18" />
       </svg>
+      {/* No overflow-hidden anywhere on this row: the revised-rubric star sits outside its
+          icon's box on purpose, and a clipped star is a smudge. */}
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${toClass}`}>{to}</div>
     </div>
 

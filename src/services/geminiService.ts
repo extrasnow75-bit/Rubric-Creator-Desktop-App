@@ -238,12 +238,21 @@ export const generateRubricFromScreenshot = (
     window.api.gemini.generateRubricFromScreenshot({ imageData, settings, jobId }),
   );
 
+/**
+ * One rubric, read out of a document exactly as written.
+ *
+ * `rubricName` picks it out of a document holding several — it comes from the discovery pass
+ * that listed them, so it is the document's own heading rather than anything the user typed.
+ * Without it the model decides for itself which rubric the document is "about", which is the
+ * right answer only when there is one.
+ */
 export const extractRubricFromDocument = (
   documentText: string,
   signal?: AbortSignal,
+  rubricName?: string,
 ): Promise<RubricData> =>
   withCancellation(signal, (jobId) =>
-    window.api.gemini.extractRubricFromDocument({ documentText, jobId }),
+    window.api.gemini.extractRubricFromDocument({ documentText, rubricName, jobId }),
   );
 
 /**

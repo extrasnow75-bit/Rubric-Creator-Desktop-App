@@ -218,6 +218,8 @@ declare global {
         }): Promise<RubricData>
         extractRubricFromDocument(a: {
           documentText: string
+          /** Which rubric to take, where the document holds several. */
+          rubricName?: string
           jobId?: string
         }): Promise<RubricData>
         applyRubricChanges(a: {

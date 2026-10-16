@@ -9,7 +9,12 @@ import {
 } from 'lucide-react';
 import { getRecentDocs, saveRecentDoc, RecentDoc } from '../utils/recentDocs';
 import { revealSection, REVEAL_DELAY_MS } from '../utils/revealSection';
-import { RouteCard, RubricGridIcon, CanvasTargetIcon } from './RouteCard';
+import {
+  RouteCard,
+  RubricGridIcon,
+  RevisedRubricIcon,
+  CanvasLogoIcon,
+} from './RouteCard';
 import { AppMode } from '../types';
 import { validateGeminiApiKey } from '../services/geminiService';
 import { AnalyzeDeploySection, UploadedDocFile } from './AnalyzeDeploySection';
@@ -186,7 +191,9 @@ export const Dashboard: React.FC = () => {
   const analyzeRef = useRef<HTMLDivElement>(null);
 
   // ── Phase 1 inline mode ──
-  const [phase1Mode, setPhase1Mode] = useState<'none' | 'rubric' | 'screenshot'>('none');
+  const [phase1Mode, setPhase1Mode] = useState<'none' | 'rubric' | 'screenshot' | 'edit'>(
+    'none',
+  );
   /**
    * Whether the chosen route is folded away again.
    *
@@ -399,8 +406,11 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  /** Which card's route is on screen, or null when the three cards stand alone. */
-  const openRoute: 'draft' | 'screenshot' | 'deploy' | null = routeCollapsed
+  /** The four doors on the opening screen. */
+  type Route = 'draft' | 'screenshot' | 'edit' | 'deploy';
+
+  /** Which card's route is on screen, or null when the four cards stand alone. */
+  const openRoute: Route | null = routeCollapsed
     ? null
     : hasDraftRubric === 'yes'
       ? 'deploy'
@@ -408,7 +418,9 @@ export const Dashboard: React.FC = () => {
         ? 'draft'
         : phase1Mode === 'screenshot'
           ? 'screenshot'
-          : null;
+          : phase1Mode === 'edit'
+            ? 'edit'
+            : null;
 
   /**
    * Take one of the three routes off the opening screen.
@@ -419,7 +431,7 @@ export const Dashboard: React.FC = () => {
    * The person most likely to press it is the one whose Google sign-in has just failed, and
    * making them discover the fallback mid-flow is the wrong order.
    */
-  const chooseRoute = (route: 'draft' | 'screenshot' | 'deploy', local = false) => {
+  const chooseRoute = (route: Route, local = false) => {
     // The button of the route already showing is the way back out of it, the same as every other
     // disclosure in the app. Pressing a *different* card's button switches routes, and a switch
     // always opens.
@@ -437,7 +449,7 @@ export const Dashboard: React.FC = () => {
    * already open is someone changing their mind about the destination, not asking to put the
    * screen away — and the route it would have folded up is the one holding their work.
    */
-  const chooseLocalRoute = (route: 'draft' | 'screenshot') => {
+  const chooseLocalRoute = (route: 'draft' | 'screenshot' | 'edit') => {
     setPreferLocalOutput(true);
     if (route === openRoute) {
       setRouteCollapsed(false);
@@ -447,7 +459,7 @@ export const Dashboard: React.FC = () => {
   };
 
   /** Switch to a route from scratch: the shared half of the two handlers above. */
-  function openRouteFresh(route: 'draft' | 'screenshot' | 'deploy', local: boolean) {
+  function openRouteFresh(route: Route, local: boolean) {
     setRouteCollapsed(false);
     setPreferLocalOutput(local);
     if (route === 'deploy') {
@@ -457,7 +469,7 @@ export const Dashboard: React.FC = () => {
     handleDraftRubricChange('no');
     // No scroll here: the effect watching phase1Mode already reveals the same element after the
     // same delay, and does it with a cancellable timer. A second one only risks fighting it.
-    setPhase1Mode(route === 'draft' ? 'rubric' : 'screenshot');
+    setPhase1Mode(route === 'draft' ? 'rubric' : route === 'edit' ? 'edit' : 'screenshot');
   }
 
   // ── File handling ──
@@ -899,18 +911,22 @@ export const Dashboard: React.FC = () => {
         {coreSetupComplete && (
           <SetupCard isValid={draftRubricValid} noGlow>
             {/*
-              Three doors, no question.
+              Four doors, no question.
 
               This was a dropdown asking "Do you already have a draft rubric document ready to
               deploy?" — which made the user classify themselves, in the app's own vocabulary,
               before the app had shown them anything it could do. Answering wrongly was invisible,
               because both branches look like the whole app.
 
-              Three cards state the three things the app does and let the choice be made by
+              Four cards state the four things the app does and let the choice be made by
               recognition instead. The icon pairs are the point: the blue rubric grid is the
-              OUTPUT of the first two and the INPUT of the third, so the set reads as a workflow
-              rather than three unrelated buttons, and the colours are the ones already used in
-              the stepper at the top of the window.
+              OUTPUT of the first two and the INPUT of the last two, so the set reads as a
+              workflow rather than four unrelated buttons, and the colours are the ones already
+              used in the stepper at the top of the window.
+
+              Stacked rather than gridded even at four. A 2x2 would fit above the fold, but it
+              breaks the reading order the icons are carrying, and the card that would fall
+              bottom-right is the one that leaves the app.
             */}
             <div className="space-y-4">
               <RouteCard
@@ -939,12 +955,32 @@ export const Dashboard: React.FC = () => {
                 alternative="or save to this computer instead (.html)"
                 onAlternative={() => chooseLocalRoute('screenshot')}
               />
+              {/*
+                Third, because the order is the life of a rubric: make one, make one from a
+                picture, change one, send it. Canvas last, as the only card that leaves the app.
+
+                Both tiles are the rubric grid — this is the one route that starts and ends at
+                the same kind of thing — so the star is doing all the work of telling them apart.
+              */}
               <RouteCard
                 from={<RubricGridIcon />}
                 fromClass="bg-blue-700"
-                to={<CanvasTargetIcon />}
-                toClass="bg-red-700"
-                title="Send draft rubrics you already have to Canvas"
+                to={<RevisedRubricIcon />}
+                toClass="bg-blue-700"
+                title="Edit existing draft rubrics"
+                description="Choose a rubric document you already have. The app reads the rubrics in it so you can ask for changes, then writes the new versions into the same Google Doc."
+                action="Choose rubrics to edit"
+                onAction={() => chooseRoute('edit')}
+                open={openRoute === 'edit'}
+                alternative="or save to this computer instead (.html)"
+                onAlternative={() => chooseLocalRoute('edit')}
+              />
+              <RouteCard
+                from={<RubricGridIcon />}
+                fromClass="bg-blue-700"
+                to={<CanvasLogoIcon />}
+                toClass="bg-[#EA4335]"
+                title="Upload your existing draft rubrics to Canvas"
                 description="Choose a finished rubric document. The app converts it to Canvas CSV files and deploys them to your course."
                 action="Choose a rubric document"
                 onAction={() => chooseRoute('deploy')}
@@ -1304,15 +1340,28 @@ export const Dashboard: React.FC = () => {
             already set by the time this renders, so the chosen tool appears directly.
           */}
           {/* Inline Phase 1 content */}
-          {phase1Mode === 'rubric' && (
+          {(phase1Mode === 'rubric' || phase1Mode === 'edit') && (
             <div
               ref={phase1Ref}
               tabIndex={-1}
               role="region"
-              aria-label="Assignment description to rubric"
+              aria-label={
+                phase1Mode === 'edit'
+                  ? 'Edit existing draft rubrics'
+                  : 'Assignment description to rubric'
+              }
               className="mt-4 focus:outline-none"
             >
+              {/*
+                The same component for both, because after the first screen the two routes are
+                the same screen. Drafting and editing differ only in where the rubrics come
+                from — a description the AI writes from, or a document it reads them out of —
+                and everything after that (the table, Request Changes, the document card, the
+                deploy card) is identical. `mode` changes the first screen and the one call it
+                makes; a second component would have been a copy of the other 2,000 lines.
+              */}
               <Part1Rubric
+                mode={phase1Mode === 'edit' ? 'edit' : 'draft'}
                 onAnalyzeDeploy={() => handleAnalyzeDeploy('no')}
                 canAnalyzeDeploy={geminiValid && canvasTokenValid}
                 preferLocalOutput={preferLocalOutput}

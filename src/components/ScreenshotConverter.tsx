@@ -857,7 +857,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                   className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm flex items-center justify-center gap-2"
                 >
                   <RotateCw className="w-4 h-4" />
-                  Upload Replacement Rubric
+                  Replace this rubric from a file
                 </button>
                 <button
                   onClick={() => { setShowRequestChangesCard(true); setShowReplaceCard(false); }}
@@ -1053,11 +1053,11 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
         )}
       </div>
 
-      {/* Upload Replacement Rubric card — appears below main card */}
+      {/* Replace-this-rubric card — appears below main card */}
       {showReplaceCard && state.rubric && (
         <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl mt-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xl font-black text-gray-900">Upload Replacement Rubric</h3>
+            <h3 className="text-xl font-black text-gray-900">Replace this rubric from a file</h3>
             <button
               onClick={() => { setShowReplaceCard(false); setReplaceFileText(null); setReplaceFileName(null); setError(null); }}
               className="text-gray-600 hover:text-gray-700 transition-colors flex-shrink-0 ml-4"

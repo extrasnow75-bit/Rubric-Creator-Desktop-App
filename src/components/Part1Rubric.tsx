@@ -4,7 +4,32 @@ import { useCopyAction } from '../hooks/useCopyAction';
 import { ipcErrorMessage } from '../utils/ipcErrorMessage';
 import { describeDuplicateTitles } from '../utils/duplicateTitles';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
-import { AppMode, PointStyle, ProcessingType, GenerationSettings, RubricData } from '../types';
+import {
+  AppMode,
+  PointStyle,
+  ProcessingType,
+  GenerationSettings,
+  RubricData,
+  RubricMeta,
+} from '../types';
+
+/**
+ * The document's text, wrapped as the kind of attachment the discovery call takes.
+ *
+ * Every route into this screen — a pasted rubric, a .docx from the desktop, a Google Doc from
+ * Drive — has already been reduced to plain text by the time it lands in state, and the rubric
+ * listing call was written for file attachments. Rather than a second listing call for text,
+ * the text goes back as a text/plain attachment: the same request, one encode away.
+ *
+ * btoa alone throws on anything outside Latin-1, and rubrics are full of curly quotes and
+ * en-dashes, so the text is encoded as UTF-8 bytes first.
+ */
+function documentAsAttachment(text: string) {
+  const utf8 = new TextEncoder().encode(text);
+  let binary = '';
+  for (const byte of utf8) binary += String.fromCharCode(byte);
+  return { name: 'rubrics.txt', mimeType: 'text/plain', data: btoa(binary) };
+}
 import { generateCsvFromRubricObject } from '../utils/rubricCsv';
 import { CsvSaveOptions } from './CsvSaveOptions';
 import { RubricAdjustPanel } from './RubricAdjustPanel';
@@ -25,6 +50,7 @@ import {
 import {
   generateRubricFromDescription,
   extractRubricFromDocument,
+  extractRubricMetadata,
   applyRubricChanges,
   suggestPointSplit,
   discoverDeliverables,
@@ -59,13 +85,24 @@ interface Part1RubricProps {
    * like the way forward.
    */
   preferLocalOutput?: boolean;
+  /**
+   * Where the rubrics come from: written from a description, or read out of a document.
+   *
+   * Everything after the first screen is identical — the same table, the same Request Changes,
+   * the same document card, the same deploy card — so this is one component with two front
+   * doors rather than two components sharing 2,000 lines. `mode` decides what the input card
+   * asks for, which call the discovery pass makes, and which call fills each ticked row.
+   */
+  mode?: 'draft' | 'edit';
 }
 
 export const Part1Rubric: React.FC<Part1RubricProps> = ({
   onAnalyzeDeploy,
   canAnalyzeDeploy,
   preferLocalOutput = false,
+  mode = 'draft',
 }) => {
+  const editing = mode === 'edit';
   const {
     state,
     setCurrentStep,
@@ -453,7 +490,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    */
   const handleGenerateRubric = async () => {
     if (!assignmentDescription.trim()) {
-      setError('Please enter an assignment description');
+      setError(
+        editing
+          ? 'Choose a rubric document first, or paste its contents in.'
+          : 'Please enter an assignment description',
+      );
       return;
     }
 
@@ -461,7 +502,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setError(null);
     setIsDiscovering(true);
     startProgress(1, true);
-    setProgress({ currentStep: 'Reading the assignment description...' });
+    setProgress({
+      currentStep: editing
+        ? 'Looking for the rubrics in your document...'
+        : 'Reading the assignment description...',
+    });
 
     /**
      * Held in a const, and this is the whole of the Stop fix.
@@ -475,6 +520,56 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
      * the app generated the single rubric the user had just asked it not to.
      */
     const signal = getAbortSignal();
+
+    /*
+      Editing takes a different first step and the same second one.
+
+      Drafting asks the model what parts an assignment has; editing asks what rubrics a document
+      already holds. Both end in a ticked list, and from there the run is identical — one call
+      per ticked row, through the same pool, into the same review screen.
+    */
+    if (editing) {
+      let names: RubricMeta[] = [];
+      try {
+        names = await extractRubricMetadata([documentAsAttachment(assignmentDescription)], signal);
+      } catch (err: any) {
+        setIsDiscovering(false);
+        stopProgress();
+        if (!signal.aborted) setError(ipcErrorMessage(err));
+        return;
+      }
+      setIsDiscovering(false);
+      stopProgress();
+      if (signal.aborted) return;
+
+      if (names.length === 0) {
+        setError(
+          'No rubrics were found in that document. Check that it is the rubric document rather ' +
+            'than the assignment description, and that the rubrics are in tables.',
+        );
+        return;
+      }
+
+      /*
+        Nothing starts ticked, however few were found.
+
+        Each one costs its own request, and the document that makes this feature worth having is
+        the long one — a 39-rubric set where two need a wording change. A list that arrives all
+        ticked turns that into 39 requests for anyone who presses the button without reading it.
+        "Toggle all" is one click away for the case where the whole set really is wanted.
+      */
+      setPlan(
+        names.map((meta, i) => ({
+          id: `found-${i}`,
+          kind: 'deliverable' as const,
+          title: meta.name,
+          focus: '',
+          points: String(meta.totalPoints ?? ''),
+          selected: false,
+        })),
+      );
+      return;
+    }
 
     let found: Deliverable[] = [];
     try {
@@ -602,13 +697,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       );
     });
 
+    const verb = editing ? 'Reading' : 'Writing';
     const describeRun = () => {
       const remaining = entries.length - done;
-      if (entries.length === 1) return 'Generating rubric criteria...';
+      if (entries.length === 1) {
+        return editing ? 'Reading the rubric...' : 'Generating rubric criteria...';
+      }
       const width = Math.min(oneAtATime.current ? 1 : CONCURRENT_DRAFTS, remaining);
       return width > 1
-        ? `Writing ${width} rubrics at once (${done} of ${entries.length} done)...`
-        : `Writing "${entries[done]?.title || 'the rubric'}" (${done + 1} of ${entries.length})...`;
+        ? `${verb} ${width} rubrics at once (${done} of ${entries.length} done)...`
+        : `${verb} "${entries[done]?.title || 'the rubric'}" (${done + 1} of ${entries.length})...`;
     };
 
     const draftOne = async (i: number) => {
@@ -616,12 +714,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       try {
         // `signal` third: without it withCancellation never sends gemini:cancel, so Stop did
         // nothing and the user watched a dead button through the retry back-off.
-        drafted[i] = await generateRubricFromDescription(
-          assignmentDescription,
-          { ...settings, totalPoints: entry.points },
-          signal,
-          entry.target,
-        );
+        drafted[i] = editing
+          ? // Reading, not writing: the document's words and its points come back untouched,
+            // which is why no settings are passed and why nothing rounds them afterwards.
+            await extractRubricFromDocument(assignmentDescription, signal, entry.title)
+          : await generateRubricFromDescription(
+              assignmentDescription,
+              { ...settings, totalPoints: entry.points },
+              signal,
+              entry.target,
+            );
       } catch (err: any) {
         if (signal.aborted) return;
         // One rubric failing does not cost the others; it is named at the end instead.
@@ -671,7 +773,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           TRUE however the user had set it.
         */
         setScoringMethod(settings.pointStyle === PointStyle.RANGE ? 'ranges' : 'fixed');
-        setRubricSource('generated');
+        /*
+          'uploaded' for an edit run, which is what turns off the point-style repairs.
+
+          Those exist to correct rubrics the AI wrote. A rubric read out of someone's document
+          is their own work; checkRubricPoints still reports what it finds there, but nothing
+          rewrites it on the way in.
+        */
+        setRubricSource(editing ? 'uploaded' : 'generated');
         // A new set of rubrics: the previous run's markers and summary describe rubrics that no
         // longer exist, and the remembered Google Doc holds the set that has just been replaced.
         setRevisedIndexes([]);
@@ -1211,20 +1320,26 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     <div className="flex flex-col items-center justify-center py-8">
       {/* About Phase 1 - Above Main Section */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-6 max-w-2xl w-full">
-        <h3 className="text-sm font-black text-gray-900 mb-1">About Phase 1</h3>
+        <h3 className="text-sm font-black text-gray-900 mb-1">
+          {editing ? 'About editing rubrics' : 'About Phase 1'}
+        </h3>
         <p className="text-sm text-gray-700">
-          Paste or upload an assignment description, or a screenshot of a rubric you already have.
-          The app drafts a rubric you can edit, then opens it as a Google Doc or saves it to this
-          computer. Part 2 turns it into a Canvas CSV, and Part 3 sends it to your course.
+          {editing
+            ? 'Choose a rubric document you already have, from this computer or from Google Drive. The app lists the rubrics in it and reads the ones you tick, so you can ask for changes in your own words. The revised rubrics can then go back to a Google Doc, to this computer, or straight to Canvas.'
+            : 'Paste or upload an assignment description, or a screenshot of a rubric you already have. The app drafts a rubric you can edit, then opens it as a Google Doc or saves it to this computer. Part 2 turns it into a Canvas CSV, and Part 3 sends it to your course.'}
         </p>
       </div>
 
       <div className={`bg-white p-10 rounded-3xl shadow-2xl border border-gray-100 w-full transition-all duration-300 ${showComparison && state.rubric ? 'max-w-5xl' : 'max-w-2xl'}`}>
         {!state.rubric ? (
           <>
-            <h2 className="text-2xl font-black text-gray-900 mb-2">Create Draft Rubric</h2>
+            <h2 className="text-2xl font-black text-gray-900 mb-2">
+              {editing ? 'Edit Existing Draft Rubrics' : 'Create Draft Rubric'}
+            </h2>
             <p className="text-gray-600 font-medium mb-8">
-              Specify the type of rubric you'd like and then paste or upload an assignment description.
+              {editing
+                ? 'Choose the rubric document you want to change. The app lists the rubrics in it, and reads only the ones you tick.'
+                : "Specify the type of rubric you'd like and then paste or upload an assignment description."}
             </p>
 
             {/*
@@ -1253,9 +1368,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 onConfirm={() => void handleConfirmPlan()}
                 onCancel={() => setPlan(null)}
                 busy={isGenerating}
+                mode={mode}
               />
             ) : (
             <>
+            {/*
+              No settings when editing. Total points, the point style and the processing type all
+              describe a rubric about to be written; a rubric being read already has its own, and
+              a box offering to change them would be promising something this route does not do.
+            */}
+            {!editing && (
             <div className="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-2xl space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1303,6 +1425,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 />
               </div>
             </div>
+            )}
 
             {/* Input Mode Toggle */}
             <div className="flex gap-3 mb-6 border-b border-gray-200">
@@ -1350,7 +1473,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             >
               <FileText className="w-8 h-8 text-gray-600" />
               <p className="text-sm font-bold text-gray-800">
-                Drop an assignment description document here or click to browse
+                {editing
+                  ? 'Drop a rubric document here or click to browse'
+                  : 'Drop an assignment description document here or click to browse'}
               </p>
               <p className="text-xs text-gray-700">(.docx, .pdf, or .txt)</p>
               <input
@@ -1363,7 +1488,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 }}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 id="file-input"
-                aria-label="Drop an assignment description document here or click to browse"
+                aria-label={
+                  editing
+                    ? 'Drop a rubric document here or click to browse'
+                    : 'Drop an assignment description document here or click to browse'
+                }
               />
             </div>
 
@@ -1376,7 +1505,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             <textarea
               value={assignmentDescription}
               onChange={(e) => setAssignmentDescription(e.target.value)}
-              placeholder="Or paste your assignment description here..."
+              placeholder={
+                editing
+                  ? 'Or paste your rubrics here...'
+                  : 'Or paste your assignment description here...'
+              }
               className="w-full h-48 p-4 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
             />
 
@@ -1393,15 +1526,22 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 >
                   {(isGenerating || isDiscovering) && <Loader2 className="w-5 h-5 animate-spin" />}
                   {isDiscovering
-                    ? 'Reading the description...'
+                    ? editing
+                      ? 'Finding the rubrics...'
+                      : 'Reading the description...'
                     : isGenerating
-                      ? 'Generating Rubric...'
-                      : 'Analyze Description'}
+                      ? editing
+                        ? 'Reading the rubrics...'
+                        : 'Generating Rubric...'
+                      : editing
+                        ? 'Find the rubrics in this document'
+                        : 'Analyze Description'}
                 </button>
                 {assignmentDescription.trim() && (
                   <p className="text-xs text-gray-600 text-center mt-2 italic">
-                    The app reads the description first to see how many rubrics it needs. Nothing
-                    is written until you confirm.
+                    {editing
+                      ? 'The app lists the rubrics it finds first. Nothing is read in full until you tick the ones you want.'
+                      : 'The app reads the description first to see how many rubrics it needs. Nothing is written until you confirm.'}
                   </p>
                 )}
               </>
@@ -1568,10 +1708,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 >
                   {(isGenerating || isDiscovering) && <Loader2 className="w-5 h-5 animate-spin" />}
                   {isDiscovering
-                    ? 'Reading the description...'
+                    ? editing
+                      ? 'Finding the rubrics...'
+                      : 'Reading the description...'
                     : isGenerating
-                      ? 'Generating Rubric...'
-                      : 'Analyze Description'}
+                      ? editing
+                        ? 'Reading the rubrics...'
+                        : 'Generating Rubric...'
+                      : editing
+                        ? 'Find the rubrics in this document'
+                        : 'Analyze Description'}
                 </button>
               </>
             )}
@@ -1623,7 +1769,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 */}
                 {plan !== null && (
                   <div className="mb-6 p-5 bg-white border-2 border-brand rounded-2xl shadow-md">
-                    <h3 className="text-lg font-black text-gray-900 mb-1">Choose the parts again</h3>
+                    <h3 className="text-lg font-black text-gray-900 mb-1">
+                      {editing ? 'Choose the rubrics again' : 'Choose the parts again'}
+                    </h3>
                     <p className="text-sm text-gray-700 mb-4">
                       Rename anything, change the points, tick or untick a part. Drafting replaces
                       the {state.rubrics.length === 1 ? 'rubric' : `${state.rubrics.length} rubrics`} below.
@@ -1633,6 +1781,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                       onChange={setPlan}
                       onConfirm={() => void handleConfirmPlan()}
                       onCancel={() => setPlan(null)}
+                      mode={mode}
                       busy={isGenerating}
                     />
                   </div>
@@ -1766,7 +1915,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     }`}
                   >
                     <RotateCw className="w-4 h-4" />
-                    Upload Replacement Rubric to App
+                    Replace this rubric from a file
                   </button>
                   <button
                     onClick={() => {
@@ -1811,7 +1960,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                       }`}
                     >
                       <RotateCcw className="w-4 h-4" />
-                      Start over from the description
+                      {editing ? 'Choose different rubrics' : 'Start over from the description'}
                     </button>
                   )}
                 </div>
@@ -1824,12 +1973,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 {showStartOverCard && lastPlan && (
                   <div className="mb-6 p-4 bg-white border-2 border-brand rounded-2xl">
                     <p className="text-sm font-bold text-gray-900 mb-1">
-                      Re-draft from the assignment description?
+                      {editing
+                        ? 'Go back to the list of rubrics in the document?'
+                        : 'Re-draft from the assignment description?'}
                     </p>
                     <p className="text-sm text-gray-700 mb-3">
-                      This brings back the list of parts so you can change which ones get a rubric,
-                      their names and their points — then writes every ticked rubric again from
-                      scratch.
+                      {editing
+                        ? 'This brings back the list the app found in your document so you can tick a different set — then reads every ticked rubric again from the document.'
+                        : 'This brings back the list of parts so you can change which ones get a rubric, their names and their points — then writes every ticked rubric again from scratch.'}
                       <span className="font-bold">
                         {' '}
                         Everything currently on screen is replaced, including any changes you have
@@ -1845,7 +1996,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         }}
                         className="px-4 py-2 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark transition-all active:scale-95"
                       >
-                        Choose the parts again
+                        {editing ? 'Choose the rubrics again' : 'Choose the parts again'}
                       </button>
                       <button
                         onClick={() => setShowStartOverCard(false)}
@@ -2533,11 +2684,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         </div>
       )}
 
-      {/* Upload Replacement Rubric card — appears below main card */}
+      {/* Replace-this-rubric card — appears below main card */}
       {showReplaceCard && state.rubric && (
         <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl mt-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xl font-black text-gray-900">Upload Replacement Rubric</h3>
+            <h3 className="text-xl font-black text-gray-900">Replace this rubric from a file</h3>
             <button
               onClick={() => { setShowReplaceCard(false); setReplaceFileText(null); setReplaceFileName(null); setError(null); }}
               aria-label="Close upload replacement rubric"

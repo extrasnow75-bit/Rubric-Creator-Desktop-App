@@ -20,6 +20,15 @@ interface Props {
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
+  /**
+   * `draft` proposes parts of an assignment; `edit` lists rubrics found in a document.
+   *
+   * The list is the same control doing the same job — tick what this run covers, before it
+   * costs anything — but two of its fields stop making sense when the rubrics already exist.
+   * Points come from the document, and the name is how each rubric is found in it, so neither
+   * is editable here; renaming is still a click away in "Adjust this rubric" afterwards.
+   */
+  mode?: 'draft' | 'edit';
 }
 
 export const DeliverableChecklist: React.FC<Props> = ({
@@ -28,12 +37,24 @@ export const DeliverableChecklist: React.FC<Props> = ({
   onConfirm,
   onCancel,
   busy = false,
+  mode = 'draft',
 }) => {
+  const editing = mode === 'edit';
   const update = (id: string, patch: Partial<RubricPlanRow>) =>
     onChange(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
-  const problems = planProblems(rows);
   const chosen = selectedRows(rows).length;
+
+  /*
+    Only the "tick something" rule survives into edit mode. The rest of planProblems guards
+    against a rubric reaching Canvas unnamed or worth nothing, and neither can happen here: the
+    names and the points are the document's own, and this screen cannot change them.
+  */
+  const problems = editing
+    ? chosen === 0
+      ? ['Tick at least one rubric to change.']
+      : []
+    : planProblems(rows);
   const found = rows.filter((r) => r.kind === 'deliverable').length;
   const allChosen = chosen === rows.length;
 
@@ -54,13 +75,18 @@ export const DeliverableChecklist: React.FC<Props> = ({
         <ListChecks className="w-5 h-5 text-brand flex-shrink-0 mt-0.5" aria-hidden="true" />
         <div>
           <h3 className="text-lg font-black text-gray-900">
-            {found === 1
-              ? 'This assignment looks like it has one separate part'
-              : `This assignment looks like it has ${found} separate parts`}
+            {editing
+              ? rows.length === 1
+                ? 'There is one rubric in this document'
+                : `There are ${rows.length} rubrics in this document`
+              : found === 1
+                ? 'This assignment looks like it has one separate part'
+                : `This assignment looks like it has ${found} separate parts`}
           </h3>
           <p className="text-sm text-gray-600 mt-1">
-            Tick what should get its own rubric. Nothing is created until you choose — you can
-            rename anything here, and the name is what appears in Canvas.
+            {editing
+              ? 'Tick the ones you want to change. Each is read separately, so taking only what you need keeps the run short — a document of forty rubrics costs two requests if you tick two.'
+              : 'Tick what should get its own rubric. Nothing is created until you choose — you can rename anything here, and the name is what appears in Canvas.'}
           </p>
         </div>
       </div>
@@ -89,14 +115,26 @@ export const DeliverableChecklist: React.FC<Props> = ({
             />
             <div className="flex-1 min-w-0">
               {/* The visible name is editable because it becomes the Canvas rubric's name, and
-                  deploying only ever adds — a name fixed afterwards means deleting by hand. */}
-              <input
-                type="text"
-                value={row.title}
-                onChange={(e) => update(row.id, { title: e.target.value })}
-                aria-label={`Name for ${row.title || 'this rubric'}`}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg font-bold text-gray-900 text-sm focus:border-brand focus:outline-none"
-              />
+                  deploying only ever adds — a name fixed afterwards means deleting by hand.
+                  Not when editing: there the name is how the rubric is found in the document,
+                  and changing it here would send the model looking for a heading that is not
+                  there. */}
+              {editing ? (
+                <label
+                  htmlFor={`plan-${row.id}`}
+                  className="block px-2 py-1.5 font-bold text-gray-900 text-sm cursor-pointer"
+                >
+                  {row.title}
+                </label>
+              ) : (
+                <input
+                  type="text"
+                  value={row.title}
+                  onChange={(e) => update(row.id, { title: e.target.value })}
+                  aria-label={`Name for ${row.title || 'this rubric'}`}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded-lg font-bold text-gray-900 text-sm focus:border-brand focus:outline-none"
+                />
+              )}
               {row.kind === 'whole' ? (
                 <p className="text-xs text-gray-600 mt-1">
                   One rubric covering the assignment as a whole.
@@ -106,6 +144,12 @@ export const DeliverableChecklist: React.FC<Props> = ({
               )}
             </div>
             <div className="flex-shrink-0">
+              {editing ? (
+                <p className="text-xs text-gray-600 mt-2 tabular-nums">
+                  {row.points ? `${row.points} points` : ''}
+                </p>
+              ) : (
+              <>
               <label
                 htmlFor={`points-${row.id}`}
                 className="block text-[11px] font-bold text-gray-600 mb-1"
@@ -120,6 +164,8 @@ export const DeliverableChecklist: React.FC<Props> = ({
                 onChange={(e) => update(row.id, { points: e.target.value })}
                 className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-900 tabular-nums focus:border-brand focus:outline-none"
               />
+              </>
+              )}
             </div>
           </li>
         ))}
@@ -145,11 +191,17 @@ export const DeliverableChecklist: React.FC<Props> = ({
           {/* "Draft", not "Create": what comes back is a first pass to revise, and the screen
               after this one is built around changing it. A button that says Create promises a
               finished thing. */}
-          {busy
-            ? 'Drafting…'
-            : chosen === 1
-              ? 'Draft 1 rubric'
-              : `Draft ${chosen} rubrics`}
+          {editing
+            ? busy
+              ? 'Reading…'
+              : chosen === 1
+                ? 'Open 1 rubric for changes'
+                : `Open ${chosen} rubrics for changes`
+            : busy
+              ? 'Drafting…'
+              : chosen === 1
+                ? 'Draft 1 rubric'
+                : `Draft ${chosen} rubrics`}
         </button>
         <button
           onClick={onCancel}
@@ -163,6 +215,11 @@ export const DeliverableChecklist: React.FC<Props> = ({
         {chosen > 1 && !busy && (
           <p className="text-xs text-gray-600">
             {chosen} separate requests, roughly {chosen * 10} seconds.
+          </p>
+        )}
+        {editing && rows.length > chosen && !busy && (
+          <p className="text-xs text-gray-600">
+            The {rows.length - chosen} you leave unticked stay in the document untouched.
           </p>
         )}
       </div>

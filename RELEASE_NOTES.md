@@ -1,5 +1,57 @@
 ## What's new in v0.9.25
 
+### A fourth card: edit rubrics you already have
+
+The opening screen had no door for the most ordinary job of all — changing a rubric that already
+exists. You could only get there by drafting something new, or by finding **Upload Replacement
+Rubric to App**, a button buried inside the review screen that handled one rubric at a time and
+read as though it uploaded something to a Google Doc. (It never did. It read a file from your
+computer and replaced the rubric on screen. It is now called **Replace this rubric from a file**,
+which says the direction, the scope and the source.)
+
+**Edit existing draft rubrics** takes a document from this computer or from Google Drive, lists
+the rubrics it finds, and reads only the ones you tick:
+
+> There are 39 rubrics in this document
+> Tick the ones you want to change. Each is read separately, so taking only what you need keeps
+> the run short — a document of forty rubrics costs two requests if you tick two.
+
+Nothing starts ticked. Each rubric is its own request, and the document that makes this feature
+worth having is the long one where two rubrics need a wording change. "Toggle all" is one click
+away when the whole set really is wanted.
+
+From there it is the screen you already know: the rubric table, Request Changes, the document
+card, Deploy to Canvas. The rubrics come in exactly as written — the app reads them, it does not
+redraft them — so your points and your wording survive the trip.
+
+**The cards are now in the order a rubric lives in:** draft one from a description, draft one from
+a screenshot, edit ones you have, send them to Canvas. The Canvas card is last because it is the
+only one that leaves the app, and it now reads **Upload your existing draft rubrics to Canvas**.
+
+### Two icons
+
+The Canvas tile was two concentric circles with a filled middle, which at that size is a record
+button. It is now Canvas's own mark, drawn the same way Canvas Extractor Tools draws it, in the
+same red — the two apps are open on the same screen on the same day, so the same thing should
+look the same in both.
+
+The new edit card is the only route that starts and ends at the same kind of thing, so its second
+rubric tile carries a star.
+
+### Worth knowing before you edit someone else's rubric
+
+**Four rating levels, always.** This app's rubrics have exactly four — Exemplary, Proficient,
+Developing, Unsatisfactory — and that is what a rubric read out of a document becomes. Your
+criteria, your wording and your points come across untouched, but a rubric with three levels or
+five is fitted to four, and level names of your own ("Excellent", "Needs work") are replaced by
+the four above. If a rubric's levels matter more than its criteria, check it on screen before
+deploying.
+
+**If the document is not a rubric document,** the app says so rather than inventing one: the first
+pass looks for tables with criteria, ratings and points, and reports that it found nothing where
+there is nothing to find. The list of names it shows you is the checkpoint — if those names are
+not your rubrics, press Back rather than ticking them.
+
 ### The first rating no longer lands in the Criterion Description
 
 An eCampus course developer deployed several rubrics to a sandbox and found that every criterion
@@ -74,7 +126,7 @@ A document holding several rubrics now also names itself on its first page, as a
 first rubric, with each rubric a heading beneath it. The Google Docs outline sidebar shows the
 set's name and every rubric in it.
 
-### The three opening cards close again
+### The opening cards close again
 
 Each card's button opened its route and nothing put it away. Pressing the same button again now
 folds the route back up and returns you to the three cards — the same behaviour Request Changes

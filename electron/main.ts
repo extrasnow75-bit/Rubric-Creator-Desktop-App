@@ -417,8 +417,8 @@ ipcMain.handle(
 
 ipcMain.handle(
   'gemini:extractRubricFromDocument',
-  (_e, a: { documentText: string; jobId?: string }) =>
-    withJob(a.jobId, (s) => gemini.extractRubricFromDocument(a.documentText, s)),
+  (_e, a: { documentText: string; rubricName?: string; jobId?: string }) =>
+    withJob(a.jobId, (s) => gemini.extractRubricFromDocument(a.documentText, s, a.rubricName)),
 )
 
 ipcMain.handle(
