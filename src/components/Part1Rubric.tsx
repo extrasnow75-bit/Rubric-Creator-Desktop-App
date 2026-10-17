@@ -3,6 +3,7 @@ import { useSession } from '../contexts/SessionContext';
 import { useCopyAction } from '../hooks/useCopyAction';
 import { ipcErrorMessage } from '../utils/ipcErrorMessage';
 import { describeDuplicateTitles } from '../utils/duplicateTitles';
+import { rubricsFingerprint } from '../utils/rubricFingerprint';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 import {
   AppMode,
@@ -916,9 +917,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           // Carried, or a second update would treat the document as one of ours and rename it
           // after its rubrics — undoing the whole point of keeping the owner's name.
           adopted: doc.adopted,
+          // What the document now holds. The save button compares against this to know whether
+          // there is anything left to save.
+          contentKey: rubricsFingerprint(docPayload().rubrics),
         });
         setDocConflict(null);
-        setDriveSaveSuccess('Google Doc updated. Same document, same link.');
+        setDriveSaveSuccess('Saved to the Google Doc. Same document, same link.');
       } else {
         setError(result.message ?? 'Could not update the Google Doc.');
       }
@@ -988,6 +992,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           webViewLink: result.webViewLink,
           name: result.name ?? 'Rubric',
           version: result.version ?? '',
+          contentKey: rubricsFingerprint(docPayload().rubrics),
         });
         setDriveSaveSuccess(`Opened in your browser, saved to "${folder.folderName}"`);
       } else {
@@ -1294,6 +1299,32 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     newBatch();
     setCurrentStep(AppMode.DASHBOARD);
   };
+
+  /**
+   * Whether the document already holds what is on screen.
+   *
+   * Saving an unchanged set is not a harmless no-op: it writes an identical revision, moves the
+   * timestamp in the document's name, and replaces anything typed into that document by hand.
+   * So the button switches itself off rather than inviting a press that can only cost something.
+   *
+   * It compares the rubrics themselves, not whether the change box has been typed in. A rename
+   * and a points change never touch that box and are real changes the document should get, and
+   * applying a change clears the box while leaving the document a version behind.
+   *
+   * A document saved before this existed has no fingerprint, so the button stays available —
+   * the safe way round, since the alternative is a button that refuses to save a document that
+   * really is out of date.
+   */
+  const liveFingerprint = React.useMemo(
+    () => rubricsFingerprint(docPayload().rubrics),
+    // The rubrics array's identity, which changes when the set is replaced or one is revised.
+    // Memoised for the work it skips: this component re-renders four times a second while a
+    // run's progress ticks, and a 39-rubric set is a long string to build each time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.rubrics, state.rubric],
+  );
+  const docIsCurrent =
+    !!state.savedDoc?.contentKey && state.savedDoc.contentKey === liveFingerprint;
 
   /**
    * Which of its three states the document card is in.
@@ -2086,14 +2117,26 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                       rubric silently unchanged.
                     */}
                     <label className="flex items-start gap-3 mt-3 cursor-pointer select-none">
+                      {/*
+                        The box stays visible when it is disabled; only the words beside it dim.
+
+                        It used to fade to 40%, and an empty checkbox at 40% on a grey panel is
+                        invisible — leaving "then tick this to send it" pointing at nothing, which
+                        reads as a leftover sentence rather than an instruction. Dimming the text
+                        says "not yet" without hiding the thing being described.
+                      */}
                       <input
                         type="checkbox"
                         checked={changesConfirmed}
                         disabled={queuedIndexes.length === 0}
                         onChange={(e) => setChangesConfirmed(e.target.checked)}
-                        className="mt-0.5 w-4 h-4 accent-brand flex-shrink-0 disabled:opacity-40"
+                        className="mt-0.5 w-4 h-4 accent-brand flex-shrink-0 disabled:cursor-not-allowed"
                       />
-                      <span className="text-sm text-gray-700">
+                      <span
+                        className={`text-sm ${
+                          queuedIndexes.length === 0 ? 'text-gray-600' : 'text-gray-700'
+                        }`}
+                      >
                         {queuedIndexes.length === 0 ? (
                           'Describe a change above, then tick this to send it.'
                         ) : queuedIndexes.length === 1 ? (
@@ -2291,11 +2334,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                               <button
                                 type="button"
                                 onClick={state.savedDoc ? handleUpdateDoc : handleExportToDrive}
-                                disabled={savingToDrive || !state.isGoogleAuthenticated}
+                                disabled={
+                                  savingToDrive || !state.isGoogleAuthenticated || docIsCurrent
+                                }
                                 title={
-                                  state.isGoogleAuthenticated
-                                    ? undefined
-                                    : 'Sign in to Google under Initial Setup to use this'
+                                  !state.isGoogleAuthenticated
+                                    ? 'Sign in to Google under Initial Setup to use this'
+                                    : docIsCurrent
+                                      ? 'The document already holds these rubrics'
+                                      : undefined
                                 }
                                 className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:bg-gray-300 disabled:text-gray-500 flex items-center gap-2 ${
                                   preferLocalOutput
@@ -2304,12 +2351,20 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                 }`}
                               >
                                 {savingToDrive && <Loader2 className="w-4 h-4 animate-spin" />}
+                                {/*
+                                  "Update the Google Doc" was read as pulling the document's own
+                                  edits back into the app — the opposite of what it does. The
+                                  rubrics go out; the document is a destination, the same as the
+                                  button beside it. Two labels starting "Save to" can only be
+                                  read one way, and the line below carries what "Update" used to
+                                  say about replacing what is there.
+                                */}
                                 {savingToDrive
                                   ? state.savedDoc
-                                    ? 'Updating…'
+                                    ? 'Saving…'
                                     : 'Creating…'
                                   : state.savedDoc
-                                    ? 'Update the Google Doc'
+                                    ? 'Save changes to the Google Doc'
                                     : 'Open in Google Docs'}
                               </button>
 
@@ -2362,8 +2417,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         */}
                         {state.savedDoc && (
                           <p className="text-xs text-gray-600 mt-3">
-                            Updating replaces what is in the document. Google Docs keeps the
-                            previous version under File → Version history.
+                            {docIsCurrent
+                              ? 'The document already holds these rubrics. Change one above and this turns back on.'
+                              : 'Saving replaces what is in the document. Google Docs keeps the previous version under File → Version history.'}
                           </p>
                         )}
 

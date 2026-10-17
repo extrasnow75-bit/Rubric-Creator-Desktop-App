@@ -107,6 +107,13 @@ export interface SavedRubricDoc {
    * alone; a document the app made is renamed on every write so its timestamp stays honest.
    */
   adopted?: boolean;
+  /**
+   * A signature of the rubrics as they were written into this document.
+   *
+   * Compared against the rubrics on screen to decide whether there is anything to save. Absent
+   * on a document from an older session, which simply means the button stays available.
+   */
+  contentKey?: string;
 }
 
 export interface RubricMeta {

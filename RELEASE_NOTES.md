@@ -1,3 +1,28 @@
+## What's new in v0.9.27
+
+### Saving to the Google Doc says which way it goes
+
+**Update the Google Doc** was read as pulling the document's own edits back into the app. It does
+the opposite: the rubrics in the app are written out to the document. It now reads **Save changes
+to the Google Doc**, beside **Save to this computer** — two destinations, one verb, no way to read
+either backwards.
+
+Bringing a document's own edits *into* the app is a different route entirely: **Edit existing
+draft rubrics**, on the opening screen.
+
+**And it switches off when there is nothing to save.** Pressing it with no changes made used to
+write an identical revision, move the timestamp in the document's name, and replace anything
+typed into that document by hand — all for nothing. The app now records what it wrote and
+compares, so the button is live only when the rubrics genuinely differ. A rename or a points
+change counts, not just an AI run.
+
+### The tick box you could not see
+
+"Describe a change above, then tick this to send it" sat beside a checkbox drawn at 40% opacity
+while it was disabled, which on a grey panel is invisible. The instruction pointed at nothing.
+The box stays visible now; only the words beside it dim.
+
+
 ## What's new in v0.9.26
 
 ### One button for changing a rubric
@@ -34,6 +59,9 @@ previous version went:
 
 A document in your bin or deleted outright still says so, because nothing can be written to it
 and a new document is the only move left.
+
+*(The button itself was renamed in v0.9.27, above — it reads "Save changes to the Google Doc"
+now, because "Update" was being read as pulling the document's edits back into the app.)*
 
 ### What gets sent to Canvas, said out loud
 
