@@ -1,3 +1,32 @@
+## What's new in v0.9.28
+
+### Applying a change now saves it
+
+Asking for a change and saving it were one intention split across two buttons. You would type
+"add a criterion for APA formatting", press **Apply changes to 1 rubric**, watch the table
+redraw — and the document in Drive still held the old version until you pressed a second button.
+
+The run writes the document itself now. The summary says so: *Your Google Doc has been updated to
+match. Same document, same link.* Google Docs keeps the version before it under **File → Version
+history**, as it always has.
+
+**Save changes to the Google Doc** stays, for the changes no AI run makes: renaming a rubric or
+changing its points in the instant section. It is also the way back if the write fails — signed
+out, offline, or a document moved to the bin, each of which is said plainly rather than left for
+you to notice.
+
+### The tab you are on is the tab you used
+
+Choosing an assignment description from Drive lit **From Local Drive** — the app switched tabs so
+the extracted words could be shown in the paste box. The file had come from Drive, so the screen
+was saying something untrue about where it was.
+
+The tab stays where you left it. The file's name sits under the **Browse Google Drive** button as
+it did, now with the count of words read beside it, and *read them here* opens the text in place
+if you want to check or correct it before the run. The same fix applies to **Edit existing draft
+rubrics**, which has the same two tabs.
+
+
 ## What's new in v0.9.27
 
 ### Saving to the Google Doc says which way it goes

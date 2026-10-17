@@ -171,6 +171,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * already live for the people this app is for — the local dropzone is the fallback, not the
    * common case. Someone signed out lands on a sign-in prompt with "From Local Drive" sitting
    * one click away, which is a prompt rather than a wall.
+   *
+   * Loading a file from Drive used to switch this to 'text', so that the words it gave us could
+   * be read in the paste box. That left "From Local Drive" lit after a document had come from
+   * Drive, which says the wrong thing about where it came from — and the Drive tab has its own
+   * Analyze button, so the switch was never what made the run possible. The tab stays put now
+   * and the words are folded under the file's name.
    */
   const [inputMode, setInputMode] = useState<'text' | 'google-doc'>('google-doc');
   const [googleDocUrl, setGoogleDocUrl] = useState<string>('');
@@ -179,6 +185,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
   // File picker feedback & recent docs
   const [pickedFileName, setPickedFileName] = useState<string | null>(null);
+  /** Whether the text read out of the chosen document is open for checking. */
+  const [showPickedText, setShowPickedText] = useState(false);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>(() => getRecentDocs());
   const [showRecentDocs, setShowRecentDocs] = useState(false);
 
@@ -406,10 +414,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       }
 
       setAssignmentDescription(text);
+      setPickedFileName(meta.name);
+      setShowPickedText(false);
       await adoptSourceDoc(fileId, meta.mimeType, meta.name);
       saveRecentDoc({ name: meta.name, url: urlToSave, source: 'url' });
       setRecentDocs(getRecentDocs());
-      setInputMode('text');
       setGoogleDocUrl('');
     } catch (err: any) {
       setError(`Failed to fetch from Google Drive: ${err.message}`);
@@ -464,10 +473,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
       setAssignmentDescription(text);
       setPickedFileName(result.name);
+      setShowPickedText(false);
       await adoptSourceDoc(result.fileId, result.mimeType, result.name);
       saveRecentDoc({ name: result.name, fileId: result.fileId, mimeType: result.mimeType, source: 'picker' });
       setRecentDocs(getRecentDocs());
-      setInputMode('text');
       setGoogleDocUrl('');
     } catch (err: any) {
       setError(`Failed to open Google Drive: ${err.message}`);
@@ -885,28 +894,38 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * lost on the way to Drive.
    */
   /** The rubrics that go into the document, and the name it is filed under. */
-  const docPayload = () => ({
-    rubrics: state.rubrics.length > 0 ? state.rubrics : state.rubric ? [state.rubric] : [],
-    documentTitle:
-      state.rubrics.length > 1 ? describedAssignmentTitle(snapshotDescription) : undefined,
+  const docPayloadFrom = (rubrics: RubricData[]) => ({
+    rubrics,
+    documentTitle: rubrics.length > 1 ? describedAssignmentTitle(snapshotDescription) : undefined,
   });
+  /**
+   * The rubrics as this render sees them.
+   *
+   * A run that has just revised them must not use this: `updateRubricAt` queues a state change
+   * rather than making one, so inside the handler that did the revising, `state.rubrics` still
+   * holds the versions that were replaced. Those paths build their own array and pass it to
+   * `docPayloadFrom` instead.
+   */
+  const docPayload = () =>
+    docPayloadFrom(state.rubrics.length > 0 ? state.rubrics : state.rubric ? [state.rubric] : []);
 
   /**
    * Write the rubrics over the document the app made earlier.
    *
-   * Split from the check in front of it so that "overwrite anyway" can call it directly once the
-   * user has seen what they would be overwriting.
+   * Split from the check in front of it, and reporting its failure rather than showing it: an
+   * apply run calls this with a rubric failure of its own possibly already in hand, and the two
+   * messages belong in one sentence rather than overwriting each other.
    */
-  const writeDocUpdate = async () => {
+  const writeDocUpdate = async (rubrics: RubricData[]): Promise<string | null> => {
     const doc = state.savedDoc;
-    if (!doc) return;
+    if (!doc) return null;
     setSavingToDrive(true);
     setDriveSaveSuccess(null);
     try {
       const result = await window.api.rubric.updateDriveDoc({
         fileId: doc.fileId,
         sourceName: doc.adopted ? doc.name : undefined,
-        ...docPayload(),
+        ...docPayloadFrom(rubrics),
       });
       if (result.ok && result.fileId && result.webViewLink) {
         setSavedDoc({
@@ -919,15 +938,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           adopted: doc.adopted,
           // What the document now holds. The save button compares against this to know whether
           // there is anything left to save.
-          contentKey: rubricsFingerprint(docPayload().rubrics),
+          contentKey: rubricsFingerprint(rubrics),
         });
         setDocConflict(null);
         setDriveSaveSuccess('Saved to the Google Doc. Same document, same link.');
-      } else {
-        setError(result.message ?? 'Could not update the Google Doc.');
+        return null;
       }
+      return result.message ?? 'Could not update the Google Doc.';
     } catch (err) {
-      setError(`Google Drive update failed: ${err instanceof Error ? err.message : String(err)}`);
+      return `Google Drive update failed: ${err instanceof Error ? err.message : String(err)}`;
     } finally {
       setSavingToDrive(false);
     }
@@ -946,29 +965,37 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * outright cannot be written to by anybody, so an update there is not a risk to weigh but a
    * fact to report, and the only move left is a new document.
    */
-  const handleUpdateDoc = async () => {
+  const saveRubricsToDoc = async (rubrics: RubricData[]): Promise<string | null> => {
     const doc = state.savedDoc;
-    if (!doc) return;
+    if (!doc) return null;
     setSavingToDrive(true);
     setDriveSaveSuccess(null);
     setDocConflict(null);
     try {
       const check = await window.api.rubric.checkDriveDoc({ fileId: doc.fileId });
-      if (!check.ok) {
-        setError(check.message);
-        return;
-      }
+      if (!check.ok) return check.message;
       if (check.status === 'trashed' || check.status === 'missing') {
+        /* Not an error to report in words: the card turns amber and offers the one move left. */
         setDocConflict(check.status);
-        return;
+        return null;
       }
     } catch (err) {
-      setError(`Could not reach Google Drive: ${err instanceof Error ? err.message : String(err)}`);
-      return;
+      return `Could not reach Google Drive: ${err instanceof Error ? err.message : String(err)}`;
     } finally {
       setSavingToDrive(false);
     }
-    await writeDocUpdate();
+    return writeDocUpdate(rubrics);
+  };
+
+  /**
+   * The button's own version: save what is on screen, and say so if it did not work.
+   *
+   * It stays because a rename or a points change in the instant section never runs the AI, so
+   * nothing else would carry those into the document.
+   */
+  const handleUpdateDoc = async () => {
+    const message = await saveRubricsToDoc(docPayload().rubrics);
+    if (message) setError(message);
   };
 
   const handleExportToDrive = async () => {
@@ -1188,6 +1215,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
     const revised: number[] = [];
     const failed: string[] = [];
+    /* The rubrics as they will stand when the run ends, built alongside the state updates so the
+       document can be written from them. See docPayload: `state.rubrics` is still the old set. */
+    const nextRubrics = [...state.rubrics];
 
     try {
       for (let n = 0; n < queuedIndexes.length; n++) {
@@ -1209,6 +1239,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         try {
           const updated = await applyRubricChanges(target, changeDrafts[index] ?? '', signal);
           updateRubricAt(index, updated);
+          nextRubrics[index] = updated;
           revised.push(index);
         } catch (err: any) {
           if (signal.aborted) break;
@@ -1242,13 +1273,44 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         setProgress({ percentage: 1, itemsProcessed: revised.length });
       }
 
-      if (failed.length > 0) {
-        setError(
-          `Revised ${revised.length} of ${queuedIndexes.length}. Could not change ${failed.join(', ')}.`,
-        );
-      } else if (revised.length > 0) {
+      /*
+        Into the document as part of the run, not as a second button press.
+
+        Applying a change and saving it were one intention split in two: the rubrics on screen had
+        moved on, the document had not, and every way out of this screen — deploy it, send someone
+        the link, close the app — wanted the two the same. Nobody asks for a revision they would
+        rather the document did not have.
+
+        Only where there is already a document to write to. A run with nothing saved yet still
+        ends at "Open in Google Docs", because that one asks which folder, and a question is not
+        a save.
+      */
+      const writingBack = revised.length > 0 && !!state.savedDoc && state.isGoogleAuthenticated;
+      if (writingBack) {
+        setProgress({
+          currentStep: 'Saving the changes to your Google Doc...',
+          percentage: 1,
+          itemsProcessed: revised.length,
+        });
+      }
+      const docMessage = writingBack ? await saveRubricsToDoc(nextRubrics) : null;
+      /* The summary above says the document was written. The save button's own success chip
+         would say it again, a few lines below, in nearly the same words. */
+      if (writingBack && !docMessage) setDriveSaveSuccess(null);
+
+      if (failed.length === 0 && revised.length > 0) {
         setShowRequestChangesCard(false);
       }
+
+      /* Both can go wrong in one run, and the second must not quietly replace the first. */
+      const problems: string[] = [];
+      if (failed.length > 0) {
+        problems.push(
+          `Revised ${revised.length} of ${queuedIndexes.length}. Could not change ${failed.join(', ')}.`,
+        );
+      }
+      if (docMessage) problems.push(docMessage);
+      if (problems.length > 0) setError(problems.join(' '));
 
       setTimeout(() => stopProgress(), 500);
     } finally {
@@ -1285,8 +1347,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         }
         setAssignmentDescription(text);
         setPickedFileName(doc.name);
+        setShowPickedText(false);
         await adoptSourceDoc(doc.fileId, mt, doc.name);
-        setInputMode('text');
       } catch (err: any) {
         setError(`Failed to re-load document: ${err.message}`);
       } finally {
@@ -1323,6 +1385,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.rubrics, state.rubric],
   );
+  /** How much text the chosen document gave us, for the line under its name. */
+  const wordsRead = assignmentDescription.trim()
+    ? assignmentDescription.trim().split(/\s+/).length
+    : 0;
+
   const docIsCurrent =
     !!state.savedDoc?.contentKey && state.savedDoc.contentKey === liveFingerprint;
 
@@ -1629,18 +1696,63 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   {isPickerLoading ? 'Opening Drive...' : fetchingGoogleDoc ? 'Fetching Document...' : 'Browse Google Drive'}
                 </button>
 
-                {/* Picked file feedback chip */}
+                {/*
+                  What was loaded, and what it gave us.
+
+                  This used to be a name and nothing else, because the words themselves were over
+                  on the other tab — which is where this screen sent you the moment a file came
+                  back. They are here now, folded away. The count is the part worth seeing without
+                  opening anything: a document that reads as eleven words is a document the app
+                  could not read, and that is better known before a run than after one.
+                */}
                 {pickedFileName && (
-                  <div className="flex items-center gap-2 mb-4 mt-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl">
-                    <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                    <span className="text-sm font-bold text-blue-800 truncate flex-1">{pickedFileName}</span>
-                    <button
-                      onClick={() => setPickedFileName(null)}
-                      aria-label="Remove selected file"
-                      className="text-blue-600 hover:text-blue-800 flex-shrink-0 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                  <div className="mb-4 mt-2 bg-blue-50 border border-blue-200 rounded-xl">
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <span className="text-sm font-bold text-blue-800 truncate flex-1">{pickedFileName}</span>
+                      <button
+                        onClick={() => {
+                          setPickedFileName(null);
+                          setAssignmentDescription('');
+                          setShowPickedText(false);
+                          /* An adopted document is where everything after this gets written
+                             back. Dropping the file without dropping that target leaves a later
+                             save pointing at a document nobody is looking at any more. */
+                          if (state.savedDoc?.adopted) setSavedDoc(null);
+                        }}
+                        aria-label="Remove this document"
+                        title="Remove this document"
+                        className="text-blue-600 hover:text-blue-800 flex-shrink-0 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {wordsRead > 0 && (
+                      <div className="px-3 pb-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowPickedText(!showPickedText)}
+                          aria-expanded={showPickedText}
+                          className="flex items-center gap-1.5 text-xs font-bold text-blue-800 hover:text-blue-900 transition-colors"
+                        >
+                          {showPickedText ? (
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          )}
+                          {wordsRead.toLocaleString()} words read —{' '}
+                          {showPickedText ? 'hide them' : 'read them here'}
+                        </button>
+                        {showPickedText && (
+                          <textarea
+                            value={assignmentDescription}
+                            onChange={(e) => setAssignmentDescription(e.target.value)}
+                            aria-label="The text read from this document"
+                            className="w-full h-40 mt-2 p-3 text-sm bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2251,12 +2363,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                               : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
                           </p>
                         ) : changeSummary && !isApplyingChanges ? (
-                          /* The gap someone actually hit: the table redraws, the document does
-                             not, and nothing said so. */
+                          /* The run writes the document too, so the ordinary reading is the
+                             first one. The other two are for a run with nowhere to write —
+                             nothing saved yet, or a save that did not go through — which is the
+                             gap this line was added for. */
                           <p className="text-sm text-green-800 mt-1">
-                            {state.savedDoc
-                              ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones.'
-                              : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
+                            {state.savedDoc && docIsCurrent
+                              ? 'Your Google Doc has been updated to match. Same document, same link.'
+                              : state.savedDoc
+                                ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — the button below sends them.'
+                                : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
                           </p>
                         ) : (
                           <p className="text-sm font-bold text-gray-900">
