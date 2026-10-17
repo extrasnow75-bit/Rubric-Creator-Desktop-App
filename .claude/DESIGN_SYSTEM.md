@@ -32,6 +32,21 @@
 > linearise each sRGB channel (`c/12.92` when `c ≤ 0.03928`, else `((c+0.055)/1.055) ** 2.4`),
 > weight them `0.2126 R + 0.7152 G + 0.0722 B`, then `(lighter + 0.05) / (darker + 0.05)`.
 
+### Green on Green
+
+Status panels are `bg-green-50`. The text on them:
+
+- ❌ `text-green-700` — **4.79:1**. Passes the 4.5:1 body floor by 0.29, which is the same margin
+  this file already rejects for `text-gray-500` (4.83:1). It was used for every line of body copy
+  in those panels until October 2026.
+- ✅ `text-green-800` — **6.81:1** (body copy on a green panel)
+- ✅ `text-green-900` — **8.70:1** (the bold first line)
+- `text-green-600` — **3.15:1**, which is fine for the tick *icon* and nothing else: 3:1 is the
+  floor for a non-text graphic, not for words.
+
+The same holds for amber: `text-amber-900` on `bg-amber-50` is **8.75:1**, and `text-amber-600`
+at **3.07:1** is the icon colour only.
+
 ### Brand Blue (`#0033a0`)
 - **10.60:1 on white** — comfortably passes WCAG AA and AAA for body text.
 - Safe for headings, body text, links and active/selected states alike.

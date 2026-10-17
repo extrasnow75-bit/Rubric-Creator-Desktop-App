@@ -1018,7 +1018,7 @@ export const Part3Upload: React.FC = () => {
                   </p>
                 )}
                 {validationResult && (
-                  <p className={`text-xs font-semibold mt-1 text-center ${validationResult.ok ? 'text-green-700' : 'text-red-600'}`}>
+                  <p className={`text-xs font-semibold mt-1 text-center ${validationResult.ok ? 'text-green-800' : 'text-red-600'}`}>
                     {validationResult.message}
                   </p>
                 )}

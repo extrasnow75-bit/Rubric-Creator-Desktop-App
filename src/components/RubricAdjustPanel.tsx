@@ -18,6 +18,16 @@ import { canvasTotal, rescaleRubric } from '../utils/rescaleRubric';
  */
 
 interface Props {
+  /**
+   * Rendered inside the "Change this rubric" panel rather than as a card of its own.
+   *
+   * The disclosure this component used to be was one of four controls doing the same job in
+   * three places, and a user could not tell it from Request Changes beside it — the difference
+   * being that this one is instant, local, and cannot reword anything. Embedded, the parent
+   * supplies the heading and the "instant, no AI" label, and the fields are simply open: there
+   * is no sense in a disclosure inside a disclosure.
+   */
+  embedded?: boolean;
   rubric: RubricData;
   /**
    * Which rubric this is, used to tell "a different rubric is now open" from "this one changed".
@@ -35,6 +45,7 @@ interface Props {
 }
 
 export const RubricAdjustPanel: React.FC<Props> = ({
+  embedded = false,
   rubric,
   rubricIndex,
   onChange,
@@ -118,37 +129,45 @@ export const RubricAdjustPanel: React.FC<Props> = ({
   };
 
   return (
-    <div className="mb-4 bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden">
+    <div
+      className={
+        embedded ? '' : 'mb-4 bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden'
+      }
+    >
       {/*
         Heading wrapping the button, not the other way round: a <button> may hold phrasing
         content only, so an <h3> inside one is invalid and drops out of the heading list that
         screen-reader users navigate by. This is the ARIA accordion pattern.
       */}
-      <h3 className="text-base font-bold text-gray-900">
-        <button
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-controls={panelId}
-          className="w-full flex items-center gap-2 p-4 text-left hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
-        >
-          {open ? (
-            <ChevronDown className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
-          )}
-          <Pencil className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
-          Adjust this rubric
-          <span className="text-sm font-normal text-gray-600 ml-1">
-            — rename it or change its points
-          </span>
-        </button>
-      </h3>
+      {!embedded && (
+        <h3 className="text-base font-bold text-gray-900">
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls={panelId}
+            className="w-full flex items-center gap-2 p-4 text-left hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+          >
+            {open ? (
+              <ChevronDown className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
+            )}
+            <Pencil className="w-4 h-4 text-gray-700 flex-shrink-0" aria-hidden="true" />
+            Adjust this rubric
+            <span className="text-sm font-normal text-gray-600 ml-1">
+              — rename it or change its points
+            </span>
+          </button>
+        </h3>
+      )}
 
-      {open && (
-        <div id={panelId} className="px-5 pb-5">
-          <p className="text-sm text-gray-600 mb-4">
-            Changes here are instant and keep every word as written. No AI involved.
-          </p>
+      {(embedded || open) && (
+        <div id={panelId} className={embedded ? '' : 'px-5 pb-5'}>
+          {!embedded && (
+            <p className="text-sm text-gray-600 mb-4">
+              Changes here are instant and keep every word as written. No AI involved.
+            </p>
+          )}
 
           <div className="grid sm:grid-cols-[1fr_auto] gap-4 items-end">
         <div>

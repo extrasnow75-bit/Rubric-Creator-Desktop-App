@@ -1,3 +1,58 @@
+## What's new in v0.9.26
+
+### One button for changing a rubric
+
+Four controls did this job, in three places. **Adjust this rubric** renamed it instantly;
+**Request Changes** sent the whole rubric to the AI for about ten seconds; **Replace this rubric
+from a file** swapped it for a document; **Start over** discarded everything. The first two
+looked identical and were not, and nothing on screen said which was which until you opened one.
+
+There is now one button — **Change this rubric** — opening one panel with two sections, each
+labelled with what it costs:
+
+- **Instant · no AI** — rename it, or change its points. Every word stays exactly as written.
+- **Asks the AI · about 10 seconds each** — ask for a change in your own words.
+
+Cheapest first, because renaming a rubric through the AI is ten seconds and a chance of rewording
+for something a text field does exactly.
+
+**"Replace this rubric from a file" is gone.** It swapped one rubric for a document you had edited
+by hand, and it was asked about three times without ever being understood. The route back is
+**Edit existing draft rubrics** on the opening screen: open the document, tick the rubrics, and
+the hand-edited one comes in with the rest.
+
+**Start over** keeps its own button. It does not change a rubric; it discards all of them.
+
+### Updating a Google Doc just updates it
+
+The app used to stop and ask before writing over a document that had been edited in Google Docs,
+offering three buttons. Update now updates, with one line beside the button saying where the
+previous version went:
+
+> Updating replaces what is in the document. Google Docs keeps the previous version under File →
+> Version history.
+
+A document in your bin or deleted outright still says so, because nothing can be written to it
+and a new document is the only move left.
+
+### What gets sent to Canvas, said out loud
+
+A tester assumed that deploying sends whatever is currently in the Google Doc. It does not — the
+rubrics in the app are what becomes the CSV, and the document is a copy of them rather than the
+source. The deploy card now says so, and says what to do about it: anything typed into the
+document by hand needs to come back through **Edit existing draft rubrics** first.
+
+### Smaller things
+
+- **The finished message** reads "Rubric upload complete. Would you like to return to this app's
+  main screen?" — the old one said "Deployment attempt complete", which sounds like it might not
+  have worked.
+- **The deployment log says how long it took:** "8 rubrics successfully uploaded in 3 seconds."
+  Failures get their own sentence rather than a trailing clause, so a bad run cannot be skimmed
+  past.
+- **Green text on green panels is darker.** It measured 4.79:1 against a 4.5:1 requirement —
+  passing by a margin this app's own rules reject elsewhere. It is 6.81:1 now.
+
 ## What's new in v0.9.25
 
 ### A fourth card: edit rubrics you already have

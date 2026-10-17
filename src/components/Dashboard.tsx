@@ -716,7 +716,7 @@ export const Dashboard: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2 mt-2 mb-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full" />
-                      <span className="text-sm font-bold text-green-700">API key active</span>
+                      <span className="text-sm font-bold text-green-800">API key active</span>
                     </div>
                     <p className="text-xs text-gray-600 font-mono mb-3">
                       In your keychain, ending …{state.geminiKeyStatus?.hint}
@@ -782,7 +782,7 @@ export const Dashboard: React.FC = () => {
                       <span
                         className={`text-sm font-bold ${
                           tokenCheck.state === 'ok'
-                            ? 'text-green-700'
+                            ? 'text-green-800'
                             : tokenCheck.state === 'failed'
                             ? 'text-red-700'
                             : 'text-gray-700'
@@ -1067,7 +1067,7 @@ export const Dashboard: React.FC = () => {
                           <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                           <div>
                             <p className="text-sm font-bold text-green-900">{state.googleUser.name}</p>
-                            <p className="text-xs text-green-700">{state.googleUser.email}</p>
+                            <p className="text-xs text-green-800">{state.googleUser.email}</p>
                           </div>
                         </div>
                         <button
@@ -1288,7 +1288,7 @@ export const Dashboard: React.FC = () => {
               ) : courseName ? (
                 <>
                   <Check className="w-4 h-4 text-green-600 flex-shrink-0" aria-hidden="true" />
-                  <span className="text-sm font-bold text-green-700">
+                  <span className="text-sm font-bold text-green-800">
                     <span className="sr-only">Course found: </span>
                     {courseName}
                   </span>

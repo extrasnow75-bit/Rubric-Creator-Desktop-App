@@ -256,13 +256,13 @@ export const CsvSaveOptions: React.FC<Props> = ({
               </p>
             )}
             {savedToDisk && (
-              <p className="text-sm text-green-700 font-bold flex items-center gap-2">
+              <p className="text-sm text-green-800 font-bold flex items-center gap-2">
                 <Download className="w-4 h-4" aria-hidden="true" />
                 CSV{csvs.length !== 1 ? 's' : ''} saved to your computer.
               </p>
             )}
             {driveSaveSuccess && (
-              <p className="text-sm text-green-700 font-bold flex items-center gap-2">
+              <p className="text-sm text-green-800 font-bold flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" aria-hidden="true" />
                 {driveSaveSuccess}
               </p>

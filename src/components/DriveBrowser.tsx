@@ -75,7 +75,7 @@ const SCOPE_TABS: Array<{ id: Scope; label: string; icon: React.ReactNode }> = [
 const FileIcon: React.FC<{ file: DriveFileRow }> = ({ file }) => {
   if (file.isFolder) return <Folder className="w-5 h-5 text-amber-500 flex-shrink-0" />;
   if (file.mimeType === GOOGLE_DOC) return <FileText className="w-5 h-5 text-blue-600 flex-shrink-0" />;
-  if (file.mimeType === GOOGLE_SHEET) return <Table2 className="w-5 h-5 text-green-700 flex-shrink-0" />;
+  if (file.mimeType === GOOGLE_SHEET) return <Table2 className="w-5 h-5 text-green-800 flex-shrink-0" />;
   if (file.mimeType.startsWith('image/')) return <ImageIcon className="w-5 h-5 text-purple-600 flex-shrink-0" />;
   return <FileType className="w-5 h-5 text-gray-600 flex-shrink-0" />;
 };

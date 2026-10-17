@@ -728,7 +728,7 @@ export const Part2WordToCsv: React.FC = () => {
                 <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
                 <div>
                   <p className="font-black text-green-900">✓ Canvas CSV Generated!</p>
-                  <p className="text-sm text-green-700">Your CSV rubric is ready to be uploaded to Canvas.</p>
+                  <p className="text-sm text-green-800">Your CSV rubric is ready to be uploaded to Canvas.</p>
                 </div>
               </div>
             </div>
@@ -783,7 +783,7 @@ export const Part2WordToCsv: React.FC = () => {
               </button>
             </div>
             {driveSaveSuccess && (
-              <p className="text-xs text-green-700 font-bold text-center mt-2">✓ {driveSaveSuccess}</p>
+              <p className="text-xs text-green-800 font-bold text-center mt-2">✓ {driveSaveSuccess}</p>
             )}
 
             <div className="flex flex-col gap-2 mt-3">
@@ -1036,7 +1036,7 @@ export const Part2WordToCsv: React.FC = () => {
                       <span>Scanning document for rubrics… ~20 seconds</span>
                     </div>
                   ) : preDiscovery ? (
-                    <div className="flex items-center gap-2 text-xs text-green-700 mt-2">
+                    <div className="flex items-center gap-2 text-xs text-green-800 mt-2">
                       <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
                       <span className="font-bold">
                         {preDiscovery.length === 1 ? '1 rubric detected' : `${preDiscovery.length} rubrics detected`}
@@ -1090,7 +1090,7 @@ export const Part2WordToCsv: React.FC = () => {
                       </button>
                     </div>
                     {driveAllSaveSuccess && (
-                      <p className="text-xs text-green-700 font-bold text-center -mt-2 mb-3">✓ {driveAllSaveSuccess}</p>
+                      <p className="text-xs text-green-800 font-bold text-center -mt-2 mb-3">✓ {driveAllSaveSuccess}</p>
                     )}
                   </>
                 )}

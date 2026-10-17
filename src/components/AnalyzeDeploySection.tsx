@@ -7,6 +7,7 @@ import {
   discoverRubricTitles,
 } from '../services/geminiService';
 import { diagnoseCanvasError, CanvasDiagnosis } from '../utils/diagnoseCanvasError';
+import { formatElapsed } from '../utils/formatElapsed';
 import { CsvRepairPanel } from './CsvRepairPanel';
 import { useCopyAction } from '../hooks/useCopyAction';
 import { CsvSaveOptions } from './CsvSaveOptions';
@@ -328,10 +329,28 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
         // Latched on the session so Part 1's editing controls can say that changes made from
         // here on will not reach the rubrics already in the course.
         if (successCount > 0) markDeployedToCanvas();
+        /*
+          The headline figure and how long it took, then the failures in a sentence of their own.
+
+          "Done — 8 deployed successfully, 2 failed" buries the bad news in a trailing clause,
+          where a reader skimming the end of a long log will miss it. A second sentence cannot be
+          skimmed past in the same way.
+
+          The time is worth stating because it is surprising: eight rubrics in three seconds,
+          since the CSV conversion is local string work and each deploy is one small POST. A run
+          that looks instant invites the thought that nothing happened.
+        */
         addLog(
-          `Done — ${successCount} deployed successfully${failCount > 0 ? `, ${failCount} failed` : ''}.`,
+          `${successCount} ${successCount === 1 ? 'rubric' : 'rubrics'} successfully uploaded in ` +
+            `${formatElapsed((Date.now() - startTimeRef.current) / 1000)}.`,
           failCount === 0 ? 'success' : 'warning',
         );
+        if (failCount > 0) {
+          addLog(
+            `${failCount} ${failCount === 1 ? 'rubric' : 'rubrics'} could not be uploaded.`,
+            'warning',
+          );
+        }
 
       } catch (err: any) {
         if (err.message === 'Cancelled') {
@@ -736,7 +755,7 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
       {runStatus === 'complete' && onStartOver && (
         <div className="mt-4 bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <p className="text-sm font-bold text-gray-800">
-            Deployment attempt complete. Would you like to start over from the beginning?
+            Rubric upload complete. Would you like to return to this app's main screen?
           </p>
           <button
             onClick={onStartOver}

@@ -189,11 +189,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   const [readyForCanvas, setReadyForCanvas] = useState(false);
 
   // Inline replace card
-  const [showReplaceCard, setShowReplaceCard] = useState(false);
-  const [replaceFileText, setReplaceFileText] = useState<string | null>(null);
-  const [replaceFileName, setReplaceFileName] = useState<string | null>(null);
-  const [replaceIsDragging, setReplaceIsDragging] = useState(false);
-  const [isProcessingReplacement, setIsProcessingReplacement] = useState(false);
 
   // Request Changes card
   const [showRequestChangesCard, setShowRequestChangesCard] = useState(false);
@@ -832,7 +827,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         setDocConflict(null);
         setDriveSaveSuccess(null);
         setProgress({ percentage: 1, itemsProcessed: made.length });
-        setShowReplaceCard(false);
         setShowRequestChangesCard(false);
         setShowStartOverCard(false);
         setReadyForCanvas(false);
@@ -878,7 +872,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * the document in Google Docs, it is in the bin, or the id no longer resolves at all. Each
    * needs a different offer, so the reason is kept rather than collapsed into a boolean.
    */
-  const [docConflict, setDocConflict] = useState<'edited' | 'trashed' | 'missing' | null>(null);
+  const [docConflict, setDocConflict] = useState<'trashed' | 'missing' | null>(null);
   const { state: copyState, copy } = useCopyAction();
 
   /**
@@ -936,12 +930,17 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   };
 
   /**
-   * Check the document is still ours to overwrite, then overwrite it.
+   * Check the document is still there, then write over it.
    *
-   * The check is the whole point. Updating in place is what makes the link permanent and gives
-   * Google Docs a revision history worth having, but it also means a rubric someone tidied up by
-   * hand in Docs would be silently replaced by the app's version. Drive's own version counter,
-   * recorded at the last write, says whether that has happened.
+   * The check used to stop at a document someone had edited by hand in Docs and ask whether to
+   * overwrite it. That card is gone: Update should update. Google Docs keeps every revision, so
+   * the previous version is one menu away under File → Version history, and the line beside the
+   * button says so — which is a better place for the information than a gate in front of the
+   * thing the user has just asked for.
+   *
+   * What remains is the case that is not a warning at all. A document in the bin or deleted
+   * outright cannot be written to by anybody, so an update there is not a risk to weigh but a
+   * fact to report, and the only move left is a new document.
    */
   const handleUpdateDoc = async () => {
     const doc = state.savedDoc;
@@ -950,15 +949,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setDriveSaveSuccess(null);
     setDocConflict(null);
     try {
-      const check = await window.api.rubric.checkDriveDoc({
-        fileId: doc.fileId,
-        version: doc.version,
-      });
+      const check = await window.api.rubric.checkDriveDoc({ fileId: doc.fileId });
       if (!check.ok) {
         setError(check.message);
         return;
       }
-      if (check.status !== 'unchanged') {
+      if (check.status === 'trashed' || check.status === 'missing') {
         setDocConflict(check.status);
         return;
       }
@@ -1050,55 +1046,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setPickedFileName(null);
     setSnapshotDescription('');
     setShowComparison(false);
-  };
-
-  const handleReplaceFileUpload = async (file: File) => {
-    setError(null);
-    try {
-      if (!file.name.toLowerCase().match(/\.(docx?|pdf|txt)$/)) {
-        setError('Please upload a .docx, .pdf, or .txt file.');
-        return;
-      }
-      const name = file.name.toLowerCase();
-      let text = '';
-      if (name.endsWith('.docx') || name.endsWith('.doc')) {
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        text = result.value;
-      } else if (name.endsWith('.pdf')) {
-        const arrayBuffer = await file.arrayBuffer();
-        text = await extractPdfText(arrayBuffer, file.name);
-      } else {
-        text = await file.text();
-      }
-      setReplaceFileText(text);
-      setReplaceFileName(file.name);
-    } catch (err: any) {
-      setError(`Failed to read file: ${err.message}`);
-    }
-  };
-
-  const handleProcessReplacement = async () => {
-    if (!replaceFileText) return;
-    setIsProcessingReplacement(true);
-    setError(null);
-    try {
-      const signal = getAbortSignal();
-      const parsed = await extractRubricFromDocument(replaceFileText, signal);
-      setRubric(parsed);
-      setRubricSource('uploaded');
-      setRevisedIndexes([]);
-      setChangeSummary(null);
-      setShowReplaceCard(false);
-      setReplaceFileText(null);
-      setReplaceFileName(null);
-      setReadyForCanvas(false);
-      setShowDeployCard(false);
-    } catch (err: any) {
-      setError(`Failed to process rubric: ${err.message}`);
-    } finally {
-      setIsProcessingReplacement(false);
-    }
   };
 
   const activeDraft = changeDrafts[state.activeRubricIndex] ?? '';
@@ -1602,16 +1549,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center">
-                        <span className="text-green-700 font-black text-sm">✓</span>
+                        <span className="text-green-800 font-black text-sm">✓</span>
                       </div>
                       <div>
                         <p className="text-sm font-bold text-green-900">Signed in as {state.googleUser?.name}</p>
-                        <p className="text-xs text-green-700">{state.googleUser?.email}</p>
+                        <p className="text-xs text-green-800">{state.googleUser?.email}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => signOutGoogle()}
-                      className="text-xs font-bold text-green-700 hover:text-green-900 transition-all"
+                      className="text-xs font-bold text-green-800 hover:text-green-900 transition-all"
                     >
                       Sign Out
                     </button>
@@ -1911,19 +1858,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                       {rubricSource === 'uploaded' ? (
                         <>
                           <p className="font-black text-green-900">✓ Draft Rubric Received!</p>
-                          <p className="text-sm text-green-700">Your uploaded rubric has been processed and is ready to review.</p>
+                          <p className="text-sm text-green-800">Your uploaded rubric has been processed and is ready to review.</p>
                         </>
                       ) : rubricSource === 'revised' ? (
                         <>
                           <p className="font-black text-green-900">✓ Draft Rubric Updated!</p>
-                          <p className="text-sm text-green-700">Your requested changes have been applied to the rubric.</p>
-                          <p className="text-sm text-green-700 mt-1">We recommend reviewing all changes before deploying to Canvas.</p>
+                          <p className="text-sm text-green-800">Your requested changes have been applied to the rubric.</p>
+                          <p className="text-sm text-green-800 mt-1">We recommend reviewing all changes before deploying to Canvas.</p>
                         </>
                       ) : (
                         <>
                           <p className="font-black text-green-900">✓ Draft Rubric Created!</p>
-                          <p className="text-sm text-green-700">Your draft rubric has been generated successfully.</p>
-                          <p className="text-sm text-green-700 mt-1">We recommend making your own edits to this AI-generated rubric.</p>
+                          <p className="text-sm text-green-800">Your draft rubric has been generated successfully.</p>
+                          <p className="text-sm text-green-800 mt-1">We recommend making your own edits to this AI-generated rubric.</p>
                         </>
                       )}
                     </div>
@@ -1931,57 +1878,38 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 </div>
 
                 {/*
-                  Three buttons, and all three change the rubrics themselves.
+                  Two buttons. One changes the rubric in front of you; the other discards the lot.
 
-                  There were five. Open in Google Docs and Save to this computer have moved into
-                  the document card at the foot of this screen, where the rest of what can be
-                  done with a document already lives. Five in one row forced every label onto
-                  three cramped lines, and the two that left were the odd ones out anyway: these
-                  three alter what is on screen, those two send it somewhere.
+                  There were five, then four. Open in Google Docs and Save to this computer moved
+                  into the document card at the foot of this screen. Then "Replace this rubric
+                  from a file" was cut and "Adjust this rubric" folded into the panel below —
+                  three ways to change a rubric, sitting in three places, two of them looking
+                  identical while one was instant and the other took ten seconds of Gemini. A
+                  tester asked three times what the file button did, which is the finding.
                 */}
                 <div className="flex gap-3 mb-3">
                   {/*
-                    Both of these open a card below, and both are toggles rather than one-way
-                    switches.
-
-                    The card they open is deliberately not closed by moving between rubrics —
-                    writing a request for each and applying them in one run is the whole point of
-                    it. The cost of that is a card which, several rubrics later, looks like part
-                    of the page rather than something switched on earlier; so the button that
-                    opened it says that it did, carries aria-expanded for anyone not looking at
-                    the colour, and closes it again when pressed.
+                    A toggle, not a one-way switch, and deliberately not closed by moving between
+                    rubrics — writing a request for each and applying them in one run is the
+                    whole point of it. The cost is a panel which, several rubrics later, looks
+                    like part of the page rather than something switched on earlier; so the
+                    button says that it did, and carries aria-expanded for anyone not going by
+                    colour.
                   */}
                   <button
                     onClick={() => {
-                      setShowReplaceCard((open) => !open);
-                      setShowRequestChangesCard(false);
-                      setShowStartOverCard(false);
-                    }}
-                    aria-expanded={showReplaceCard}
-                    className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
-                      showReplaceCard
-                        ? 'bg-brand/10 text-brand border-2 border-brand'
-                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200 border-2 border-transparent'
-                    }`}
-                  >
-                    <RotateCw className="w-4 h-4" />
-                    Replace this rubric from a file
-                  </button>
-                  <button
-                    onClick={() => {
                       setShowRequestChangesCard((open) => !open);
-                      setShowReplaceCard(false);
                       setShowStartOverCard(false);
                     }}
                     aria-expanded={showRequestChangesCard}
-                    className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
+                    className={`flex-[2] px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
                       showRequestChangesCard
                         ? 'bg-brand/10 text-brand border-2 border-brand'
                         : 'bg-gray-100 text-gray-900 hover:bg-gray-200 border-2 border-transparent'
                     }`}
                   >
                     <RotateCw className="w-4 h-4" />
-                    Request Changes
+                    Change this rubric
                   </button>
                   {/*
                     Moved here from the bottom of "Adjust this rubric", which was the wrong home
@@ -1999,7 +1927,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     <button
                       onClick={() => {
                         setShowStartOverCard((open) => !open);
-                        setShowReplaceCard(false);
                         setShowRequestChangesCard(false);
                       }}
                       aria-expanded={showStartOverCard}
@@ -2066,21 +1993,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   guarantee the model changed only what was asked. These do the two cheap things
                   directly and leave Request Changes for what actually needs judgement.
                 */}
-                <RubricAdjustPanel
-                  rubric={state.rubric}
-                  rubricIndex={state.activeRubricIndex}
-                  onChange={(next) => {
-                    updateRubricAt(state.activeRubricIndex, next);
-                    // Any change to a rubric retires the readiness confirmation, the same as a
-                    // replacement upload or an applied change request. The tick says no further
-                    // revision is needed, and a rename is a revision.
-                    setReadyForCanvas(false);
-                    setShowDeployCard(false);
-                  }}
-                  deployedToCanvas={state.deployedToCanvas}
-                  busy={isGenerating || isApplyingChanges}
-                />
-
                 {/*
                   Request Changes, above the confirm and deploy controls rather than below them.
                   It used to render after the deploy button, so opening it put "describe your
@@ -2091,26 +2003,73 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 */}
                 {showRequestChangesCard && state.rubric && (
                   <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-5">
-                    <div className="flex items-start justify-between gap-4 mb-1">
-                      {/* The heading names the rubric because the card is identical for all of
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      {/* The heading names the rubric because the panel is identical for all of
                           them, and the only other thing saying which one you are editing is the
                           switcher further up the page. */}
                       <h3 className="text-base font-bold text-gray-900">
-                        Request Changes — {state.rubric.title}
+                        Change this rubric — {state.rubric.title}
                       </h3>
                       <button
                         onClick={() => setShowRequestChangesCard(false)}
-                        aria-label="Close request changes"
+                        aria-label="Close change this rubric"
                         className="text-gray-600 hover:text-gray-900 transition-colors flex-shrink-0"
                       >
                         <X className="w-5 h-5" />
                       </button>
                     </div>
-                    <p className="text-sm text-gray-600 mb-4">
-                      {state.rubrics.length > 1
-                        ? 'Describe what should change in this rubric. Nothing is rewritten yet — tick the box below, move to another rubric if you want, and apply them all together.'
-                        : 'Describe what should change. Tick the box below, then apply.'}
-                    </p>
+
+                    {/*
+                      Two ways to change a rubric, each labelled with what it costs.
+
+                      These used to be separate controls that looked alike — "Adjust this rubric"
+                      in a disclosure and "Request Changes" in the button row — and nothing said
+                      that the first was instant and local while the second sent the whole rubric
+                      to Gemini for ten seconds. A user cannot be expected to guess that, and the
+                      cheap one is the one worth reaching for: renaming a rubric through the AI
+                      is ten seconds and a chance of rewording for a change a text field makes
+                      exactly.
+
+                      Cheapest first, so the order of the panel is the order of preference.
+                    */}
+                    <div className="pb-5 border-b border-gray-200">
+                      <span className="inline-block text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-green-50 text-green-800">
+                        Instant · no AI
+                      </span>
+                      <h4 className="text-sm font-bold text-gray-900 mt-2">
+                        Rename it, or change its points
+                      </h4>
+                      <p className="text-xs text-gray-600 mt-0.5 mb-3">
+                        Every word stays exactly as written.
+                      </p>
+                      <RubricAdjustPanel
+                        embedded
+                        rubric={state.rubric}
+                        rubricIndex={state.activeRubricIndex}
+                        onChange={(next) => {
+                          updateRubricAt(state.activeRubricIndex, next);
+                          // Any change to a rubric retires the readiness confirmation. The tick
+                          // says no further revision is needed, and a rename is a revision.
+                          setReadyForCanvas(false);
+                          setShowDeployCard(false);
+                        }}
+                        deployedToCanvas={state.deployedToCanvas}
+                        busy={isGenerating || isApplyingChanges}
+                      />
+                    </div>
+
+                    <div className="pt-5">
+                      <span className="inline-block text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-blue-50 text-brand">
+                        Asks the AI · about 10 seconds each
+                      </span>
+                      <h4 className="text-sm font-bold text-gray-900 mt-2">
+                        Ask for a change in your own words
+                      </h4>
+                      <p className="text-sm text-gray-600 mt-0.5 mb-3">
+                        {state.rubrics.length > 1
+                          ? 'Describe what should change in this rubric. Nothing is rewritten yet — tick the box below, move to another rubric if you want, and apply them all together.'
+                          : 'Describe what should change. Tick the box below, then apply.'}
+                      </p>
 
                     <textarea
                       value={activeDraft}
@@ -2154,11 +2113,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         )}
                       </span>
                     </label>
+                    </div>
                   </div>
                 )}
 
                 {/*
-                  The run button sits outside the card on purpose. Inside a card headed with one
+                  The run button sits outside the panel on purpose. Inside a card headed with one
                   rubric's name it would read as "apply to this rubric", and it applies to every
                   one that has been ticked — the same confusion of scope the shared text box used
                   to cause. So it names its own count instead.
@@ -2243,15 +2203,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
                         {docCardState === 'conflict' ? (
                           <p className="text-sm text-amber-900 mt-1">
-                            {docConflict === 'edited'
-                              ? `That document has been edited ${
-                                  state.savedDoc?.adopted
-                                    ? 'since you opened it here'
-                                    : 'since the app wrote it'
-                                }. Updating it replaces what is there now with the rubrics in this app. Google Docs keeps a version history, so the edit could be recovered under File → Version history — but it is easier not to lose it.`
-                              : docConflict === 'trashed'
-                                ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
-                                : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
+                            {docConflict === 'trashed'
+                              ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
+                              : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
                           </p>
                         ) : changeSummary && !isApplyingChanges ? (
                           /* The gap someone actually hit: the table redraws, the document does
@@ -2311,39 +2265,20 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         {/*
                           The buttons the state calls for, and never two that contradict.
 
-                          A conflict offers the three ways out of it and nothing else — Update
-                          sitting beside Overwrite would be the same button twice, once with the
-                          warning attached and once without.
+                          A gone document offers the one move left. There is nothing to weigh:
+                          the file cannot be written to by anybody, so Overwrite and Leave it
+                          alone would both be buttons that do nothing.
                         */}
                         <div className="flex flex-wrap items-center gap-3 mt-3">
                           {docCardState === 'conflict' ? (
-                            <>
-                              {docConflict === 'edited' && (
-                                <button
-                                  type="button"
-                                  onClick={writeDocUpdate}
-                                  disabled={savingToDrive}
-                                  className="px-3 py-2 rounded-xl text-sm font-medium bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
-                                >
-                                  Overwrite it anyway
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={handleExportToDrive}
-                                disabled={savingToDrive}
-                                className="px-3 py-2 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
-                              >
-                                Create a new document
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDocConflict(null)}
-                                className="px-3 py-2 rounded-xl text-sm font-medium bg-white border border-amber-300 text-amber-900 hover:bg-amber-100"
-                              >
-                                Leave it alone
-                              </button>
-                            </>
+                            <button
+                              type="button"
+                              onClick={handleExportToDrive}
+                              disabled={savingToDrive}
+                              className="px-3 py-2 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                            >
+                              Create a new document
+                            </button>
                           ) : (
                             <>
                               {/*
@@ -2416,8 +2351,24 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                           )}
                         </div>
 
+                        {/*
+                          Where the previous version went, said once and quietly.
+
+                          This replaces a card that stopped the update to ask permission. The
+                          information in it was worth keeping — an update does replace whatever
+                          is in the document — but as a line beside the button rather than a gate
+                          in front of it. Google Docs keeps every revision, so nothing is lost
+                          that cannot be fetched back in two clicks.
+                        */}
+                        {state.savedDoc && (
+                          <p className="text-xs text-gray-600 mt-3">
+                            Updating replaces what is in the document. Google Docs keeps the
+                            previous version under File → Version history.
+                          </p>
+                        )}
+
                         {driveSaveSuccess && (
-                          <p className="text-xs text-green-700 font-bold mt-3">
+                          <p className="text-xs text-green-800 font-bold mt-3">
                             ✓ {driveSaveSuccess}
                           </p>
                         )}
@@ -2454,12 +2405,31 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           <h2 className="text-2xl font-black text-gray-900 mb-2">
             {onAnalyzeDeploy ? 'Deploy to Canvas' : 'Continue to Part 2'}
           </h2>
-          <p className="text-gray-600 font-medium mb-6">
+          <p className="text-gray-600 font-medium mb-2">
             {onAnalyzeDeploy
               ? state.rubrics.length > 1
                 ? `Send all ${state.rubrics.length} rubrics to your Canvas course.`
                 : 'Send this rubric to your Canvas course.'
               : 'Turn the rubric into a Canvas CSV in Part 2.'}
+          </p>
+
+          {/*
+            What is actually sent, said where the sending happens.
+
+            A tester assumed that deploying takes whatever is currently in the Google Doc. It does
+            not: Canvas is built from the rubrics in this app, and the document is a rendering of
+            those rubrics rather than the source of them. The assumption is a reasonable one —
+            the document is the thing they have been reading and may well have typed in — and
+            nothing on this screen corrected it. Anything typed into the document by hand reaches
+            Canvas only after coming back through "Edit existing draft rubrics".
+          */}
+          <p className="text-sm text-gray-600 mb-6">
+            {state.rubrics.length > 1
+              ? 'The rubrics above are what gets sent.'
+              : 'The rubric above is what gets sent.'}
+            {state.savedDoc
+              ? ' Anything you have typed into the Google Doc by hand is not included — open that document through "Edit existing draft rubrics" first to bring it in.'
+              : ''}
           </p>
 
           {/*
@@ -2695,7 +2665,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
               ) : deployCourseName ? (
                 <>
                   <Check className="w-4 h-4 text-green-600 flex-shrink-0" aria-hidden="true" />
-                  <span className="text-sm font-bold text-green-700">
+                  <span className="text-sm font-bold text-green-800">
                     <span className="sr-only">Course found: </span>
                     {deployCourseName}
                   </span>
@@ -2738,78 +2708,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         </div>
       )}
 
-      {/* Replace-this-rubric card — appears below main card */}
-      {showReplaceCard && state.rubric && (
-        <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl mt-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xl font-black text-gray-900">Replace this rubric from a file</h3>
-            <button
-              onClick={() => { setShowReplaceCard(false); setReplaceFileText(null); setReplaceFileName(null); setError(null); }}
-              aria-label="Close upload replacement rubric"
-              className="text-gray-600 hover:text-gray-900 transition-colors flex-shrink-0 ml-4"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          <p className="text-sm text-gray-600 mb-6">
-            Upload your modified draft rubric document (.docx, .pdf, or .txt) to replace the one currently displayed.
-          </p>
-
-          {/* File drop area */}
-          <div
-            onDragOver={(e) => { e.preventDefault(); setReplaceIsDragging(true); }}
-            onDragLeave={() => setReplaceIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setReplaceIsDragging(false);
-              if (e.dataTransfer.files[0]) handleReplaceFileUpload(e.dataTransfer.files[0]);
-            }}
-            className={`relative w-full p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all mb-4 ${replaceIsDragging ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-gray-200 hover:border-blue-300'}`}
-          >
-            <FileText className="w-7 h-7 text-gray-600" />
-            <p className="text-sm font-bold text-gray-800">Drop your modified rubric file here or click to browse</p>
-            <p className="text-xs text-gray-600">Supports .docx, .pdf, and .txt</p>
-            <input
-              type="file"
-              accept=".docx,.doc,.pdf,.txt"
-              onChange={(e) => { if (e.target.files?.[0]) handleReplaceFileUpload(e.target.files[0]); }}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              id="replace-file-input"
-              aria-label="Drop your modified rubric file here or click to browse"
-            />
-          </div>
-
-          {/* Selected file chip */}
-          {replaceFileName && (
-            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl">
-              <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              <span className="text-sm font-bold text-blue-800 truncate flex-1">{replaceFileName}</span>
-              <button
-                onClick={() => { setReplaceFileName(null); setReplaceFileText(null); }}
-                aria-label="Remove replacement file"
-                className="text-blue-600 hover:text-blue-800 flex-shrink-0 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {state.error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-2xl mb-4">
-              <p className="text-sm text-red-700 font-bold">{state.error}</p>
-            </div>
-          )}
-
-          <button
-            onClick={handleProcessReplacement}
-            disabled={isProcessingReplacement || !replaceFileText}
-            className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 flex items-center justify-center gap-2"
-          >
-            {isProcessingReplacement && <Loader2 className="w-5 h-5 animate-spin" />}
-            {isProcessingReplacement ? 'Processing Rubric...' : 'Use This Rubric'}
-          </button>
-        </div>
-      )}
     </div>
   );
 };
