@@ -13,6 +13,7 @@ describe('isAllowedExternalUrl', () => {
       'https://drive.google.com/open?id=abc',
       'https://aistudio.google.com',
       'https://community.instructure.com/en/kb/articles/662901',
+      'https://canvas.instructure.com/doc/api/file.accessing_via_api.html',
       'https://github.com/owner/repo/releases/latest',
       'https://boisestateecampus.atlassian.net/wiki/x/ABC',
     ]) {
@@ -85,6 +86,10 @@ describe('isAllowedExternalUrl', () => {
  * link to an unlisted host looks exactly like a dead button. This walks the renderer source and
  * fails if any href points somewhere the allowlist would refuse, which is the only way that
  * mistake announces itself.
+ *
+ * window.open is swept too, and was not at first. That gap hid a real one: Part 3's "Canvas
+ * Docs" button opened canvas.instructure.com, which was not on the list — a button that had
+ * never worked, in a test file written to catch exactly that.
  */
 describe('every href in the renderer is openable', () => {
   function collectSources(dir: string, found: string[] = []): string[] {
@@ -102,7 +107,11 @@ describe('every href in the renderer is openable', () => {
 
     for (const file of collectSources(srcDir)) {
       const contents = readFileSync(file, 'utf-8')
-      for (const match of contents.matchAll(/href="(https?:\/\/[^"]+)"/g)) {
+      const links = [
+        ...contents.matchAll(/href="(https?:\/\/[^"]+)"/g),
+        ...contents.matchAll(/window\.open\(\s*['"`](https?:\/\/[^'"`]+)['"`]/g),
+      ]
+      for (const match of links) {
         if (!isAllowedExternalUrl(match[1])) {
           offenders.push(`${file.split('/src/')[1]} -> ${match[1]}`)
         }

@@ -15,6 +15,47 @@ changing its points in the instant section. It is also the way back if the write
 out, offline, or a document moved to the bin, each of which is said plainly rather than left for
 you to notice.
 
+### Three reviews, and what they found
+
+This release was read end to end by an accessibility review, a performance review and a security
+review. The security review found no way to reach the Canvas token or the Google sign-in, and no
+weakness in the way the app is sealed off from the web — but the other two found real faults, and
+they are fixed here.
+
+**Failures were being composed and then shown to nobody.** This screen had no place to display an
+error at all: both of them lived in the half of the screen that draws *before* a rubric exists. So
+a Google Doc that would not take a write, or a rubric the AI would not revise, looked exactly like
+a success. The sentence is now shown where the work happened, and read aloud to a screen reader.
+
+**Clearing the text you just loaded destroyed the box you were typing in.** Select-all and delete
+inside *read them here* took the word count to zero, which unmounted the panel mid-keystroke —
+with no way back but picking the file again. It stays open now however much you delete.
+
+**The summary could name a rubric by its old title.** If you asked the AI to rename a rubric, the
+confirmation named what it used to be called while the document correctly got the new name.
+
+**Everything is faster.** Every call to the AI waited a flat two seconds before being sent, even
+when the previous one had finished ten seconds earlier — the gap is now measured from the last
+request rather than slept through unconditionally. And applying changes to several rubrics now
+runs three at a time, the way drafting always has, backing off to one if Google asks for a slower
+pace. Eight ticked rubrics: about a minute and a half before, about thirty-five seconds now.
+
+**For keyboard and screen-reader users:** the save button no longer vanishes from the keyboard
+when it switches off — it stays reachable and says why it is off; the tab strip says which tab is
+selected instead of only colouring it; the checkboxes on the "which parts get a rubric" list have
+names, so they are no longer eight identical "checkbox, checked"; focus no longer jumps to the top
+of the window when a run finishes; and the Drive picker can be scrolled at 200% zoom, where its
+Cancel and Choose file buttons used to be clipped off with no way to reach them.
+
+**Contrast.** A disabled primary button was white text on light grey — 1.47:1, which is no text at
+all. Disabled buttons app-wide are now 6.08:1. The unselected halves of Ranges/Single had a
+1.24:1 border, invisible against the card; the paste box had the same invisible edge and no label
+beyond its placeholder. All fixed, with the measured figures recorded in the design system.
+
+**One dead button, found by the security review:** "Canvas Docs" in Part 3 pointed at a host that
+was not on the app's allowlist, so clicking it had silently done nothing. The test that was meant
+to catch exactly that only checked links, not buttons; it checks both now.
+
 ### The tab you are on is the tab you used
 
 Choosing an assignment description from Drive lit **From Local Drive** — the app switched tabs so

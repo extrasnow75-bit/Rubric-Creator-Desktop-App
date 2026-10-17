@@ -4,8 +4,8 @@ import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { fetchDriveFileAsBase64 } from '../utils/driveFile';
 import {
   Key, Check, X, Loader2, ExternalLink, Eye, EyeOff,
-  LogOut, Link, FileText, Upload, ChevronDown, FolderOpen, Settings2,
-  Lightbulb, Camera, Clipboard, HardDrive, Clock, ChevronUp,
+  LogOut, Link, FileText, ChevronDown, FolderOpen, Settings2,
+  Lightbulb, Camera, HardDrive, Clock, ChevronUp,
 } from 'lucide-react';
 import { getRecentDocs, saveRecentDoc, RecentDoc } from '../utils/recentDocs';
 import { revealSection, REVEAL_DELAY_MS } from '../utils/revealSection';
@@ -135,7 +135,6 @@ export const Dashboard: React.FC = () => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedDocFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [docFileError, setDocFileError] = useState<string | null>(null);
-  const [isPasteAreaFocused, setIsPasteAreaFocused] = useState(false);
   /**
    * Google Drive is where this team's documents actually live, so it opens on that tab.
    *
@@ -183,7 +182,6 @@ export const Dashboard: React.FC = () => {
   }, [state.isGoogleAuthenticated]);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>(() => getRecentDocs());
   const [showRecentDocs, setShowRecentDocs] = useState(false);
-  const pasteAreaRef = useRef<HTMLDivElement>(null);
 
   // ── Analyze & Deploy ──
   const [showAnalyze, setShowAnalyze] = useState(false);
@@ -939,6 +937,7 @@ export const Dashboard: React.FC = () => {
                 action="Start from a description"
                 onAction={() => chooseRoute('draft')}
                 open={openRoute === 'draft'}
+                controls="route-panel-phase1"
                 alternative="or save to this computer instead (.html)"
                 onAlternative={() => chooseLocalRoute('draft')}
               />
@@ -952,6 +951,7 @@ export const Dashboard: React.FC = () => {
                 action="Start from a screenshot"
                 onAction={() => chooseRoute('screenshot')}
                 open={openRoute === 'screenshot'}
+                controls="route-panel-phase1"
                 alternative="or save to this computer instead (.html)"
                 onAlternative={() => chooseLocalRoute('screenshot')}
               />
@@ -972,6 +972,7 @@ export const Dashboard: React.FC = () => {
                 action="Choose rubrics to edit"
                 onAction={() => chooseRoute('edit')}
                 open={openRoute === 'edit'}
+                controls="route-panel-phase1"
                 alternative="or save to this computer instead (.html)"
                 onAlternative={() => chooseLocalRoute('edit')}
               />
@@ -985,6 +986,7 @@ export const Dashboard: React.FC = () => {
                 action="Choose a rubric document"
                 onAction={() => chooseRoute('deploy')}
                 open={openRoute === 'deploy'}
+                controls="route-panel-deploy"
               />
               {/*
                 No alternative on this card, deliberately.
@@ -1000,7 +1002,7 @@ export const Dashboard: React.FC = () => {
 
             {/* "Yes" path — tabbed file upload area */}
             {openRoute === 'deploy' && (
-              <div className="space-y-3">
+              <div id="route-panel-deploy" className="space-y-3">
 
                 {/* Tabs */}
                 <div className="flex border-b border-gray-200">
@@ -1332,7 +1334,10 @@ export const Dashboard: React.FC = () => {
           the chosen settings and the picked file in their own state, so taking them off the tree
           to close a card would throw away the very thing the person was in the middle of.
         */
-        <div className={`max-w-2xl mx-auto px-6 pb-8 ${routeCollapsed ? 'hidden' : ''}`}>
+        <div
+          id="route-panel-phase1"
+          className={`max-w-2xl mx-auto px-6 pb-8 ${routeCollapsed ? 'hidden' : ''}`}
+        >
           {/*
             The two Phase 1 cards that used to live here are gone: cards one and two on the
             opening screen are the same two routes, and a user who has just pressed one of them

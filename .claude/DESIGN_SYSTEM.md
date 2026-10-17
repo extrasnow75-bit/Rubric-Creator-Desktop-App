@@ -1,6 +1,9 @@
 # Rubric App V.2 — Design System
 
-> **See also**: [Master Design System](../../.claude/DESIGN_SYSTEM.md) — shared standards for all Rubric App projects and Google-integrated apps
+> **See also**: a Master Design System for all Rubric App projects and Google-integrated apps was
+> once linked here at `../../.claude/DESIGN_SYSTEM.md`. No such file exists in or above this
+> repository, so this document is the whole of the standard — anything the link was carrying has
+> to be written down here or it is not written down anywhere.
 
 ## Color & Contrast
 
@@ -93,7 +96,37 @@ Inactive tabs use `text-gray-600 hover:text-gray-900`
 - **Primary**: `bg-brand text-white hover:bg-brand-dark` — `#0033a0`, hover `#002d8f`
 - **Secondary**: `bg-gray-100 text-gray-900 hover:bg-gray-200`
 - **Tertiary**: `bg-white border border-gray-300 text-gray-700 hover:bg-gray-50`
-- **Disabled**: `bg-gray-200 text-gray-500` (see the contrast note — `text-gray-400` is 2.54:1)
+- **Disabled**: `bg-gray-200 text-gray-700` — 6.08:1
+
+> The disabled pair used to read `bg-gray-200 text-gray-500`, which is 3.90:1, and most buttons
+> in the app were not even doing that: `disabled:bg-gray-300` with no text colour at all left a
+> white label on light grey at **1.47:1**, so a disabled primary button lost the word saying what
+> it would do. (`disabled:text-gray-400` on `bg-gray-300` was 1.72:1 — no better.) WCAG exempts
+> text in a genuinely inactive control, so none of those were strictly failures; they were
+> unreadable all the same, and the exemption lapses the moment a control becomes `aria-disabled`,
+> which stays focusable and therefore active.
+
+**Use `aria-disabled`, not `disabled`, wherever the button has a reason worth reading.** A
+`disabled` button leaves the tab order, so a keyboard user never reaches it, never learns why it
+is off, and cannot trigger a `title` tooltip carrying the explanation. The handler returns early
+instead, the reason is a real paragraph with an `id`, and the button points at it with
+`aria-describedby`. Styling hangs off `aria-disabled:` variants. `title` is not a carrier for
+anything that matters — screen readers expose it inconsistently even on a reachable control.
+
+### Non-text contrast
+
+A border that is the only thing marking a control as a control needs **3:1**, not a hairline:
+
+| Border | On white | Verdict |
+|---|---|---|
+| `border-gray-200` | 1.24:1 | invisible — the default `border` class resolves to this |
+| `border-gray-300` | 1.47:1 | no |
+| `border-gray-400` | 2.54:1 | still short |
+| `border-gray-500` | 4.83:1 | **use this** |
+
+The same floor applies to a focus indicator. `focus:border-blue-400` (2.54:1) is not one; pair
+`focus:outline-none` with `focus-visible:ring-2 focus-visible:ring-brand ring-offset-2` (10.60:1)
+and leave the border saying whatever it was saying about validity.
 
 **Exactly one primary per action group.** A row of buttons has one blue; everything beside it is
 secondary or tertiary. Two blues in a row means neither is the answer.

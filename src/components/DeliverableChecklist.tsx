@@ -106,11 +106,22 @@ export const DeliverableChecklist: React.FC<Props> = ({
       <ul className="mt-2 divide-y divide-gray-200 border-y border-gray-200">
         {rows.map((row) => (
           <li key={row.id} className="py-3 flex items-start gap-3">
+            {/*
+              Named in both modes. Editing renders a <label htmlFor> below, but drafting — the
+              default, and the common path — replaces that label with an editable text field, so
+              nothing pointed at the checkbox at all and a screen reader announced "checkbox,
+              checked" once per row with no way to tell the rows apart. This is the screen that
+              decides how many paid AI calls are about to be made.
+
+              aria-labelledby against the text input resolves to that input's value, which is
+              the deliverable's own title — the same words the eye is using.
+            */}
             <input
               type="checkbox"
               id={`plan-${row.id}`}
               checked={row.selected}
               onChange={(e) => update(row.id, { selected: e.target.checked })}
+              aria-labelledby={editing ? undefined : `plan-name-${row.id}`}
               className="mt-2.5 w-4 h-4 accent-brand flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
@@ -129,6 +140,7 @@ export const DeliverableChecklist: React.FC<Props> = ({
               ) : (
                 <input
                   type="text"
+                  id={`plan-name-${row.id}`}
                   value={row.title}
                   onChange={(e) => update(row.id, { title: e.target.value })}
                   aria-label={`Name for ${row.title || 'this rubric'}`}

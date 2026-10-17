@@ -210,14 +210,28 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
   const heading = title ?? (mode === 'folder' ? 'Choose a Drive folder' : 'Choose a file from Drive');
 
   return (
+    /*
+      `overflow-y-auto` on the backdrop and `m-auto` on the panel, not `items-center`.
+
+      The same fix StartOverDialog and TaskCompletionDialog already carry, and the comment in
+      StartOverDialog says it in as many words: this is the pattern, not a one-off. Centring with
+      `items-center` looks identical while the panel fits and fails badly when it does not — the
+      overflow is split above and below, and the half above y=0 cannot be scrolled to at all.
+
+      This dialog is taller than either of those and reaches the failure sooner. At 200% zoom on
+      a 768px screen, 85vh is about 326px, and the header plus the 280px listing floor plus the
+      Cancel / Choose file row is past that: the two buttons end up clipped off the panel with
+      nothing able to scroll to them. The listing's min-height is what blocks the flex child from
+      shrinking, so it is held back to the first breakpoint.
+    */
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-[100] flex overflow-y-auto overscroll-contain bg-black/40 p-4"
       onClick={onCancel}
       role="presentation"
     >
       <div
         ref={panelRef}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl m-auto max-h-[min(85vh,100%)] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -311,7 +325,7 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
         </div>
 
         {/* Listing */}
-        <div className="flex-1 overflow-y-auto min-h-[280px]">
+        <div className="flex-1 overflow-y-auto sm:min-h-[280px]">
           {loading ? (
             <div className="flex items-center justify-center h-full py-16 text-gray-600">
               <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -451,7 +465,7 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
                   });
                 }
               }}
-              className="px-5 py-2 rounded-xl font-bold text-sm bg-brand text-white hover:bg-brand-dark transition-all disabled:bg-gray-300 disabled:text-gray-400"
+              className="px-5 py-2 rounded-xl font-bold text-sm bg-brand text-white hover:bg-brand-dark transition-all disabled:bg-gray-200 disabled:text-gray-700"
             >
               {mode !== 'folder'
                 ? 'Choose file'

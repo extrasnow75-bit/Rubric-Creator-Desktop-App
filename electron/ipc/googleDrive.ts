@@ -17,6 +17,14 @@ import { getAccessToken } from './googleAuth'
 const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files'
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
 
+/**
+ * Whether Drive accepted being told the target mime type on an update, once it has told us.
+ *
+ * null until the first update of the run. See updateFile for why this is remembered rather than
+ * rediscovered: the answer belongs to the account, not to the call.
+ */
+let mimeTypeAccepted: boolean | null = null
+
 export const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document'
 export const GOOGLE_SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
 export const GOOGLE_FOLDER_MIME = 'application/vnd.google-apps.folder'
@@ -461,18 +469,24 @@ export async function updateDriveFile(args: {
    * and the file here is already a Google Doc, so conversion may well be implied without it.
    *
    * Which of those is true is not worth guessing at from here: ask for the conversion, and if
-   * Drive objects to being told the type at all, send the same body again without it. One wasted
-   * request in the case that does not arise, against a feature that silently does not work.
+   * Drive objects to being told the type at all, send the same body again without it.
+   *
+   * The answer is remembered for the run, because it is a property of the account and the file
+   * rather than of one call. Without that, a user whose Drive does object uploads the whole
+   * document twice on every save, for as long as they use the app — and a 39-rubric set is
+   * several hundred KB of HTML.
    */
-  let response = await write(
-    args.targetMimeType ? { ...named, mimeType: args.targetMimeType } : named,
-  )
+  const sendType = !!args.targetMimeType && mimeTypeAccepted !== false
+  let response = await write(sendType ? { ...named, mimeType: args.targetMimeType } : named)
 
-  if (!response.ok && args.targetMimeType && response.status >= 400 && response.status < 500) {
+  if (!response.ok && sendType && response.status >= 400 && response.status < 500) {
     const complaint = (await response.clone().text()).toLowerCase()
     if (complaint.includes('mimetype') || complaint.includes('mime type')) {
+      mimeTypeAccepted = false
       response = await write(named)
     }
+  } else if (response.ok && sendType) {
+    mimeTypeAccepted = true
   }
 
   if (!response.ok) throw await driveError(response, 'file')

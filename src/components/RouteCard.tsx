@@ -43,6 +43,15 @@ interface Props {
    * chosen file are both still there when it is opened again.
    */
   open?: boolean;
+  /**
+   * The id of the region this card's button opens.
+   *
+   * aria-expanded says a thing opened; aria-controls says which thing, which matters more here
+   * than in most disclosures because what opens is nowhere near the button — three of the four
+   * routes render in a different part of the page entirely. House style is both together; see
+   * RubricAdjustPanel and CsvSaveOptions.
+   */
+  controls?: string;
 }
 
 /** The app's own mark: a rubric table. Same grid as the title-bar icon, without the arrow. */
@@ -151,6 +160,7 @@ export const RouteCard: React.FC<Props> = ({
   alternative,
   onAlternative,
   open = false,
+  controls,
 }) => (
   <div
     className={`p-5 bg-white rounded-2xl ${
@@ -192,6 +202,7 @@ export const RouteCard: React.FC<Props> = ({
       type="button"
       onClick={onAction}
       aria-expanded={open}
+      aria-controls={controls}
       className={`w-full mt-4 px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 ${
         open
           ? 'bg-brand/10 text-brand border-2 border-brand hover:bg-brand/20'

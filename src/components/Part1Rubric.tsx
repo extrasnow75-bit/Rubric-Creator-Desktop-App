@@ -68,7 +68,7 @@ import { DeliverableChecklist } from './DeliverableChecklist';
 import { RubricSwitcher } from './RubricSwitcher';
 import { SegmentedChoice } from './SegmentedChoice';
 import { Loader2, Download, FileText, CheckCircle, ArrowRight, RotateCw,
-  RotateCcw, Home, X, Clock, ChevronDown, ChevronUp, Link, Check, AlertTriangle } from 'lucide-react';
+  RotateCcw, X, Clock, ChevronDown, ChevronUp, Link, Check, AlertTriangle } from 'lucide-react';
 import ErrorDisplay from './ErrorDisplay';
 import mammoth from 'mammoth';
 import { extractPdfText } from '../utils/pdfText';
@@ -107,14 +107,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   const {
     state,
     setCurrentStep,
-    setRubric,
     setRubrics,
     openRubric,
     updateRubricAt,
     setIsLoading,
     setError,
     setScoringMethod,
-    newBatch,
     startProgress,
     stopProgress,
     setProgress,
@@ -190,8 +188,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>(() => getRecentDocs());
   const [showRecentDocs, setShowRecentDocs] = useState(false);
 
-  // Side-by-side comparison
-  const [showComparison, setShowComparison] = useState(false);
+  /**
+   * The description as it was when the run started, for naming a multi-rubric document.
+   *
+   * It used to drive a side-by-side view of the description against the generated rubric as
+   * well. Nothing ever switched that on: the only call that set the flag was inside a reset
+   * handler that was itself never bound to anything, so the whole left-hand column was
+   * unreachable. Removed rather than left looking like a feature.
+   */
   const [snapshotDescription, setSnapshotDescription] = useState('');
 
   // Ready-for-Canvas confirmation checkbox
@@ -253,6 +257,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * field when the value lands, unless the user has already edited it.
    */
   const deployUrlTouched = useRef(false);
+  /**
+   * The button that opens the change panel, so focus has somewhere to go when the panel closes.
+   *
+   * A run ends by closing the panel, which unmounts the Apply button the user pressed — and the
+   * drafts it was counting are deleted too, so it is gone twice over. The focused element goes
+   * with it and focus falls to <body>, meaning the next Tab restarts at the top of the window,
+   * past the whole rubric table, while the result of the run sits near the bottom. Same rule as
+   * CsvSaveOptions: focus returns to the control that opened the panel.
+   */
+  const changeToggleRef = useRef<HTMLButtonElement>(null);
   React.useEffect(() => {
     if (deployUrlTouched.current || !state.courseUrl) return;
     setDeployUrlInput(state.courseUrl);
@@ -882,7 +896,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * the document in Google Docs, it is in the bin, or the id no longer resolves at all. Each
    * needs a different offer, so the reason is kept rather than collapsed into a boolean.
    */
-  const [docConflict, setDocConflict] = useState<'trashed' | 'missing' | null>(null);
+  const [docConflict, setDocConflict] = useState<'edited' | 'trashed' | 'missing' | null>(null);
   const { state: copyState, copy } = useCopyAction();
 
   /**
@@ -906,8 +920,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * holds the versions that were replaced. Those paths build their own array and pass it to
    * `docPayloadFrom` instead.
    */
-  const docPayload = () =>
-    docPayloadFrom(state.rubrics.length > 0 ? state.rubrics : state.rubric ? [state.rubric] : []);
+  const currentRubrics = (): RubricData[] =>
+    state.rubrics.length > 0 ? state.rubrics : state.rubric ? [state.rubric] : [];
+  const docPayload = () => docPayloadFrom(currentRubrics());
 
   /**
    * Write the rubrics over the document the app made earlier.
@@ -965,17 +980,31 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * outright cannot be written to by anybody, so an update there is not a risk to weigh but a
    * fact to report, and the only move left is a new document.
    */
-  const saveRubricsToDoc = async (rubrics: RubricData[]): Promise<string | null> => {
+  const saveRubricsToDoc = async (
+    rubrics: RubricData[],
+    { guard = false }: { guard?: boolean } = {},
+  ): Promise<string | null> => {
     const doc = state.savedDoc;
     if (!doc) return null;
     setSavingToDrive(true);
     setDriveSaveSuccess(null);
     setDocConflict(null);
     try {
-      const check = await window.api.rubric.checkDriveDoc({ fileId: doc.fileId });
+      const check = await window.api.rubric.checkDriveDoc({
+        /*
+          The version is asked for only when the write is one the user did not press for.
+          Passing it is what makes an `edited` answer possible at all, so the button keeps the
+          behaviour it was given in 0.9.26 — update means update, no gate — while a write that
+          happens as part of a run stops rather than silently replacing somebody's typing.
+        */
+        fileId: doc.fileId,
+        version: guard ? doc.version : undefined,
+      });
       if (!check.ok) return check.message;
-      if (check.status === 'trashed' || check.status === 'missing') {
-        /* Not an error to report in words: the card turns amber and offers the one move left. */
+      if (check.status === 'edited' || check.status === 'trashed' || check.status === 'missing') {
+        /* Not an error to report in words: the card says which of the three it is, and offers
+           the move that fits — a new document when this one is gone, the save button when the
+           document is merely ahead of us. */
         setDocConflict(check.status);
         return null;
       }
@@ -1069,15 +1098,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     } else {
       setCurrentStep(AppMode.PART_2);
     }
-  };
-
-  const handleReset = () => {
-    setAssignmentDescription('');
-    setRubric(null);
-    setError(null);
-    setPickedFileName(null);
-    setSnapshotDescription('');
-    setShowComparison(false);
   };
 
   const activeDraft = changeDrafts[state.activeRubricIndex] ?? '';
@@ -1207,6 +1227,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setError(null);
     setChangeSummary(null);
     setRevisedIndexes([]);
+    setPaceNotice(null);
     startProgress(queuedIndexes.length, true);
 
     /* One signal for the run, for the reason given in generateRubricsFor: re-reading it per
@@ -1219,33 +1240,77 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
        document can be written from them. See docPayload: `state.rubrics` is still the old set. */
     const nextRubrics = [...state.rubrics];
 
-    try {
-      for (let n = 0; n < queuedIndexes.length; n++) {
-        const index = queuedIndexes[n];
-        if (signal.aborted) break;
+    /*
+      Three at a time, dropping to one at the first sign of strain — the pool the drafting path
+      has used since eight-part documents took four minutes, and for the same reasons.
 
-        const target = state.rubrics[index];
-        if (!target) continue;
+      The revisions are independent of each other, so nothing required them to queue up; this
+      loop simply never got the machinery. Ticking eight rubrics meant eight round trips end to
+      end, about a minute and a half of watching a progress bar for work that takes half that.
 
+      It also had no onRetry listener at all, which is the part that matters most: a revision run
+      that Google started pushing back on had no way to slow itself down, while the drafting path
+      beside it did.
+    */
+    const CONCURRENT_REVISIONS = 3;
+    const oneAtATime = { current: queuedIndexes.length === 1 };
+    const unsubscribeRetry = window.api.gemini.onRetry((notice) => {
+      if (!notice.waiting || oneAtATime.current) return;
+      oneAtATime.current = true;
+      setPaceNotice(
+        notice.reason === 'busy'
+          ? "Google's AI service is busy, so the rest of the changes are being made one at a time. This is slower but far more likely to finish."
+          : 'Gemini asked for a slower pace, so the rest of the changes are being made one at a time. This is slower but far more likely to finish.',
+      );
+    });
+
+    let done = 0;
+    const describeRun = () => {
+      if (queuedIndexes.length === 1) return 'Applying your changes...';
+      const remaining = queuedIndexes.length - done;
+      const width = Math.min(oneAtATime.current ? 1 : CONCURRENT_REVISIONS, remaining);
+      /* A count rather than a name once several are in flight: naming one of three would be
+         picking one arbitrarily and calling it the one being worked on. */
+      return width > 1
+        ? `Revising ${width} rubrics at once (${done} of ${queuedIndexes.length} done)...`
+        : `Revising "${state.rubrics[queuedIndexes[done]]?.title || 'the rubric'}" (${done + 1} of ${queuedIndexes.length})...`;
+    };
+
+    const reviseOne = async (index: number) => {
+      const target = state.rubrics[index];
+      if (!target) return;
+      try {
+        const updated = await applyRubricChanges(target, changeDrafts[index] ?? '', signal);
+        updateRubricAt(index, updated);
+        nextRubrics[index] = updated;
+        revised.push(index);
+      } catch {
+        if (signal.aborted) return;
+        failed.push(target.title);
+      } finally {
+        done += 1;
         setProgress({
-          currentStep:
-            queuedIndexes.length === 1
-              ? 'Applying your changes...'
-              : `Revising "${target.title}" (${n + 1} of ${queuedIndexes.length})...`,
-          percentage: n / queuedIndexes.length,
-          itemsProcessed: n,
+          currentStep: describeRun(),
+          percentage: done / queuedIndexes.length,
+          itemsProcessed: done,
         });
-
-        try {
-          const updated = await applyRubricChanges(target, changeDrafts[index] ?? '', signal);
-          updateRubricAt(index, updated);
-          nextRubrics[index] = updated;
-          revised.push(index);
-        } catch (err: any) {
-          if (signal.aborted) break;
-          failed.push(target.title);
-        }
       }
+    };
+
+    try {
+      setProgress({ currentStep: describeRun(), percentage: 0, itemsProcessed: 0 });
+
+      let next = 0;
+      while (next < queuedIndexes.length && !signal.aborted) {
+        const width = oneAtATime.current ? 1 : CONCURRENT_REVISIONS;
+        const batch: number[] = [];
+        while (batch.length < width && next < queuedIndexes.length) batch.push(queuedIndexes[next++]);
+        await Promise.all(batch.map(reviseOne));
+      }
+
+      /* Finishing order is whatever the model gave back; the rubrics' own order is what the
+         summary, the markers and the document all read in. */
+      revised.sort((a, b) => a - b);
 
       if (revised.length > 0) {
         // Clear only what was actually applied, so a failed request is still there to retry.
@@ -1262,7 +1327,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           place it had already been sitting — a word changing inside a box that was already green
           is not an event anyone notices.
         */
-        const names = revised.map((i) => state.rubrics[i]?.title).filter(Boolean);
+        /* From the revised set, not from state: a change can rename a rubric, and reading the
+           pre-run snapshot here would announce a title that no longer exists while the document
+           written moments later correctly carries the new one. */
+        const names = revised.map((i) => nextRubrics[i]?.title).filter(Boolean);
         setChangeSummary(
           `${revised.length === 1 ? 'Updated 1 rubric' : `Updated ${revised.length} rubrics`}` +
             (names.length > 0 ? ` — ${names.join(', ')}.` : '.'),
@@ -1293,13 +1361,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           itemsProcessed: revised.length,
         });
       }
-      const docMessage = writingBack ? await saveRubricsToDoc(nextRubrics) : null;
+      const docMessage = writingBack ? await saveRubricsToDoc(nextRubrics, { guard: true }) : null;
       /* The summary above says the document was written. The save button's own success chip
          would say it again, a few lines below, in nearly the same words. */
       if (writingBack && !docMessage) setDriveSaveSuccess(null);
 
       if (failed.length === 0 && revised.length > 0) {
         setShowRequestChangesCard(false);
+        changeToggleRef.current?.focus();
       }
 
       /* Both can go wrong in one run, and the second must not quietly replace the first. */
@@ -1314,6 +1383,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
       setTimeout(() => stopProgress(), 500);
     } finally {
+      unsubscribeRetry();
       setIsApplyingChanges(false);
     }
   };
@@ -1357,11 +1427,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     }
   };
 
-  const handleDashboard = () => {
-    newBatch();
-    setCurrentStep(AppMode.DASHBOARD);
-  };
-
   /**
    * Whether the document already holds what is on screen.
    *
@@ -1378,20 +1443,40 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * really is out of date.
    */
   const liveFingerprint = React.useMemo(
-    () => rubricsFingerprint(docPayload().rubrics),
+    // The rubrics themselves, not docPayload() — which would pull in the document title and so
+    // the snapshot description, neither of which the fingerprint reads. Taking them directly
+    // lets the dependency list below be the honest and complete one.
+    () => rubricsFingerprint(currentRubrics()),
     // The rubrics array's identity, which changes when the set is replaced or one is revised.
     // Memoised for the work it skips: this component re-renders four times a second while a
     // run's progress ticks, and a 39-rubric set is a long string to build each time.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.rubrics, state.rubric],
   );
-  /** How much text the chosen document gave us, for the line under its name. */
-  const wordsRead = assignmentDescription.trim()
-    ? assignmentDescription.trim().split(/\s+/).length
-    : 0;
+  /**
+   * How much text the chosen document gave us, for the line under its name.
+   *
+   * Memoised because this component re-renders four times a second for the whole of a run — the
+   * progress timer ticks at 250ms — and the document here can be a 39-rubric set. Counting its
+   * words on every one of those renders is milliseconds each time, for a line that is not even
+   * mounted once rubrics exist.
+   */
+  const wordsRead = React.useMemo(() => {
+    const trimmed = assignmentDescription.trim();
+    return trimmed ? trimmed.split(/\s+/).length : 0;
+  }, [assignmentDescription]);
 
   const docIsCurrent =
     !!state.savedDoc?.contentKey && state.savedDoc.contentKey === liveFingerprint;
+
+  /**
+   * Whether the document cannot be written to by anybody, as opposed to merely being ahead of us.
+   *
+   * The three conflicts share a colour because all three stopped a write, but they do not share
+   * an answer. A document in the bin needs a new one; a document somebody has edited needs the
+   * ordinary buttons, because overwriting it on purpose is a perfectly good choice and the save
+   * button is how it is made.
+   */
+  const docGone = docConflict === 'trashed' || docConflict === 'missing';
 
   /**
    * Which of its three states the document card is in.
@@ -1425,7 +1510,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         </p>
       </div>
 
-      <div className={`bg-white p-10 rounded-3xl shadow-2xl border border-gray-100 w-full transition-all duration-300 ${showComparison && state.rubric ? 'max-w-5xl' : 'max-w-2xl'}`}>
+      <div className="bg-white p-10 rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl transition-all duration-300">
         {!state.rubric ? (
           <>
             <h2 className="text-2xl font-black text-gray-900 mb-2">
@@ -1522,13 +1607,26 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             </div>
             )}
 
-            {/* Input Mode Toggle */}
+            {/*
+              Which tab is showing, said rather than only drawn.
+
+              The selected tab was blue text and a blue underline and nothing else — no state in
+              the markup at all — so a screen reader announced two plain buttons and left the
+              question unanswered. That was true before this release and is more pointed after
+              it: the tab no longer changes by itself, so this is the only remaining cue.
+
+              aria-current rather than the full tab pattern. role="tab" is a promise about
+              keyboard behaviour (arrow keys moving between tabs, one tab stop for the set) that
+              these two buttons do not keep, and claiming it without keeping it reads worse to
+              someone relying on it than two honest buttons do.
+            */}
             <div className="flex gap-3 mb-6 border-b border-gray-200">
               <button
                 onClick={() => {
                   setInputMode('google-doc');
                   setError(null);
                 }}
+                aria-current={inputMode === 'google-doc' ? 'true' : undefined}
                 className={`px-4 py-3 font-bold border-b-2 transition-all ${
                   inputMode === 'google-doc'
                     ? 'border-blue-600 text-blue-600'
@@ -1543,6 +1641,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   setGoogleDocUrl('');
                   setError(null);
                 }}
+                aria-current={inputMode === 'text' ? 'true' : undefined}
                 className={`px-4 py-3 font-bold border-b-2 transition-all ${
                   inputMode === 'text'
                     ? 'border-blue-600 text-blue-600'
@@ -1560,7 +1659,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`relative w-full p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all ${
+              /*
+                focus-within, because the thing that takes focus here is the file input stretched
+                invisibly across the box at opacity-0 — it is reachable and correctly named, but
+                any ring it draws is invisible too, so a keyboard user lost the caret entirely
+                for one stop. The ring goes on the box they can actually see.
+              */
+              className={`relative w-full p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-2 ${
                 isDragging
                   ? 'bg-blue-50 border-blue-400'
                   : 'bg-gray-50 border-gray-200 hover:border-blue-300'
@@ -1592,20 +1697,28 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             </div>
 
             {/* Text Extraction Label */}
-            <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mt-6 mb-2">
+            <p
+              id="paste-description-label"
+              className="text-xs font-bold text-gray-700 uppercase tracking-wider mt-6 mb-2"
+            >
               Or type it here
             </p>
 
-            {/* Text Area */}
+            {/*
+              Named by the line above it, which was doing the job of a label without being one,
+              leaving the placeholder as the only name this field had. The bare `border` class
+              resolved to gray-200 — 1.24:1 against white, so the box had no visible edge either.
+            */}
             <textarea
               value={assignmentDescription}
               onChange={(e) => setAssignmentDescription(e.target.value)}
+              aria-labelledby="paste-description-label"
               placeholder={
                 editing
                   ? 'Or paste your rubrics here...'
                   : 'Or paste your assignment description here...'
               }
-              className="w-full h-48 p-4 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+              className="w-full h-48 p-4 border border-gray-500 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
             />
 
             {/* Error Display */}
@@ -1617,7 +1730,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 <button
                   onClick={handleGenerateRubric}
                   disabled={isGenerating || isDiscovering || plan !== null || !assignmentDescription.trim()}
-                  className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 mt-6 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-200 disabled:text-gray-700 active:scale-95 mt-6 flex items-center justify-center gap-2"
                 >
                   {(isGenerating || isDiscovering) && <Loader2 className="w-5 h-5 animate-spin" />}
                   {isDiscovering
@@ -1684,7 +1797,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 <button
                   onClick={handlePickerOpen}
                   disabled={isPickerLoading || fetchingGoogleDoc || !state.isGoogleAuthenticated}
-                  className="w-full py-3 px-4 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:bg-gray-300 disabled:text-gray-400 transition-all text-sm flex items-center justify-center gap-2 mb-6"
+                  className="w-full py-3 px-4 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:bg-gray-200 disabled:text-gray-700 transition-all text-sm flex items-center justify-center gap-2 mb-6"
                 >
                   {(isPickerLoading || fetchingGoogleDoc) ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -1727,28 +1840,40 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         <X className="w-4 h-4" />
                       </button>
                     </div>
-                    {wordsRead > 0 && (
+                    {/*
+                      Open stays open, however much text is left.
+
+                      Gating this on the word count alone made the panel destroy itself: the
+                      textarea below is bound to the same string the count is derived from, so
+                      selecting all and deleting — which is what someone does when the count
+                      tells them the document was read badly, the very case this was added for —
+                      unmounted the field mid-keystroke, dropped focus to nowhere, and left no
+                      way back but picking the file again.
+                    */}
+                    {(wordsRead > 0 || showPickedText) && (
                       <div className="px-3 pb-3">
                         <button
                           type="button"
                           onClick={() => setShowPickedText(!showPickedText)}
                           aria-expanded={showPickedText}
+                          aria-controls="picked-document-text"
                           className="flex items-center gap-1.5 text-xs font-bold text-blue-800 hover:text-blue-900 transition-colors"
                         >
                           {showPickedText ? (
-                            <ChevronUp className="w-3.5 h-3.5" />
+                            <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
                           ) : (
-                            <ChevronDown className="w-3.5 h-3.5" />
+                            <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
                           )}
                           {wordsRead.toLocaleString()} words read —{' '}
                           {showPickedText ? 'hide them' : 'read them here'}
                         </button>
                         {showPickedText && (
                           <textarea
+                            id="picked-document-text"
                             value={assignmentDescription}
                             onChange={(e) => setAssignmentDescription(e.target.value)}
                             aria-label="The text read from this document"
-                            className="w-full h-40 mt-2 p-3 text-sm bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                            className="w-full h-40 mt-2 p-3 text-sm bg-white border border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
                           />
                         )}
                       </div>
@@ -1844,7 +1969,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 <button
                   onClick={handleGenerateRubric}
                   disabled={isGenerating || isDiscovering || plan !== null || !assignmentDescription.trim()}
-                  className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 mt-6 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-200 disabled:text-gray-700 active:scale-95 mt-6 flex items-center justify-center gap-2"
                 >
                   {(isGenerating || isDiscovering) && <Loader2 className="w-5 h-5 animate-spin" />}
                   {isDiscovering
@@ -1884,20 +2009,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
               Check each rubric, make any changes, then send them to Canvas.
             </p>
 
-            {/* Display Generated Rubric — comparison layout */}
-            <div className={showComparison ? 'grid grid-cols-2 gap-8' : ''}>
-
-              {/* Left column: original assignment text */}
-              {showComparison && snapshotDescription && (
-                <div className="flex flex-col">
-                  <h3 className="text-xs font-black text-gray-600 uppercase tracking-widest mb-3">Original Assignment</h3>
-                  <div className="flex-1 h-96 overflow-y-auto p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-mono">
-                    {snapshotDescription}
-                  </div>
-                </div>
-              )}
-
-              {/* Right column (or full width): rubric */}
+            {/* The generated rubrics. The wrapper is what is left of a two-column layout that
+                nothing could reach; see snapshotDescription. */}
+            <div>
               <div>
                 {/*
                   The deliverables checklist, back in place without leaving the page.
@@ -2040,18 +2154,20 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     colour.
                   */}
                   <button
+                    ref={changeToggleRef}
                     onClick={() => {
                       setShowRequestChangesCard((open) => !open);
                       setShowStartOverCard(false);
                     }}
                     aria-expanded={showRequestChangesCard}
+                    aria-controls="change-rubric-panel"
                     className={`flex-[2] px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
                       showRequestChangesCard
                         ? 'bg-brand/10 text-brand border-2 border-brand'
                         : 'bg-gray-100 text-gray-900 hover:bg-gray-200 border-2 border-transparent'
                     }`}
                   >
-                    <RotateCw className="w-4 h-4" />
+                    <RotateCw className="w-4 h-4" aria-hidden="true" />
                     Change this rubric
                   </button>
                   {/*
@@ -2073,13 +2189,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         setShowRequestChangesCard(false);
                       }}
                       aria-expanded={showStartOverCard}
+                      aria-controls="start-over-panel"
                       className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 ${
                         showStartOverCard
                           ? 'bg-brand/10 text-brand border-2 border-brand'
                           : 'bg-gray-100 text-gray-900 hover:bg-gray-200 border-2 border-transparent'
                       }`}
                     >
-                      <RotateCcw className="w-4 h-4" />
+                      <RotateCcw className="w-4 h-4" aria-hidden="true" />
                       {editing ? 'Choose different rubrics' : 'Start over from the description'}
                     </button>
                   )}
@@ -2091,7 +2208,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   suggested you were near anything destructive.
                 */}
                 {showStartOverCard && lastPlan && (
-                  <div className="mb-6 p-4 bg-white border-2 border-brand rounded-2xl">
+                  <div id="start-over-panel" className="mb-6 p-4 bg-white border-2 border-brand rounded-2xl">
                     <p className="text-sm font-bold text-gray-900 mb-1">
                       {editing
                         ? 'Go back to the list of rubrics in the document?'
@@ -2145,7 +2262,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   controls that move about depending on state.
                 */}
                 {showRequestChangesCard && state.rubric && (
-                  <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-5">
+                  <div
+                    id="change-rubric-panel"
+                    className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-5"
+                  >
                     <div className="flex items-start justify-between gap-4 mb-4">
                       {/* The heading names the rubric because the panel is identical for all of
                           them, and the only other thing saying which one you are editing is the
@@ -2282,7 +2402,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   <button
                     onClick={handleApplyChanges}
                     disabled={isApplyingChanges || !changesConfirmed}
-                    className="w-full py-3 mb-3 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 flex items-center justify-center gap-2"
+                    aria-describedby={
+                      !changesConfirmed && !isApplyingChanges ? 'apply-blocked-reason' : undefined
+                    }
+                    className="w-full py-3 mb-3 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-brand-dark transition-all disabled:bg-gray-200 disabled:text-gray-700 active:scale-95 flex items-center justify-center gap-2"
                   >
                     {isApplyingChanges && <Loader2 className="w-5 h-5 animate-spin" />}
                     {isApplyingChanges
@@ -2294,7 +2417,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 )}
 
                 {showRequestChangesCard && queuedIndexes.length > 0 && !changesConfirmed && (
-                  <p className="text-xs text-gray-600 mb-3 text-center">
+                  <p id="apply-blocked-reason" className="text-xs text-gray-600 mb-3 text-center">
                     Tick the box above to turn on the button.
                   </p>
                 )}
@@ -2304,6 +2427,32 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   confirmation that disappears along with the thing it is confirming is no
                   confirmation at all. Live so it is announced rather than only drawn.
                 */}
+                {/*
+                  Anything that went wrong, where it went wrong.
+
+                  This screen had no renderer for state.error at all. Both of them are in the
+                  half of this component that draws before a rubric exists, so every failure
+                  raised after that — a rubric the model would not revise, a Google Doc that
+                  would not take the write — was composed into a sentence and then shown to
+                  nobody, leaving a failed save looking exactly like a successful one.
+
+                  ErrorDisplay rather than a bare paragraph: it carries role="alert", so the
+                  sentence is spoken as well as drawn.
+                */}
+                {state.error && <ErrorDisplay error={state.error} className="mb-3" />}
+
+                {/*
+                  Amber, not red: a run that has halved its own pace has not failed. It answers
+                  the question a slow run provokes — is this stuck? — and it had nowhere to
+                  appear on this screen until the revision loop started pooling and could
+                  therefore slow down.
+                */}
+                {paceNotice && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl mb-3" role="status">
+                    <p className="text-sm text-amber-900">{paceNotice}</p>
+                  </div>
+                )}
+
                 {/*
                   Everything about the document, at the point the document is finished with.
 
@@ -2318,10 +2467,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   so they share one set of buttons instead of stacking three panels with three
                   versions of the same two actions.
 
-                  role="status" stays on the outside: the summary inside it is the result of a
-                  run that has just finished, and it is announced rather than only drawn.
+                  The live region is inside, around the message text alone — see the comment on
+                  it. The result of a run is announced; the buttons beside it are not.
                 */}
-                <div role="status" aria-live="polite">
+                <div>
                   <div
                     className={`mb-3 p-4 rounded-2xl border ${
                       docCardState === 'conflict'
@@ -2345,40 +2494,53 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                       ) : null}
 
                       <div className="min-w-0 flex-1">
-                        {/* The run first, where there has been one: it is why the rest matters. */}
-                        {changeSummary && !isApplyingChanges && (
-                          <p
-                            className={`text-sm font-bold ${
-                              docCardState === 'conflict' ? 'text-amber-900' : 'text-green-900'
-                            }`}
-                          >
-                            {changeSummary}
-                          </p>
-                        )}
+                        {/*
+                          Only the words are live.
 
-                        {docCardState === 'conflict' ? (
-                          <p className="text-sm text-amber-900 mt-1">
-                            {docConflict === 'trashed'
-                              ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
-                              : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
-                          </p>
-                        ) : changeSummary && !isApplyingChanges ? (
-                          /* The run writes the document too, so the ordinary reading is the
-                             first one. The other two are for a run with nowhere to write —
-                             nothing saved yet, or a save that did not go through — which is the
-                             gap this line was added for. */
-                          <p className="text-sm text-green-800 mt-1">
-                            {state.savedDoc && docIsCurrent
-                              ? 'Your Google Doc has been updated to match. Same document, same link.'
-                              : state.savedDoc
-                                ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — the button below sends them.'
-                                : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
-                          </p>
-                        ) : (
-                          <p className="text-sm font-bold text-gray-900">
-                            {state.savedDoc ? 'Google Doc' : 'Not saved yet'}
-                          </p>
-                        )}
+                          This used to sit on the card itself, which meant every button label
+                          inside it was re-read whenever any of them changed — "Saving…", "Link
+                          copied", the hint under the buttons — so the one sentence that matters
+                          arrived buried in a recital of the whole card. Interactive controls do
+                          not belong in a live region; the rest of this file already knows that.
+                        */}
+                        <div role="status" aria-live="polite">
+                          {/* The run first, where there has been one: it is why the rest matters. */}
+                          {changeSummary && !isApplyingChanges && (
+                            <p
+                              className={`text-sm font-bold ${
+                                docCardState === 'conflict' ? 'text-amber-900' : 'text-green-900'
+                              }`}
+                            >
+                              {changeSummary}
+                            </p>
+                          )}
+
+                          {docCardState === 'conflict' ? (
+                            <p className="text-sm text-amber-900 mt-1">
+                              {docConflict === 'edited'
+                                ? 'Your Google Doc has been changed in Google Docs since the app last wrote it, so the changes on screen were not saved over it. If that edit was yours and you want these rubrics instead, use the button below — Google Docs keeps the version before it under File → Version history.'
+                                : docConflict === 'trashed'
+                                  ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
+                                  : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
+                            </p>
+                          ) : changeSummary && !isApplyingChanges ? (
+                            /* The run writes the document too, so the ordinary reading is the
+                               first one. The other two are for a run with nowhere to write —
+                               nothing saved yet, or a save that did not go through — which is the
+                               gap this line was added for. */
+                            <p className="text-sm text-green-800 mt-1">
+                              {state.savedDoc && docIsCurrent
+                                ? 'Your Google Doc has been updated to match. Same document, same link.'
+                                : state.savedDoc
+                                  ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — the button below sends them.'
+                                  : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
+                            </p>
+                          ) : (
+                            <p className="text-sm font-bold text-gray-900">
+                              {state.savedDoc ? 'Google Doc' : 'Not saved yet'}
+                            </p>
+                          )}
+                        </div>
 
                         {/*
                           The document's own name, on screen rather than announced once and
@@ -2429,7 +2591,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                           alone would both be buttons that do nothing.
                         */}
                         <div className="flex flex-wrap items-center gap-3 mt-3">
-                          {docCardState === 'conflict' ? (
+                          {docGone ? (
                             <button
                               type="button"
                               onClick={handleExportToDrive}
@@ -2447,20 +2609,34 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                 quieter link further along, where it reads as the deliberate
                                 choice it is rather than the default.
                               */}
+                              {/*
+                                aria-disabled, not disabled — the house rule, stated in full in
+                                CsvSaveOptions and kept by the deploy button further down this
+                                file. A `disabled` button leaves the tab order, so a keyboard
+                                user never reaches it, never learns why it is off, and cannot
+                                trigger the tooltip that was carrying the reason. The handler
+                                returns early instead, and the reason is a real paragraph tied
+                                on with aria-describedby — the same paragraph that was already
+                                on screen saying it, with nothing connecting the two.
+                              */}
                               <button
                                 type="button"
-                                onClick={state.savedDoc ? handleUpdateDoc : handleExportToDrive}
-                                disabled={
+                                onClick={() => {
+                                  if (savingToDrive || !state.isGoogleAuthenticated || docIsCurrent)
+                                    return;
+                                  void (state.savedDoc ? handleUpdateDoc() : handleExportToDrive());
+                                }}
+                                aria-disabled={
                                   savingToDrive || !state.isGoogleAuthenticated || docIsCurrent
                                 }
-                                title={
+                                aria-describedby={
                                   !state.isGoogleAuthenticated
-                                    ? 'Sign in to Google under Initial Setup to use this'
+                                    ? 'doc-signin-hint'
                                     : docIsCurrent
-                                      ? 'The document already holds these rubrics'
+                                      ? 'doc-save-hint'
                                       : undefined
                                 }
-                                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:bg-gray-300 disabled:text-gray-500 flex items-center gap-2 ${
+                                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-gray-200 flex items-center gap-2 ${
                                   preferLocalOutput
                                     ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                                     : 'bg-brand text-white hover:bg-brand-dark'
@@ -2532,7 +2708,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                           that cannot be fetched back in two clicks.
                         */}
                         {state.savedDoc && (
-                          <p className="text-xs text-gray-600 mt-3">
+                          <p id="doc-save-hint" className="text-xs text-gray-600 mt-3">
                             {docIsCurrent
                               ? 'The document already holds these rubrics. Change one above and this turns back on.'
                               : 'Saving replaces what is in the document. Google Docs keeps the previous version under File → Version history.'}
@@ -2545,7 +2721,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                           </p>
                         )}
                         {!state.isGoogleAuthenticated && (
-                          <p className="text-xs text-gray-600 mt-3">
+                          <p id="doc-signin-hint" className="text-xs text-gray-600 mt-3">
                             You need to go to Initial Setup and sign into Google first to use the
                             Google Docs route. Saving to this computer works either way.
                           </p>
@@ -2726,7 +2902,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
               ? 'deploy-blocked-reason'
               : undefined
           }
-          className={`w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed ${showDeployCard ? 'opacity-50 pointer-events-none' : ''}`}
+          /*
+            While the deploy card is open this button steps back — but opacity-50 took the label
+            with it: white on a 50%-composited brand is 2.84:1, and pointer-events-none stops the
+            mouse only, so Enter still fired it. Dimming the background alone keeps white at
+            4.56:1, and the card above it is what the user is answering anyway.
+          */
+          className={`w-full py-4 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-700 disabled:shadow-none disabled:cursor-not-allowed ${showDeployCard ? 'bg-brand/60 pointer-events-none' : 'bg-brand hover:bg-brand-dark'}`}
         >
           <ArrowRight className="w-5 h-5" />
           {onAnalyzeDeploy
@@ -2801,7 +2983,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
               placeholder="https://canvas.institution.edu/courses/12345"
               aria-invalid={!!((deployUrlInput && !deployUrlValid) || deployNameError)}
               aria-describedby={deployNameError ? 'deploy-course-status' : undefined}
-              className={`w-full px-4 py-3 border-2 rounded-xl text-sm focus:outline-none transition-all ${
+              /* The border alone was the focus indicator, and every colour it took — blue-400,
+                 red-400, green-500 — is under 3:1 against white and a small step from the
+                 unfocused grey. The ring is the indicator; the border stays as the status. */
+              className={`w-full px-4 py-3 border-2 rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 transition-all ${
                 (deployUrlInput && !deployUrlValid) || deployNameError
                   ? 'border-red-300 focus:border-red-400'
                   : deployCourseVerified

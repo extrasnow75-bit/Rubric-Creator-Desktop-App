@@ -1063,7 +1063,7 @@ export const Part3Upload: React.FC = () => {
                   (uploadMode === 'google-drive' && !csvToUse.trim()) ||
                   (uploadMode === 'batch' && batchFiles.length === 0)
                 }
-                className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-300 active:scale-95 flex items-center justify-center gap-2"
+                className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-200 disabled:text-gray-700 active:scale-95 flex items-center justify-center gap-2"
               >
                 {isUploading && <Loader2 className="w-5 h-5 animate-spin" />}
                 {isUploading

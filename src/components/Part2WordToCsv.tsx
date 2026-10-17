@@ -876,7 +876,7 @@ export const Part2WordToCsv: React.FC = () => {
                     <button
                       onClick={handleGenerateFromPhase1}
                       disabled={!editableRubricName.trim()}
-                      className="w-full py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:bg-gray-300 transition-all flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:bg-gray-200 disabled:text-gray-700 transition-all flex items-center justify-center gap-2"
                     >
                       <Zap className="w-4 h-4" />
                       Generate Canvas CSV from Phase 1 Rubric

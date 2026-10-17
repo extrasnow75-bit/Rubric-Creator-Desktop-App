@@ -183,16 +183,31 @@ export const resetClient = (): void => {
  * WHY queue-based instead of lastRequestTime:
  *   If 13 rubrics all call throttle() simultaneously, a simple
  *   lastRequestTime check lets them all read "elapsed = 0" at the
- *   same instant, schedule identical 4-second timers, and fire at
- *   the same time — triggering a burst of 13 simultaneous requests.
- *   The queue approach chains each call after the previous one so
- *   they execute one-at-a-time with a guaranteed 4 s gap.
+ *   same instant, schedule identical timers, and fire at the same
+ *   time — triggering a burst of 13 simultaneous requests. The queue
+ *   approach chains each call after the previous one so they execute
+ *   one-at-a-time with a guaranteed MIN_REQUEST_INTERVAL_MS gap.
+ *
+ * WHAT THE GAP IS MEASURED FROM:
+ *   The interval runs from the last request that was released, not from
+ *   the last slot that closed, and the comparison is made inside the
+ *   queue rather than by each caller — so the burst above is still
+ *   impossible, because only one slot is ever deciding at a time.
+ *
+ *   The first version slept the whole interval unconditionally, which is
+ *   a different promise: a revision run calls this once per rubric, each
+ *   call arriving ten seconds after the last one returned, with no burst
+ *   anywhere near it — and paid 2 s of sleep per rubric regardless. That
+ *   is 80 s on a 39-rubric document, and about a fifth of the wait on a
+ *   single "apply changes".
  *
  * Abort behaviour: clearing the timer rejects the slot immediately
  *   and the rejection is swallowed in pendingThrottle so the NEXT
  *   queued caller can proceed without waiting.
  */
 let pendingThrottle: Promise<void> = Promise.resolve();
+/** When the last caller was released, so the gap is measured from a request rather than a sleep. */
+let lastDispatch = 0;
 const MIN_REQUEST_INTERVAL_MS = 2000; // 2 s between API calls — enough to respect rate limits without adding noticeable delay
 
 async function throttle(signal?: AbortSignal): Promise<void> {
@@ -207,7 +222,12 @@ async function throttle(signal?: AbortSignal): Promise<void> {
         // past ten, Node prints MaxListenersExceededWarning, which a 13-rubric document reaches.
         const onAbort = () => { clearTimeout(timer); cleanup(); reject(new Error('Request cancelled')); };
         const cleanup = () => signal?.removeEventListener('abort', onAbort);
-        const timer = setTimeout(() => { cleanup(); resolve(); }, MIN_REQUEST_INTERVAL_MS);
+        const release = () => { lastDispatch = Date.now(); cleanup(); resolve(); };
+        // Only what is left of the interval. An aborted slot never reaches release(), so a
+        // cancelled run does not hold the next real request back either.
+        const wait = Math.max(0, MIN_REQUEST_INTERVAL_MS - (Date.now() - lastDispatch));
+        if (wait === 0) { release(); return; }
+        const timer = setTimeout(release, wait);
         signal?.addEventListener('abort', onAbort, { once: true });
       }),
   );

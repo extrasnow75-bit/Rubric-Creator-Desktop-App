@@ -56,11 +56,17 @@ export function SegmentedChoice<T extends string>({
               onChange={() => onChange(option.value)}
               className="sr-only peer"
             />
+            {/*
+              gray-500, not -200. The border is the only thing marking an unselected segment out
+              as a control — it is white on white otherwise — and 1.4.11 wants 3:1 for that:
+              gray-200 was 1.24:1, gray-400 is 2.54:1, gray-500 is 4.83:1. Same reasoning, and
+              the same value, as the zoom control.
+            */}
             <span
               className="
-                block rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-center
+                block rounded-xl border-2 border-gray-500 bg-white px-4 py-2.5 text-center
                 text-sm font-bold text-gray-700 transition-all
-                hover:border-gray-300 hover:bg-gray-50
+                hover:border-gray-700 hover:bg-gray-50
                 peer-checked:border-brand peer-checked:bg-brand peer-checked:text-white
                 peer-focus-visible:ring-2 peer-focus-visible:ring-brand peer-focus-visible:ring-offset-2
               "
