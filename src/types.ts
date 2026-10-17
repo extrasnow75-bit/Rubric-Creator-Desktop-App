@@ -102,6 +102,14 @@ export interface SavedRubricDoc {
   /** Drive's version counter as of our last write. */
   version: string;
   /**
+   * How many rubrics this document held when the app read it, for a document it did not create.
+   *
+   * A write replaces the document's whole contents, so a set of two written back to a document
+   * of thirty-nine removes the other thirty-seven. The app cannot merge them — it never read
+   * them — so the number is kept in order to say what a save will cost before it costs it.
+   */
+  heldRubrics?: number;
+  /**
    * True when the app did not create this document but was handed it — a rubric document opened
    * for editing. Its name is the user's, so an update rewrites the contents and leaves the name
    * alone; a document the app made is renamed on every write so its timestamp stays honest.

@@ -615,6 +615,18 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         ticked turns that into 39 requests for anyone who presses the button without reading it.
         "Toggle all" is one click away for the case where the whole set really is wanted.
       */
+      /*
+        How many the document holds, kept against the document itself.
+
+        Recorded here because this is the only moment the app knows: adoption happens when the
+        file is picked, before anything has been read, and after this only the ticked rubrics
+        are ever loaded. Without it, a set of two written back to a document of thirty-nine
+        removes the other thirty-seven with nothing having said so.
+      */
+      if (state.savedDoc?.adopted) {
+        setSavedDoc({ ...state.savedDoc, heldRubrics: names.length });
+      }
+
       setPlan(
         names.map((meta, i) => ({
           id: `found-${i}`,
@@ -898,7 +910,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * the document in Google Docs, it is in the bin, or the id no longer resolves at all. Each
    * needs a different offer, so the reason is kept rather than collapsed into a boolean.
    */
-  const [docConflict, setDocConflict] = useState<'edited' | 'trashed' | 'missing' | null>(null);
+  const [docConflict, setDocConflict] = useState<
+    'edited' | 'trashed' | 'missing' | 'shrink' | null
+  >(null);
+  /**
+   * The document the user has already agreed may be written back smaller than it was.
+   *
+   * Said once per document, not once per save. The warning exists because the consequence is
+   * invisible — the document is not on screen while it happens — and not because the choice is
+   * a bad one: writing two rubrics back to a document of thirty-nine is a perfectly reasonable
+   * thing to want. Once it has been said, saying it again on every run would be the gate this
+   * app deliberately does not have.
+   */
+  const [shrinkAgreedFor, setShrinkAgreedFor] = useState<string | null>(null);
   const { state: copyState, copy } = useCopyAction();
 
   /**
@@ -956,6 +980,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           // What the document now holds. The save button compares against this to know whether
           // there is anything left to save.
           contentKey: rubricsFingerprint(rubrics),
+          /* And how many, because the write has just made it true: whatever the document held
+             before, it holds exactly these now. Without this the warning about removing the
+             others would go on being shown after they had already gone. */
+          heldRubrics: rubrics.length,
         });
         setDocConflict(null);
         setDriveSaveSuccess('Saved to the Google Doc. Same document, same link.');
@@ -984,10 +1012,25 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    */
   const saveRubricsToDoc = async (
     rubrics: RubricData[],
-    { guard = false }: { guard?: boolean } = {},
+    { guard = false, agreed = false }: { guard?: boolean; agreed?: boolean } = {},
   ): Promise<string | null> => {
     const doc = state.savedDoc;
     if (!doc) return null;
+
+    /*
+      A write replaces the whole document, and this set may be a subset of it.
+
+      Opening a document of thirty-nine rubrics and ticking two leaves the app holding two; the
+      other thirty-seven were never read, so they cannot be written back and a save removes them.
+      Recoverable from Google Docs' version history, but not visible while it happens — the
+      document is not on screen — so it is said once per document before the first time.
+    */
+    const dropped = Math.max(0, (doc.heldRubrics ?? 0) - rubrics.length);
+    if (doc.adopted && dropped > 0 && !agreed && shrinkAgreedFor !== doc.fileId) {
+      setDocConflict('shrink');
+      return null;
+    }
+
     setSavingToDrive(true);
     setDriveSaveSuccess(null);
     setDocConflict(null);
@@ -1016,6 +1059,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       setSavingToDrive(false);
     }
     return writeDocUpdate(rubrics);
+  };
+
+  /** Agree to the smaller document, for this document, and carry out the save that was held. */
+  const handleSaveSmallerAnyway = async () => {
+    const doc = state.savedDoc;
+    if (!doc) return;
+    setShrinkAgreedFor(doc.fileId);
+    setDocConflict(null);
+    const message = await saveRubricsToDoc(currentRubrics(), { agreed: true });
+    if (message) setError(message);
   };
 
   /**
@@ -1592,6 +1645,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * button is how it is made.
    */
   const docGone = docConflict === 'trashed' || docConflict === 'missing';
+
+  /** How many rubrics the document holds that this set would not write back. */
+  const docRubricsDropped = Math.max(
+    0,
+    (state.savedDoc?.heldRubrics ?? 0) - currentRubrics().length,
+  );
+  const docWouldShrink = !!state.savedDoc?.adopted && docRubricsDropped > 0;
+  const needsShrinkWarning = docWouldShrink && shrinkAgreedFor !== state.savedDoc?.fileId;
 
   /**
    * Which of its three states the document card is in.
@@ -2632,11 +2693,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
                           {docCardState === 'conflict' ? (
                             <p className="text-sm text-amber-900 mt-1">
-                              {docConflict === 'edited'
-                                ? 'Your Google Doc has been changed in Google Docs since the app last wrote it, so the changes on screen were not written over it. If that edit was yours, bring it in with the first button below. If you would rather the rubrics on screen won, save over it — Google Docs keeps the previous version under File → Version history.'
-                                : docConflict === 'trashed'
-                                  ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
-                                  : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
+                              {docConflict === 'shrink'
+                                ? `This document holds ${state.savedDoc?.heldRubrics} rubrics, and the app has the ${currentRubrics().length} you chose to work on. Saving writes those and removes the other ${docRubricsDropped}, because the app never read them and cannot put them back. Google Docs keeps the previous version under File → Version history.`
+                                : docConflict === 'edited'
+                                  ? 'Your Google Doc has been changed in Google Docs since the app last wrote it, so the changes on screen were not written over it. If that edit was yours, bring it in with the first button below. If you would rather the rubrics on screen won, save over it — Google Docs keeps the previous version under File → Version history.'
+                                  : docConflict === 'trashed'
+                                    ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
+                                    : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
                             </p>
                           ) : changeSummary && !isApplyingChanges ? (
                             /* The run writes the document too, so the ordinary reading is the
@@ -2715,6 +2778,37 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                             >
                               Create a new document
                             </button>
+                          ) : docConflict === 'shrink' ? (
+                            /*
+                              Two answers, and neither of them is a refusal. Keeping the whole
+                              document means a new file, because the rubrics that would be lost
+                              are not in the app to be written into it; keeping this document
+                              means accepting what it holds afterwards. Both are reasonable, so
+                              the app asks once and then stays out of the way.
+                            */
+                            <>
+                              <button
+                                type="button"
+                                onClick={handleSaveSmallerAnyway}
+                                disabled={savingToDrive}
+                                className="px-4 py-2 rounded-xl text-sm font-bold bg-brand text-white hover:bg-brand-dark disabled:bg-gray-200 disabled:text-gray-700 flex items-center gap-2"
+                              >
+                                {savingToDrive && (
+                                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                )}
+                                {currentRubrics().length === 1
+                                  ? 'Save just this rubric to it'
+                                  : `Save just these ${currentRubrics().length} to it`}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleExportToDrive}
+                                disabled={savingToDrive}
+                                className="px-3 py-2 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                              >
+                                Put them in a new document instead
+                              </button>
+                            </>
                           ) : (
                             <>
                               {/*
@@ -2876,6 +2970,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                             {docIsCurrent
                               ? 'The document already holds these rubrics. Change one above and this turns back on.'
                               : 'Saving replaces what is in the document. Google Docs keeps the previous version under File → Version history.'}
+                          </p>
+                        )}
+
+                        {/*
+                          After the first time, a line rather than a question. The answer has
+                          been given for this document; what is left is making sure the next
+                          save is never a surprise.
+                        */}
+                        {docWouldShrink && docConflict !== 'shrink' && (
+                          <p className="text-xs text-amber-900 mt-3">
+                            This document holds {state.savedDoc?.heldRubrics} rubrics. Saving
+                            writes the {currentRubrics().length} on screen and removes the other{' '}
+                            {docRubricsDropped}.
                           </p>
                         )}
 

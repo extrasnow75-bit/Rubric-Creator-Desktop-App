@@ -20,6 +20,23 @@ that moment it is almost certainly what you want.
 each rubric is found, so a renamed one is reported rather than quietly skipped: rename it back,
 or use **Edit existing draft rubrics** on the main screen to read the document from scratch.
 
+### Saving part of a document no longer quietly empties it
+
+Opening a 39-rubric document and ticking two leaves the app holding two — and because a save
+replaces the document's whole contents, saving wrote those two over the document and removed the
+other 37. The app cannot keep them: it never read them. Recoverable through **File → Version
+history**, but you would not know to look, because the document is not on screen while it
+happens. v0.9.28 made it likelier still, by saving automatically at the end of a change run.
+
+The app now says so before the first save to each document:
+
+> This document holds 39 rubrics, and the app has the 2 you chose to work on. Saving writes those
+> and removes the other 37, because the app never read them and cannot put them back.
+
+with two answers — **Save just these 2 to it**, or **Put them in a new document instead**. Both
+are reasonable, so neither is refused. It asks once per document; after that a quiet line under
+the buttons says what a save will do, and gets out of the way.
+
 The longer route still works and is still the one for anything bigger — a rubric added to the
 document by hand, or a renamed one: **Edit existing draft rubrics**, tick what you want, and the
 document is read fresh.
