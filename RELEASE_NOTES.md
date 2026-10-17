@@ -1,3 +1,30 @@
+## What's new in v0.9.29
+
+### "I updated the Rubrics manually in the Google Doc"
+
+A new button on the document card, and the answer to a question worth stating plainly first:
+**the Google Doc is a copy of your rubrics, not their source.** Canvas is sent what is in the
+app. So a criterion you rewrote by hand in Google Docs was invisible to a deploy, and the app's
+own version would replace it at the next save.
+
+Press the new button and the app reads the document again and takes your edits as they now stand
+— the rubrics on screen become what the document says, and deploying from there sends your
+words. It reads the rubrics that are on screen, by name, one request each.
+
+It sits on the document card whenever there is a Google Doc, because the app cannot tell a
+document has been edited until it tries to write to one. When it *has* noticed — the amber
+"this document has been changed" message added in v0.9.28 — the button turns blue, because at
+that moment it is almost certainly what you want.
+
+**The one thing it cannot follow is a rubric you renamed inside the document.** The name is how
+each rubric is found, so a renamed one is reported rather than quietly skipped: rename it back,
+or use **Edit existing draft rubrics** on the main screen to read the document from scratch.
+
+The longer route still works and is still the one for anything bigger — a rubric added to the
+document by hand, or a renamed one: **Edit existing draft rubrics**, tick what you want, and the
+document is read fresh.
+
+
 ## What's new in v0.9.28
 
 ### Applying a change now saves it

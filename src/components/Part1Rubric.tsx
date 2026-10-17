@@ -185,6 +185,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   const [pickedFileName, setPickedFileName] = useState<string | null>(null);
   /** Whether the text read out of the chosen document is open for checking. */
   const [showPickedText, setShowPickedText] = useState(false);
+  /** Whether the document is being read again to pick up edits made in Google Docs. */
+  const [isRereading, setIsRereading] = useState(false);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>(() => getRecentDocs());
   const [showRecentDocs, setShowRecentDocs] = useState(false);
 
@@ -1025,6 +1027,119 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   const handleUpdateDoc = async () => {
     const message = await saveRubricsToDoc(docPayload().rubrics);
     if (message) setError(message);
+  };
+
+  /**
+   * Take the document's rubrics as they now stand, replacing the ones on screen.
+   *
+   * The gap this closes: the Google Doc is a copy of the rubrics, not their source. Canvas is
+   * sent what is in the app, so a criterion rewritten by hand in Google Docs was invisible to a
+   * deploy and was replaced by the app's own version at the next save. The only route back in
+   * was the edit card on the opening screen — the right answer, but it means leaving the work in
+   * progress, finding the document again and ticking the rubrics a second time.
+   *
+   * Reads only the rubrics that are on screen, by name. That is deliberate: the document may
+   * hold forty and this set may be two of them, and re-reading all forty would be thirty-eight
+   * requests nobody asked for. The cost is one request per rubric here, which is the same price
+   * the edit card charges for the same work.
+   *
+   * What it cannot follow is a rubric renamed inside the document, since the name is how each
+   * one is found. Those are reported by name rather than quietly left behind.
+   */
+  const handleRereadDoc = async () => {
+    const doc = state.savedDoc;
+    const titles = currentRubrics().map((r) => r.title);
+    if (!doc || titles.length === 0) return;
+
+    setIsRereading(true);
+    setError(null);
+    setDriveSaveSuccess(null);
+    setChangeSummary(null);
+    setRevisedIndexes([]);
+    startProgress(titles.length, true);
+    const signal = getAbortSignal();
+
+    try {
+      const check = await window.api.rubric.checkDriveDoc({ fileId: doc.fileId });
+      if (!check.ok) {
+        setError(check.message);
+        return;
+      }
+      if (check.status === 'trashed' || check.status === 'missing') {
+        setDocConflict(check.status);
+        return;
+      }
+
+      setProgress({ currentStep: 'Opening the document...', percentage: 0, itemsProcessed: 0 });
+      const text = await extractGoogleDocText(doc.fileId);
+
+      const next = [...currentRubrics()];
+      const notFound: string[] = [];
+      let done = 0;
+      const describeRun = () =>
+        titles.length === 1
+          ? 'Reading the rubric...'
+          : `Reading your rubrics (${done} of ${titles.length} done)...`;
+
+      const readOne = async (i: number) => {
+        try {
+          next[i] = await extractRubricFromDocument(text, signal, titles[i]);
+        } catch {
+          if (!signal.aborted) notFound.push(titles[i]);
+        } finally {
+          done += 1;
+          setProgress({
+            currentStep: describeRun(),
+            percentage: done / titles.length,
+            itemsProcessed: done,
+          });
+        }
+      };
+
+      /* Three at a time, as everywhere else that makes a run of these calls. */
+      let cursor = 0;
+      while (cursor < titles.length && !signal.aborted) {
+        const batch: number[] = [];
+        while (batch.length < 3 && cursor < titles.length) batch.push(cursor++);
+        await Promise.all(batch.map(readOne));
+      }
+      if (signal.aborted) return;
+
+      setRubrics(next);
+      /* 'uploaded', the same as the edit card: these are the user's own words and numbers read
+         back in, so nothing should rewrite their points afterwards. */
+      setRubricSource('uploaded');
+      setReadyForCanvas(false);
+      setShowDeployCard(false);
+      setDocConflict(null);
+      /* The app and the document now hold the same thing, including the document's version —
+         which is what stops the next automatic write thinking it has been edited again, and
+         what switches the save button off until something here actually changes. */
+      setSavedDoc({
+        ...doc,
+        version: check.version ?? doc.version,
+        contentKey: rubricsFingerprint(next),
+      });
+      setChangeSummary(
+        notFound.length === 0
+          ? `Read ${
+              next.length === 1 ? 'your rubric' : `all ${next.length} of your rubrics`
+            } back in from the Google Doc. What is on screen is now what the document says.`
+          : `Read ${titles.length - notFound.length} of ${titles.length} back in from the Google Doc.`,
+      );
+      if (notFound.length > 0) {
+        setError(
+          `Could not find ${notFound.join(', ')} in the document. If you renamed a rubric in Google Docs, the app looks for it by its old name — rename it back, or use "Edit existing draft rubrics" on the main screen to read the document from scratch.`,
+        );
+      }
+    } catch (err) {
+      setError(
+        `Could not read the Google Doc: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      setTimeout(() => stopProgress(), 500);
+      setIsRereading(false);
+    }
   };
 
   const handleExportToDrive = async () => {
@@ -2518,7 +2633,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                           {docCardState === 'conflict' ? (
                             <p className="text-sm text-amber-900 mt-1">
                               {docConflict === 'edited'
-                                ? 'Your Google Doc has been changed in Google Docs since the app last wrote it, so the changes on screen were not saved over it. If that edit was yours and you want these rubrics instead, use the button below — Google Docs keeps the version before it under File → Version history.'
+                                ? 'Your Google Doc has been changed in Google Docs since the app last wrote it, so the changes on screen were not written over it. If that edit was yours, bring it in with the first button below. If you would rather the rubrics on screen won, save over it — Google Docs keeps the previous version under File → Version history.'
                                 : docConflict === 'trashed'
                                   ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
                                   : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
@@ -2602,6 +2717,55 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                             </button>
                           ) : (
                             <>
+                              {/*
+                                The way back in, which until now did not exist on this screen.
+
+                                Everything else in this card sends the rubrics out to the
+                                document. This is the only control that goes the other way, which
+                                is why it is worded as something the user tells the app rather
+                                than an instruction to it: the app cannot see a hand edit until
+                                it is told to look.
+
+                                Not limited to the amber state. The app only ever notices an edit
+                                while trying to write, so someone who edited the document and
+                                came straight back here would have nothing to press. It is simply
+                                emphasised once the app knows there is something to fetch.
+                              */}
+                              {state.savedDoc && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (
+                                      isRereading ||
+                                      isApplyingChanges ||
+                                      !state.isGoogleAuthenticated
+                                    )
+                                      return;
+                                    void handleRereadDoc();
+                                  }}
+                                  aria-disabled={
+                                    isRereading || isApplyingChanges || !state.isGoogleAuthenticated
+                                  }
+                                  aria-describedby={
+                                    !state.isGoogleAuthenticated ? 'doc-signin-hint' : undefined
+                                  }
+                                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed flex items-center gap-2 ${
+                                    docConflict === 'edited'
+                                      ? 'bg-brand text-white hover:bg-brand-dark'
+                                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {isRereading ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                  ) : (
+                                    <Download className="w-4 h-4 rotate-180" aria-hidden="true" />
+                                  )}
+                                  {isRereading
+                                    ? 'Reading the Google Doc…'
+                                    : 'I updated the Rubrics manually in the Google Doc'}
+                                </button>
+                              )}
+
                               {/*
                                 One button, two jobs. Once a document exists this writes back to
                                 it, which is what keeps its link permanent and its Google Docs
