@@ -1,3 +1,63 @@
+## What's new in v0.9.30
+
+### What is in your Google Doc is what goes to Canvas
+
+Until now the Google Doc was a copy of your rubrics and the app held the originals. That is
+backwards from how anyone uses it: the Doc is the thing you read, share and type into. So a
+criterion you rewrote by hand was invisible to a deploy, and the app's own version would quietly
+replace it at the next save.
+
+The Doc is now the thing that counts.
+
+**Before the AI makes a change**, the app checks whether you have edited the document and reads
+your edits in first — so the change is applied *to your wording*, not instead of it. Both survive.
+
+**When you tick "ready to proceed"**, the app checks the document again. If it has changed, your
+version is brought in before anything goes to Canvas, and the box unticks so you can look at what
+arrived before sending it.
+
+Both checks are free and instant when you haven't touched the document, which is most of the
+time: asking Google whether a file has changed costs one quick lookup and no AI.
+
+### Reading a Doc is now exact instead of a reconstruction
+
+This is what made the above possible, and it fixes a real fault.
+
+The app used to read a document by exporting it as **plain text** — which throws the table away —
+and asking the AI to work out from a wall of words which of them had been criteria, which ratings
+and which points. That is a reconstruction, not a reading, and it lost things. A line typed into
+a cell by hand could come back gone, because nothing in flattened text says it was ever content.
+
+The document is now exported as **HTML**, with its tables intact, and read directly. No AI is
+involved, nothing is charged for, it is instant, and it cannot vary between runs. Two things
+follow:
+
+- **A criterion row you add by hand in the Doc now comes through as a criterion.** That was
+  impossible before.
+- **A table the app cannot recognise is an error, not a guess.** If a column has been deleted or
+  cells merged, the app says so and stops. A wrong rubric that looks right is the one failure
+  this app cannot afford — it grades students.
+
+### The guarantee is now enforced by the build
+
+Rather than being asserted, "what is in the Doc reaches Canvas" is checked on every build: a
+rubric is written out as the document is written, read back, converted to Canvas CSV, and turned
+into the exact payload Canvas receives — with every criterion, every rating, every point value
+required to match. Deliberately awkward content is included: quotation marks and commas inside
+cells, an ampersand in a criterion name, em dashes, a rating genuinely worth zero, and a line
+typed in by hand.
+
+If anyone later changes the document template or the CSV writer in a way that loses fidelity, the
+build fails instead of a rubric arriving wrong in somebody's course.
+
+### The Drive folder picker opens on My Drive
+
+Choosing where to save opened on **Recent**, which is the one tab that cannot answer the question:
+it lists folders by when they were last touched and has no My Drive to choose. It opens on **My
+Drive** now, so "Choose My Drive" is there immediately and any folder is one click away. Choosing
+a *file* still opens on Recent, where it is genuinely the right default.
+
+
 ## What's new in v0.9.29
 
 ### "I updated the Rubrics manually in the Google Doc"

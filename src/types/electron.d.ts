@@ -128,6 +128,22 @@ declare global {
             }
           | { ok: false; message: string }
         >
+        /**
+         * The rubrics that document holds right now, read from its own tables.
+         *
+         * Exact rather than extracted: the document is exported as HTML and its tables are
+         * parsed, so what comes back is what is in the document, including anything typed into
+         * it by hand. No model is involved and nothing is charged for.
+         *
+         * `ok: false` means the document could not be read — a table whose columns are no
+         * longer a rubric's, or no rubric tables at all. The message is written for the user and
+         * says what to fix. Nothing is returned on a partial read: a rubric quietly missing a
+         * criterion would deploy to Canvas looking complete.
+         */
+        readDriveDoc(args: { fileId: string }): Promise<
+          | { ok: true; rubrics: RubricData[]; version: string }
+          | { ok: false; message: string }
+        >
         /** The same document as .html. Works with no Google account. */
         saveHtml(args: {
           rubrics: RubricData[]

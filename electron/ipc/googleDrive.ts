@@ -267,6 +267,24 @@ export async function getGoogleDocText(rawFileId: string): Promise<string> {
   return response.text()
 }
 
+/**
+ * A Google Doc as HTML.
+ *
+ * The export that keeps the tables, and so the only one a rubric can be read back out of. The
+ * plain-text export beside this one flattens every cell into a run of words, which is why
+ * reading a rubric used to mean asking a model to guess where the table had been.
+ *
+ * What comes back is Google's HTML rather than the app's: the document was converted on upload
+ * and is re-expressed on export, with its own classes and styles. rubricHtmlParse reads the
+ * structure rather than the markup for exactly that reason.
+ */
+export async function getGoogleDocHtml(rawFileId: string): Promise<string> {
+  const fileId = assertFileId(rawFileId)
+  const response = await authorized(`${DRIVE_FILES}/${fileId}/export?mimeType=text/html`)
+  if (!response.ok) throw await driveError(response, 'document')
+  return response.text()
+}
+
 /** A Google Sheet as CSV. */
 export async function getGoogleSheetCsv(rawFileId: string): Promise<string> {
   const fileId = assertFileId(rawFileId)

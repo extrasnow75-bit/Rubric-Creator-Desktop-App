@@ -187,6 +187,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   const [showPickedText, setShowPickedText] = useState(false);
   /** Whether the document is being read again to pick up edits made in Google Docs. */
   const [isRereading, setIsRereading] = useState(false);
+  /** Whether the Google Doc is being checked in answer to the ready-to-proceed tick. */
+  const [isCheckingDoc, setIsCheckingDoc] = useState(false);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>(() => getRecentDocs());
   const [showRecentDocs, setShowRecentDocs] = useState(false);
 
@@ -1099,98 +1101,174 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * What it cannot follow is a rubric renamed inside the document, since the name is how each
    * one is found. Those are reported by name rather than quietly left behind.
    */
-  const handleRereadDoc = async () => {
+  /**
+   * Bring the document's own version of these rubrics in, when it has moved on from ours.
+   *
+   * The one place the app and the Google Doc are reconciled, used by everything that needs them
+   * to agree: before an AI change, before a deploy, and by the button someone presses after
+   * editing the document by hand.
+   *
+   * Cheap by default. Drive's version counter says whether anyone has touched the document since
+   * the app last wrote it, and that is a single lookup returning a number — so the ordinary case,
+   * where nobody has, costs one quick call and does nothing. Only a document that really has
+   * changed is read, and reading it is a parse of its own tables: exact, instant, no model.
+   *
+   * Merged by title rather than taken wholesale, because the document may hold rubrics this set
+   * does not. Opening a document of thirty-nine and working on two leaves the other thirty-seven
+   * in the document and none of this app's business; replacing the set with everything in the
+   * file would drag them in uninvited. Merging in place also keeps every index valid, which the
+   * change queue depends on.
+   *
+   * Returns the merged rubrics when something changed, so a caller can work from them in the
+   * same tick — setRubrics only queues a state change, and the run that asked for this refresh
+   * would otherwise carry on against the rubrics it already had.
+   */
+  const refreshFromDoc = async (
+    { force = false }: { force?: boolean } = {},
+  ): Promise<{ rubrics: RubricData[] | null; message: string | null; missing: string[] }> => {
     const doc = state.savedDoc;
-    const titles = currentRubrics().map((r) => r.title);
-    if (!doc || titles.length === 0) return;
+    const mine = currentRubrics();
+    if (!doc || !state.isGoogleAuthenticated || mine.length === 0) {
+      return { rubrics: null, message: null, missing: [] };
+    }
 
+    try {
+      if (!force) {
+        const check = await window.api.rubric.checkDriveDoc({
+          fileId: doc.fileId,
+          version: doc.version,
+        });
+        if (!check.ok) return { rubrics: null, message: check.message, missing: [] };
+        if (check.status === 'trashed' || check.status === 'missing') {
+          setDocConflict(check.status);
+          return { rubrics: null, message: null, missing: [] };
+        }
+        /* Nobody has touched it. What is on screen is already what the document says. */
+        if (check.status !== 'edited') return { rubrics: null, message: null, missing: [] };
+      }
+
+      const read = await window.api.rubric.readDriveDoc({ fileId: doc.fileId });
+      if (!read.ok) return { rubrics: null, message: read.message, missing: [] };
+
+      const byTitle = new Map(read.rubrics.map((r) => [r.title.trim().toLowerCase(), r]));
+      const missing: string[] = [];
+      const merged = mine.map((rubric) => {
+        const fromDoc = byTitle.get(rubric.title.trim().toLowerCase());
+        if (!fromDoc) {
+          /* A rubric renamed inside the document cannot be matched: its name is how it is
+             found. Keeping ours and saying so beats pairing it with whatever is nearby. */
+          missing.push(rubric.title);
+          return rubric;
+        }
+        return fromDoc;
+      });
+
+      setRubrics(merged);
+      /* The user's own words and numbers, so nothing downstream should tidy their points. */
+      setRubricSource('uploaded');
+      setDocConflict(null);
+      setSavedDoc({
+        ...doc,
+        version: read.version || doc.version,
+        contentKey: rubricsFingerprint(merged),
+        /* Now known exactly rather than remembered from the discovery pass. */
+        heldRubrics: read.rubrics.length,
+      });
+      return { rubrics: merged, message: null, missing };
+    } catch (err) {
+      return {
+        rubrics: null,
+        message: `Could not read the Google Doc: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        missing: [],
+      };
+    }
+  };
+
+  /**
+   * Ticking "ready to proceed" is a statement about the document, so the document is checked.
+   *
+   * What goes to Canvas should be what the user last saw in the Google Doc — that is the whole
+   * claim this app makes, and before this nothing on the deploy path consulted the document at
+   * all. The app could sit holding a copy a week old and send it without a word.
+   *
+   * Free when nothing has changed, which is almost always: one lookup, no AI, nothing said. When
+   * the document is ahead, its version is brought in and the tick is cleared again — the table
+   * has just changed underneath the person who ticked it, and a confirmation given for different
+   * contents is not a confirmation. One extra click, only in the case that earns it.
+   */
+  const handleReadyForCanvas = async (checked: boolean) => {
+    setReadyForCanvas(checked);
+    if (!checked) {
+      setShowDeployCard(false);
+      return;
+    }
+    if (!state.savedDoc || !state.isGoogleAuthenticated) return;
+
+    setIsCheckingDoc(true);
+    setError(null);
+    try {
+      const { rubrics, message, missing } = await refreshFromDoc();
+      if (message) {
+        /* Not deployable on a document that cannot be read: the rubrics on screen may no longer
+           be what it holds, and sending them anyway is the failure this is here to prevent. */
+        setError(message);
+        setReadyForCanvas(false);
+        return;
+      }
+      if (rubrics) {
+        setReadyForCanvas(false);
+        setChangeSummary(
+          'Your Google Doc had changes the app did not. They are on screen now — check them, ' +
+            'then tick the box again to send these to Canvas.',
+        );
+      }
+      if (missing.length > 0) {
+        setError(
+          `Could not find ${missing.join(', ')} in the document, so ${
+            missing.length === 1 ? 'it was' : 'they were'
+          } left as ${missing.length === 1 ? 'it is' : 'they are'}.`,
+        );
+      }
+    } finally {
+      setIsCheckingDoc(false);
+    }
+  };
+
+  /** The button's version: fetch whatever is in the document now, and say what happened. */
+  const handleRereadDoc = async () => {
+    if (!state.savedDoc) return;
     setIsRereading(true);
     setError(null);
     setDriveSaveSuccess(null);
     setChangeSummary(null);
     setRevisedIndexes([]);
-    startProgress(titles.length, true);
-    const signal = getAbortSignal();
-
     try {
-      const check = await window.api.rubric.checkDriveDoc({ fileId: doc.fileId });
-      if (!check.ok) {
-        setError(check.message);
+      const { rubrics, message, missing } = await refreshFromDoc({ force: true });
+      if (message) {
+        setError(message);
         return;
       }
-      if (check.status === 'trashed' || check.status === 'missing') {
-        setDocConflict(check.status);
-        return;
-      }
-
-      setProgress({ currentStep: 'Opening the document...', percentage: 0, itemsProcessed: 0 });
-      const text = await extractGoogleDocText(doc.fileId);
-
-      const next = [...currentRubrics()];
-      const notFound: string[] = [];
-      let done = 0;
-      const describeRun = () =>
-        titles.length === 1
-          ? 'Reading the rubric...'
-          : `Reading your rubrics (${done} of ${titles.length} done)...`;
-
-      const readOne = async (i: number) => {
-        try {
-          next[i] = await extractRubricFromDocument(text, signal, titles[i]);
-        } catch {
-          if (!signal.aborted) notFound.push(titles[i]);
-        } finally {
-          done += 1;
-          setProgress({
-            currentStep: describeRun(),
-            percentage: done / titles.length,
-            itemsProcessed: done,
-          });
-        }
-      };
-
-      /* Three at a time, as everywhere else that makes a run of these calls. */
-      let cursor = 0;
-      while (cursor < titles.length && !signal.aborted) {
-        const batch: number[] = [];
-        while (batch.length < 3 && cursor < titles.length) batch.push(cursor++);
-        await Promise.all(batch.map(readOne));
-      }
-      if (signal.aborted) return;
-
-      setRubrics(next);
-      /* 'uploaded', the same as the edit card: these are the user's own words and numbers read
-         back in, so nothing should rewrite their points afterwards. */
-      setRubricSource('uploaded');
       setReadyForCanvas(false);
       setShowDeployCard(false);
-      setDocConflict(null);
-      /* The app and the document now hold the same thing, including the document's version —
-         which is what stops the next automatic write thinking it has been edited again, and
-         what switches the save button off until something here actually changes. */
-      setSavedDoc({
-        ...doc,
-        version: check.version ?? doc.version,
-        contentKey: rubricsFingerprint(next),
-      });
       setChangeSummary(
-        notFound.length === 0
-          ? `Read ${
-              next.length === 1 ? 'your rubric' : `all ${next.length} of your rubrics`
-            } back in from the Google Doc. What is on screen is now what the document says.`
-          : `Read ${titles.length - notFound.length} of ${titles.length} back in from the Google Doc.`,
+        `Read your rubrics back in from the Google Doc. What is on screen is now what the ` +
+          `document says.`,
       );
-      if (notFound.length > 0) {
+      if (missing.length > 0) {
         setError(
-          `Could not find ${notFound.join(', ')} in the document. If you renamed a rubric in Google Docs, the app looks for it by its old name — rename it back, or use "Edit existing draft rubrics" on the main screen to read the document from scratch.`,
+          `Could not find ${missing.join(', ')} in the document, so ${
+            missing.length === 1 ? 'it was' : 'they were'
+          } left as ${missing.length === 1 ? 'it is' : 'they are'}. If you renamed a rubric in ` +
+            `Google Docs, the app looks for it by its old name — rename it back, or use "Edit ` +
+            `existing draft rubrics" on the main screen to read the document from scratch.`,
         );
       }
-    } catch (err) {
-      setError(
-        `Could not read the Google Doc: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      if (!rubrics) {
+        setChangeSummary('Your Google Doc and the rubrics on screen already match.');
+      }
     } finally {
-      setTimeout(() => stopProgress(), 500);
       setIsRereading(false);
     }
   };
@@ -1398,6 +1476,28 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setPaceNotice(null);
     startProgress(queuedIndexes.length, true);
 
+    /*
+      The document first, so the AI works from what the user is actually looking at.
+
+      This is what turns a conflict into a sequence. Before, a hand edit in Google Docs and an
+      AI change in the app were two edits to the same rubric made from two different starting
+      points, and whichever was written second erased the other. Refreshing first means the
+      user's wording is the thing the change is applied to, and both survive.
+
+      Nothing happens in the ordinary case: the version check returns "unchanged" and this costs
+      one quick lookup. A document that cannot be read stops the run rather than letting it
+      proceed from rubrics known to be out of date.
+    */
+    setProgress({ currentStep: 'Checking your Google Doc...', percentage: 0, itemsProcessed: 0 });
+    const refreshed = await refreshFromDoc();
+    if (refreshed.message) {
+      setError(refreshed.message);
+      stopProgress();
+      setIsApplyingChanges(false);
+      return;
+    }
+    const baseRubrics = refreshed.rubrics ?? currentRubrics();
+
     /* One signal for the run, for the reason given in generateRubricsFor: re-reading it per
        rubric hands back a fresh controller after Stop, and the loop carries on. */
     const signal = getAbortSignal();
@@ -1405,8 +1505,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     const revised: number[] = [];
     const failed: string[] = [];
     /* The rubrics as they will stand when the run ends, built alongside the state updates so the
-       document can be written from them. See docPayload: `state.rubrics` is still the old set. */
-    const nextRubrics = [...state.rubrics];
+       document can be written from them. Starts from the refreshed set rather than state.rubrics:
+       setRubrics only queues a change, so state is still the pre-refresh copy in this tick. */
+    const nextRubrics = [...baseRubrics];
 
     /*
       Three at a time, dropping to one at the first sign of strain — the pool the drafting path
@@ -1441,11 +1542,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
          picking one arbitrarily and calling it the one being worked on. */
       return width > 1
         ? `Revising ${width} rubrics at once (${done} of ${queuedIndexes.length} done)...`
-        : `Revising "${state.rubrics[queuedIndexes[done]]?.title || 'the rubric'}" (${done + 1} of ${queuedIndexes.length})...`;
+        : `Revising "${baseRubrics[queuedIndexes[done]]?.title || 'the rubric'}" (${done + 1} of ${queuedIndexes.length})...`;
     };
 
     const reviseOne = async (index: number) => {
-      const target = state.rubrics[index];
+      const target = baseRubrics[index];
       if (!target) return;
       try {
         const updated = await applyRubricChanges(target, changeDrafts[index] ?? '', signal);
@@ -3035,19 +3136,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           {/*
             What is actually sent, said where the sending happens.
 
-            A tester assumed that deploying takes whatever is currently in the Google Doc. It does
-            not: Canvas is built from the rubrics in this app, and the document is a rendering of
-            those rubrics rather than the source of them. The assumption is a reasonable one —
-            the document is the thing they have been reading and may well have typed in — and
-            nothing on this screen corrected it. Anything typed into the document by hand reaches
-            Canvas only after coming back through "Edit existing draft rubrics".
+            This line used to warn that hand edits in the Google Doc were not included, which was
+            true and was the app's worst behaviour: a tester assumed the document was what got
+            sent, which is the only reasonable thing to assume about the document you have been
+            reading and typing into. The app now agrees with them. Ticking the box checks the
+            document and brings in anything it holds that the app does not, so the sentence can
+            say what people already believed.
           */}
           <p className="text-sm text-gray-600 mb-6">
             {state.rubrics.length > 1
               ? 'The rubrics above are what gets sent.'
               : 'The rubric above is what gets sent.'}
             {state.savedDoc
-              ? ' Anything you have typed into the Google Doc by hand is not included — open that document through "Edit existing draft rubrics" first to bring it in.'
+              ? ' Ticking the box below checks your Google Doc first, so anything you have typed into it by hand goes too.'
               : ''}
           </p>
 
@@ -3130,10 +3231,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             <input
               type="checkbox"
               checked={readyForCanvas}
-              onChange={(e) => {
-                setReadyForCanvas(e.target.checked);
-                if (!e.target.checked) setShowDeployCard(false);
-              }}
+              onChange={(e) => void handleReadyForCanvas(e.target.checked)}
               className="mt-0.5 w-6 h-6 accent-green-600 flex-shrink-0"
             />
             <span>
@@ -3194,7 +3292,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           Say which of the two gates is closed; aria-describedby ties it to the button so
           a screen reader reads the reason when focus lands there.
         */}
-        {onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas) && (
+        {isCheckingDoc && (
+          <p className="text-xs text-gray-700 mt-2 text-center flex items-center justify-center gap-2" role="status">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+            Checking your Google Doc for changes...
+          </p>
+        )}
+
+        {onAnalyzeDeploy && !isCheckingDoc && (!canAnalyzeDeploy || !readyForCanvas) && (
           <p id="deploy-blocked-reason" className="text-xs text-gray-600 mt-2 text-center">
             {!canAnalyzeDeploy
               ? 'Add your Gemini API key and Canvas token in Initial Setup to deploy.'

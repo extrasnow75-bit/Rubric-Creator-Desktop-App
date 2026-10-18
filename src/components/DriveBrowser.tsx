@@ -96,7 +96,15 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
   onPickFile,
   onPickFolder,
 }) => {
-  const [scope, setScope] = useState<Scope>('recent');
+  /*
+    Where the picker opens, which differs by what it is being asked for.
+
+    Choosing a *folder* is choosing somewhere to save, and Recent is the one tab with no answer
+    to that: it lists folders by when they were last touched and has no My Drive root to pick, so
+    the picker opened on the only view that could not give the obvious reply. Choosing a *file*
+    is usually choosing the thing you were last working on, which is exactly what Recent is for.
+  */
+  const [scope, setScope] = useState<Scope>(mode === 'folder' ? 'myDrive' : 'recent');
   const [files, setFiles] = useState<DriveFileRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,7 +165,7 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
   // someone drilled into last week.
   useEffect(() => {
     if (!isOpen) return;
-    setScope('recent');
+    setScope(mode === 'folder' ? 'myDrive' : 'recent');
     setTrail([]);
     setSearchInput('');
     setActiveSearch('');

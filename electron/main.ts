@@ -23,11 +23,13 @@ import {
   rubricFileName,
   timestampedName,
 } from './ipc/rubricHtml'
+import { parseRubricsFromHtml } from './ipc/rubricHtmlParse'
 import type { Attachment, GenerationSettings, RubricData } from './ipc/geminiTypes'
 import {
   listFiles,
   getFileMetadata,
   getGoogleDocText,
+  getGoogleDocHtml,
   getGoogleSheetCsv,
   downloadFileBytes,
   fetchFileForProcessing,
@@ -514,6 +516,33 @@ function docNameFor(rubrics: RubricData[], documentTitle?: string): string {
  * the bin, or it is there but has moved on from the version we recorded — which means somebody
  * has been editing it in Google Docs.
  */
+/**
+ * The rubrics a Google Doc holds right now, read from its own tables.
+ *
+ * The way back in. Everything else about a document moves rubrics out of the app and into it;
+ * this is what lets the document be the thing people edit, by making what is in it readable
+ * exactly — no model, no cost, no transcription to drift between runs.
+ *
+ * An unreadable table is reported rather than guessed at. The caller gets the sentence the user
+ * needs in order to fix the document, not a plausible rubric assembled from whatever could be
+ * made out, because a wrong rubric that looks right is the one failure this app cannot afford:
+ * it reaches Canvas and grades students.
+ */
+ipcMain.handle('rubric:readDriveDoc', async (_e, args: { fileId: string }) => {
+  try {
+    const rubrics = parseRubricsFromHtml(await getGoogleDocHtml(args.fileId))
+    const state = await describeDriveFile(args.fileId)
+    return {
+      ok: true as const,
+      rubrics,
+      /* The version as of this read, so the caller can record what it now matches. */
+      version: state?.version ?? '',
+    }
+  } catch (e) {
+    return { ok: false as const, message: e instanceof Error ? e.message : String(e) }
+  }
+})
+
 ipcMain.handle('rubric:checkDriveDoc', async (_e, args: { fileId: string; version?: string }) => {
   try {
     const state = await describeDriveFile(args.fileId)
