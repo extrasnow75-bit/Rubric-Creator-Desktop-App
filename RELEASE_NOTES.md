@@ -1,3 +1,56 @@
+## What's new in v0.9.33
+
+### A false alarm every time you edited the Doc and then asked for a change
+
+If you edited your Google Doc by hand and then requested an AI change, the app put up:
+
+> Your Google Doc has been changed in Google Docs since the app last wrote it, so the changes on
+> screen were not written over it.
+
+**Nobody had changed it.** The run refreshes from the document before the AI starts, then saves
+the result back — and the save was checking against the version from *before* its own refresh. It
+compared a version it had already replaced against the live one, found them different, and refused
+to write.
+
+The warning was the harmless half. The real cost: **your AI change never reached the Google Doc**,
+while the rubrics on screen — and so Canvas — carried it. The Doc quietly fell behind the course,
+which is the one thing this app exists to prevent, pointed the other way.
+
+If you deployed an AI change in v0.9.30–0.9.32 after editing the Doc by hand, it is worth opening
+that document and checking the AI change is in it. Google Docs keeps every version under
+**File → Version history**.
+
+Two smaller faults found while tracing it:
+
+- A refused save put up the amber card and **nothing ever took it down**, so the warning outlived
+  whatever caused it. A version check that comes back "unchanged" now clears it.
+- When ticking "ready to proceed" genuinely does find the document ahead, it takes the document's
+  side — which is right, since ticking the box says the document is as you want it. But it only
+  said those edits "are on screen now". If the app was holding something the document did not have,
+  that is the document's version *replacing* yours, and it now says so and points at version
+  history.
+
+### "I updated the Rubrics manually in the Google Doc" is gone
+
+**You never needed it.** Ticking **"Tick this box when you are ready to proceed"** reads your
+Google Doc — it has since v0.9.30 — so an edit you make in Google Docs reaches Canvas whether or
+not anything on the document card is pressed.
+
+A second button doing what the deploy gate already does is not a convenience. It implies the gate
+does *not* do it, which leaves anyone who misses the button assuming their edits were dropped, and
+anyone who finds it believing that editing in Google Docs needs the app's permission first. Both
+happened in testing.
+
+The card now says the thing the button was standing in for:
+
+> You can edit the rubrics in Google Docs whenever you like. The app reads the document again when
+> you tick "ready to proceed", so your edits reach Canvas without anything to press here.
+
+**Nothing else on the card changes.** Open, Copy link, Save changes to the Google Doc, Save to this
+computer and Create a new one instead are all still there — and **Save changes to the Google Doc**
+remains the only way to push an *AI* change out to the document, since ticking the box only reads.
+
+
 ## What's new in v0.9.32
 
 ### The app now tells you *which* document it read, and *when* it changed

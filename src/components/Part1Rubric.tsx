@@ -202,7 +202,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   /** Whether the text read out of the chosen document is open for checking. */
   const [showPickedText, setShowPickedText] = useState(false);
   /** Whether the document is being read again to pick up edits made in Google Docs. */
-  const [isRereading, setIsRereading] = useState(false);
   /** Whether the Google Doc is being checked in answer to the ready-to-proceed tick. */
   const [isCheckingDoc, setIsCheckingDoc] = useState(false);
   /**
@@ -1323,78 +1322,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       }
     } finally {
       setIsCheckingDoc(false);
-    }
-  };
-
-  /** The button's version: fetch whatever is in the document now, and say what happened. */
-  const handleRereadDoc = async () => {
-    if (!state.savedDoc) return;
-    /* What is on screen before the read, so the summary can say whether anything differed. */
-    const before = rubricsFingerprint(currentRubrics());
-    setIsRereading(true);
-    setError(null);
-    setDriveSaveSuccess(null);
-    setChangeSummary(null);
-    setRevisedIndexes([]);
-    try {
-      const { rubrics, message, missing, modifiedTime } = await refreshFromDoc({ force: true });
-      if (message) {
-        setError(message);
-        return;
-      }
-      setReadyForCanvas(false);
-      setShowDeployCard(false);
-      /*
-        The answer first, in the words of the question that was asked.
-
-        "Read your rubrics back in from the Google Doc" was shown whether an edit had been picked
-        up or the document turned out to hold exactly what was already on screen — opposite
-        outcomes, reported identically, which left a tester whose edit never reached Canvas with
-        no way to tell which half of the journey had lost it. Saying which happened is the whole
-        value of the sentence.
-      */
-      const differed = rubrics !== null && rubricsFingerprint(rubrics) !== before;
-      const stamp = docStamp(modifiedTime);
-      const named = state.savedDoc?.name ? `"${state.savedDoc.name}"` : 'your Google Doc';
-      setChangeSummary(
-        differed
-          ? /*
-              The outcome, and nothing about how it was reached.
-
-              This used to add "the rubrics on screen are now what that document says, and they
-              are what will go to Canvas" — a description of the app swapping its copy for the
-              document's, which is true, is the mechanism, and is not what was asked. A reader
-              had to work out that "the rubrics on screen are now what the document says" was a
-              roundabout way of saying their edits would be deployed. Say that instead.
-            */
-            `Your edits${stamp ? ` of ${stamp}` : ''} in ${named} are in. Canvas will get ` +
-              `exactly what that document says.`
-          : `No edits found. ${named} was last changed${stamp ? ` ${stamp}` : ''}, and it holds ` +
-              `exactly what is already on screen. If that is earlier than the edit you remember ` +
-              `making, the edit is in a different document — Open above goes to the one the app ` +
-              `is linked to.`,
-      );
-      if (missing.length > 0) {
-        setError(
-          `Could not find ${missing.join(', ')} in the document, so ${
-            missing.length === 1 ? 'it was' : 'they were'
-          } left as ${missing.length === 1 ? 'it is' : 'they are'}. If you renamed a rubric in ` +
-            `Google Docs, the app looks for it by its old name — rename it back, or use "Edit ` +
-            `existing draft rubrics" on the main screen to read the document from scratch.`,
-        );
-      }
-      /*
-        Nothing came back at all, which is not the same as nothing having changed: the read never
-        happened. Saying "no edits found" here would be a finding the app never made.
-      */
-      if (!rubrics) {
-        setChangeSummary(
-          'The Google Doc could not be read just now, so the rubrics on screen are unchanged. ' +
-            'Check you are still signed in to Google, then try again.',
-        );
-      }
-    } finally {
-      setIsRereading(false);
     }
   };
 
@@ -2936,7 +2863,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                               {docConflict === 'shrink'
                                 ? `This document holds ${state.savedDoc?.heldRubrics} rubrics, and the app has the ${currentRubrics().length} you chose to work on. Saving writes those and removes the other ${docRubricsDropped}, because the app never read them and cannot put them back. Google Docs keeps the previous version under File → Version history.`
                                 : docConflict === 'edited'
-                                  ? 'Your Google Doc has been changed in Google Docs since the app last wrote it, so the changes on screen were not written over it. If that edit was yours, bring it in with the first button below. If you would rather the rubrics on screen won, save over it — Google Docs keeps the previous version under File → Version history.'
+                                  ? 'Your Google Doc has been changed in Google Docs since the app last wrote it, so the changes on screen were not written over it. If that edit was yours, it comes in by itself when you tick "ready to proceed" further down — nothing here needs pressing. If you would rather the rubrics on screen won, save over it with the button below; Google Docs keeps the previous version under File → Version history.'
                                   : docConflict === 'trashed'
                                     ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
                                     : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
@@ -3062,53 +2989,28 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                           ) : (
                             <>
                               {/*
-                                The way back in, which until now did not exist on this screen.
+                                "I updated the Rubrics manually in the Google Doc" stood here.
 
-                                Everything else in this card sends the rubrics out to the
-                                document. This is the only control that goes the other way, which
-                                is why it is worded as something the user tells the app rather
-                                than an instruction to it: the app cannot see a hand edit until
-                                it is told to look.
+                                It read as the thing that made a hand edit count, and it was
+                                never that. Ticking "ready to proceed" has read this document
+                                since the document became the source of truth, so an edit made
+                                in Google Docs reaches Canvas whether or not anything here is
+                                pressed — confirmed by a tester who deployed a hand edit and an
+                                AI change together without once touching this button.
 
-                                Not limited to the amber state. The app only ever notices an edit
-                                while trying to write, so someone who edited the document and
-                                came straight back here would have nothing to press. It is simply
-                                emphasised once the app knows there is something to fetch.
+                                A second control doing what the deploy gate already does is not
+                                a convenience. It implies the gate does not do it, which leaves
+                                anyone who misses the button assuming their edits were dropped,
+                                and anyone who finds it believing editing in Google Docs needs
+                                the app's permission first. Both were observed.
+
+                                What it did that nothing else does is force a read regardless of
+                                Drive's version counter. That counter is what the tick relies on,
+                                and it moves whenever a document's contents do, so the only case
+                                left uncovered is a counter that lies — at which point a button
+                                labelled as a statement about your own editing is the wrong
+                                remedy anyway.
                               */}
-                              {state.savedDoc && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (
-                                      isRereading ||
-                                      isApplyingChanges ||
-                                      !state.isGoogleAuthenticated
-                                    )
-                                      return;
-                                    void handleRereadDoc();
-                                  }}
-                                  aria-disabled={
-                                    isRereading || isApplyingChanges || !state.isGoogleAuthenticated
-                                  }
-                                  aria-describedby={
-                                    !state.isGoogleAuthenticated ? 'doc-signin-hint' : undefined
-                                  }
-                                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed flex items-center gap-2 ${
-                                    docConflict === 'edited'
-                                      ? 'bg-brand text-white hover:bg-brand-dark'
-                                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  {isRereading ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                                  ) : (
-                                    <Download className="w-4 h-4 rotate-180" aria-hidden="true" />
-                                  )}
-                                  {isRereading
-                                    ? 'Reading the Google Doc…'
-                                    : 'I updated the Rubrics manually in the Google Doc'}
-                                </button>
-                              )}
 
                               {/*
                                 One button, two jobs. Once a document exists this writes back to
@@ -3216,25 +3118,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         )}
 
                         {/*
-                          What the button above is, and more importantly what it is not.
+                          The one thing about this card nobody could work out by looking at it.
 
-                          Ticking "ready to proceed" already reads this document — handleReadyForCanvas
-                          has called refreshFromDoc since the day the document became the source of
-                          truth — so a hand edit reaches Canvas whether or not the button is ever
-                          pressed. Without this line the button reads as the thing that makes edits
-                          count, which is a worse thing to believe than nothing: it invites someone
-                          who never found it to assume their edits were dropped, and someone who did
-                          to think editing in Google Docs needs permission from the app.
-
-                          So it is stated as what it is — a check you can run early, on a screen where
-                          the alternative is finding out one step later.
+                          Everything visible here sends rubrics *out* to the document, so there is
+                          nothing on screen to suggest the app ever reads it back — and it does,
+                          at the deploy gate, which is the only moment it matters. Said plainly,
+                          because the alternative was a button claiming to do it, and a button
+                          claiming to do it implied the gate did not.
                         */}
                         {state.savedDoc && (
                           <p className="text-xs text-gray-600 mt-2">
                             You can edit the rubrics in Google Docs whenever you like. The app reads
-                            the document again when you tick "ready to proceed", so your edits go to
-                            Canvas either way — the first button above is for checking they arrived
-                            before you get that far.
+                            the document again when you tick "ready to proceed", so your edits reach
+                            Canvas without anything to press here.
                           </p>
                         )}
 
