@@ -1,3 +1,92 @@
+## What's new in v0.9.32
+
+### The app now tells you *which* document it read, and *when* it changed
+
+**I updated the Rubrics manually in the Google Doc** used to answer "your edits are in" — a claim
+with nothing behind it. The app cannot see which document you typed into, only which one it is
+linked to, so that sentence was equally true for a read that caught your edit and a read of a
+document you had never opened.
+
+It now names the document and stamps it:
+
+> **Your edits of Oct 21, 2026 at 11:06 PM in "Part 1 Rubric (2026-10-21 10.59pm)" are in.**
+> Canvas will get exactly what that document says.
+
+and when it finds nothing:
+
+> **No edits found.** "Part 1 Rubric (2026-10-21 10.59pm)" was last changed Oct 21, 2026 at
+> 11:06 PM, and it holds exactly what is already on screen. If that is earlier than the edit you
+> remember making, the edit is in a different document — Open above goes to the one the app is
+> linked to.
+
+That timestamp is the useful part. **If it is earlier than the edit you remember making, you
+edited a different document** — and you can check that yourself without taking the app's word for
+it. The app creates a new timestamped document each time you choose "Create a new one instead", so
+a Drive folder can easily hold several with near-identical names.
+
+### You do not have to press that button at all
+
+This was never said out loud, and it should have been. Ticking **"Tick this box when you are ready
+to proceed"** already reads your Google Doc — it has since v0.9.30, when the Doc became the source
+of truth. **Your hand edits reach Canvas whether or not you ever press that button.**
+
+The button is a way to check early, not the thing that makes edits count. The card now says so:
+
+> You can edit the rubrics in Google Docs whenever you like. The app reads the document again when
+> you tick "ready to proceed", so your edits go to Canvas either way — the first button above is
+> for checking they arrived before you get that far.
+
+One difference worth knowing: if ticking the box finds edits the app did not have, it **unticks
+itself** and puts them on screen for you to look at, so you tick once more to confirm. That is on
+purpose — a confirmation given for one set of rubrics is not a confirmation of a different set.
+
+### Saying one thing once
+
+The green card had grown to say the same thing three ways. *"The rubrics on screen are now what
+that document says, and they are what will go to Canvas"* was describing the app swapping its held
+copy for the document's — true, the mechanism, and not what anyone asked. Underneath it, *"the
+rubrics on screen came from your Google Doc, so the two now hold the same thing"* said it again,
+more vaguely.
+
+Both are gone. **"Canvas will get exactly what that document says."** A second sentence invites you
+to look for a second meaning in it.
+
+### "Save to this computer" now tells you it is a copy
+
+A local .html file is a dead end today: nothing reads it back, and the file pickers do not even
+accept .html, so it cannot be offered to the app again. Someone who saved a copy, edited the copy
+and deployed would have sent the **unedited** rubrics with nothing on screen to explain it.
+
+The save confirmation now says so as the file appears:
+
+> Saved to … That file is a copy — edits you make in it stay in it. Before deploying, the app reads
+> your Google Doc, not this file.
+
+Teaching the app to read a .html file back in is a straightforward next step and is not in this
+build.
+
+### The opening screen loses a link that did nothing
+
+**"or save to this computer instead (.html)"** sat under three of the four cards. It read as a
+second way through, and it was not one — its whole effect was changing which of two buttons was
+blue on a card several minutes later. Same route, same screens, same sign-in.
+
+The point it was trying to make was fair, so it stays as a fact rather than a link. Under all four
+cards:
+
+> Google Drive is optional. Every route can save your rubrics to this computer instead, as a .html
+> file you can open in any browser.
+
+**Save to this computer** is unchanged and still on the card whether or not you are signed in.
+
+### Also fixed
+
+- When reading the Google Doc failed outright, the summary said **"No edits found in your Google
+  Doc"** — a finding the app had not made. That is the case where the read never happened, which is
+  not the same as nothing having changed. It now says the document could not be read and the
+  rubrics on screen are unchanged.
+
+
 ## What's new in v0.9.31
 
 ### "Request Changes to Rubric"
