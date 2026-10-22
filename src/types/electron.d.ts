@@ -141,7 +141,7 @@ declare global {
          * criterion would deploy to Canvas looking complete.
          */
         readDriveDoc(args: { fileId: string }): Promise<
-          | { ok: true; rubrics: RubricData[]; version: string }
+          | { ok: true; rubrics: RubricData[]; version: string; modifiedTime: string }
           | { ok: false; message: string }
         >
         /** The same document as .html. Works with no Google account. */

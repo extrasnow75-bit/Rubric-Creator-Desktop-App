@@ -537,6 +537,13 @@ ipcMain.handle('rubric:readDriveDoc', async (_e, args: { fileId: string }) => {
       rubrics,
       /* The version as of this read, so the caller can record what it now matches. */
       version: state?.version ?? '',
+      /*
+        When Google last recorded a change to the document, which is the one fact that tells a
+        user whether the thing they just read is the thing they just edited. A stamp earlier
+        than the edit they remember making means they edited a different document, and no other
+        signal the app has says so.
+      */
+      modifiedTime: state?.modifiedTime ?? '',
     }
   } catch (e) {
     return { ok: false as const, message: e instanceof Error ? e.message : String(e) }

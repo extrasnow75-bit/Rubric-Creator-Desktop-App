@@ -31,6 +31,31 @@ function documentAsAttachment(text: string) {
   for (const byte of utf8) binary += String.fromCharCode(byte);
   return { name: 'rubrics.txt', mimeType: 'text/plain', data: btoa(binary) };
 }
+
+/**
+ * A Drive timestamp in the words a person would use for it.
+ *
+ * It goes beside "your edits are in" because that claim is otherwise unfalsifiable. The app
+ * cannot see which document someone typed into — only which one it is linked to — so the one
+ * fact that separates "it read your edit" from "it read a document you did not edit" is when
+ * Google last recorded a change. A stamp earlier than the edit they remember making is the
+ * answer, and it is an answer they can check for themselves without taking the app's word.
+ *
+ * Empty string when there is nothing to show, so the callers can leave the clause out rather
+ * than print "of Invalid Date".
+ */
+function docStamp(iso: string | undefined): string {
+  if (!iso) return '';
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return '';
+  const day = when.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const time = when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return `${day} at ${time}`;
+}
 import { generateCsvFromRubricObject } from '../utils/rubricCsv';
 import { CsvSaveOptions } from './CsvSaveOptions';
 import { RubricAdjustPanel } from './RubricAdjustPanel';
@@ -1135,7 +1160,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    */
   const refreshFromDoc = async (
     { force = false }: { force?: boolean } = {},
-  ): Promise<{ rubrics: RubricData[] | null; message: string | null; missing: string[] }> => {
+  ): Promise<{
+    rubrics: RubricData[] | null;
+    message: string | null;
+    missing: string[];
+    /* When Google last recorded a change, present only when the document was actually read. */
+    modifiedTime?: string;
+  }> => {
     const doc = state.savedDoc;
     const mine = currentRubrics();
     if (!doc || !state.isGoogleAuthenticated || mine.length === 0) {
@@ -1185,7 +1216,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         /* Now known exactly rather than remembered from the discovery pass. */
         heldRubrics: read.rubrics.length,
       });
-      return { rubrics: merged, message: null, missing };
+      return { rubrics: merged, message: null, missing, modifiedTime: read.modifiedTime };
     } catch (err) {
       return {
         rubrics: null,
@@ -1220,7 +1251,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setIsCheckingDoc(true);
     setError(null);
     try {
-      const { rubrics, message, missing } = await refreshFromDoc();
+      const { rubrics, message, missing, modifiedTime } = await refreshFromDoc();
       if (message) {
         /* Not deployable on a document that cannot be read: the rubrics on screen may no longer
            be what it holds, and sending them anyway is the failure this is here to prevent. */
@@ -1230,9 +1261,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       }
       if (rubrics) {
         setReadyForCanvas(false);
+        const stamp = docStamp(modifiedTime);
+        const named = state.savedDoc?.name ? `"${state.savedDoc.name}"` : 'Your Google Doc';
         setChangeSummary(
-          'Your Google Doc had changes the app did not. They are on screen now — check them, ' +
-            'then tick the box again to send these to Canvas.',
+          `${named} was changed${stamp ? ` ${stamp}` : ''} and the app did not have those ` +
+            `edits. They are on screen now — check them, then tick the box again to send these ` +
+            `to Canvas.`,
         );
       }
       if (missing.length > 0) {
@@ -1258,7 +1292,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setChangeSummary(null);
     setRevisedIndexes([]);
     try {
-      const { rubrics, message, missing } = await refreshFromDoc({ force: true });
+      const { rubrics, message, missing, modifiedTime } = await refreshFromDoc({ force: true });
       if (message) {
         setError(message);
         return;
@@ -1275,13 +1309,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         value of the sentence.
       */
       const differed = rubrics !== null && rubricsFingerprint(rubrics) !== before;
+      const stamp = docStamp(modifiedTime);
+      const named = state.savedDoc?.name ? `"${state.savedDoc.name}"` : 'your Google Doc';
       setChangeSummary(
         differed
-          ? 'Your edits are in. The rubrics on screen are now what the Google Doc says, and ' +
-              'they are what will go to Canvas.'
-          : 'No edits found in your Google Doc. It holds exactly what is already on screen. If ' +
-              'you made one, check you edited this document — Open above goes to the one the ' +
-              'app is linked to.',
+          ? `Your edits${stamp ? ` of ${stamp}` : ''} in ${named} are in. The rubrics on screen ` +
+              `are now what that document says, and they are what will go to Canvas.`
+          : `No edits found. ${named} was last changed${stamp ? ` ${stamp}` : ''}, and it holds ` +
+              `exactly what is already on screen. If that is earlier than the edit you remember ` +
+              `making, the edit is in a different document — Open above goes to the one the app ` +
+              `is linked to.`,
       );
       if (missing.length > 0) {
         setError(
@@ -1292,8 +1329,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             `existing draft rubrics" on the main screen to read the document from scratch.`,
         );
       }
+      /*
+        Nothing came back at all, which is not the same as nothing having changed: the read never
+        happened. Saying "no edits found" here would be a finding the app never made.
+      */
       if (!rubrics) {
-        setChangeSummary('No edits found in your Google Doc. It already matches what is on screen.');
+        setChangeSummary(
+          'The Google Doc could not be read just now, so the rubrics on screen are unchanged. ' +
+            'Check you are still signed in to Google, then try again.',
+        );
       }
     } finally {
       setIsRereading(false);
@@ -1352,7 +1396,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         documentTitle: state.rubrics.length > 1 ? describedAssignmentTitle(snapshotDescription) : undefined,
       });
       if (result.ok) {
-        setDriveSaveSuccess(`Saved to ${result.path}`);
+        /*
+          Said at the moment the file appears, because nothing later will say it.
+
+          A local .html file is a copy and nothing more: it has no file id, the app never looks
+          at it again, and there is no route back in — the pickers on this screen and the main
+          screen take .docx, .doc, .pdf and .txt, so the file cannot even be offered back. Only
+          the Google Doc is read before a deploy. Someone who saves a copy, edits the copy and
+          deploys would otherwise send the unedited rubrics with nothing on screen to explain it.
+        */
+        setDriveSaveSuccess(
+          `Saved to ${result.path}. That file is a copy — edits you make in it stay in it. ` +
+            `Before deploying, the app reads your Google Doc, not this file.`,
+        );
       } else if (!result.cancelled) {
         setError(result.message ?? 'Could not save the file.');
       }
@@ -3100,6 +3156,29 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                             {docIsCurrent
                               ? 'The document already holds these rubrics. Change one above and this turns back on.'
                               : 'Saving replaces what is in the document. Google Docs keeps the previous version under File → Version history.'}
+                          </p>
+                        )}
+
+                        {/*
+                          What the button above is, and more importantly what it is not.
+
+                          Ticking "ready to proceed" already reads this document — handleReadyForCanvas
+                          has called refreshFromDoc since the day the document became the source of
+                          truth — so a hand edit reaches Canvas whether or not the button is ever
+                          pressed. Without this line the button reads as the thing that makes edits
+                          count, which is a worse thing to believe than nothing: it invites someone
+                          who never found it to assume their edits were dropped, and someone who did
+                          to think editing in Google Docs needs permission from the app.
+
+                          So it is stated as what it is — a check you can run early, on a screen where
+                          the alternative is finding out one step later.
+                        */}
+                        {state.savedDoc && (
+                          <p className="text-xs text-gray-600 mt-2">
+                            You can edit the rubrics in Google Docs whenever you like. The app reads
+                            the document again when you tick "ready to proceed", so your edits go to
+                            Canvas either way — the first button above is for checking they arrived
+                            before you get that far.
                           </p>
                         )}
 
