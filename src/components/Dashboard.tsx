@@ -163,7 +163,6 @@ export const Dashboard: React.FC = () => {
     setDocUploadTab(tab);
   };
   /** Whether the person asked for a file on their computer rather than a Google Doc. */
-  const [preferLocalOutput, setPreferLocalOutput] = useState(false);
   const [driveUrl, setDriveUrl] = useState('');
   const [isFetchingDriveUrl, setIsFetchingDriveUrl] = useState(false);
   const [driveUrlError, setDriveUrlError] = useState<string | null>(null);
@@ -423,13 +422,8 @@ export const Dashboard: React.FC = () => {
   /**
    * Take one of the three routes off the opening screen.
    *
-   * `local` is set by a card's second link rather than its button. It does not change the route —
-   * the same flow runs either way — it says the person expects a file on their computer at the
-   * end, which makes the local save the primary button rather than the Google one further down.
-   * The person most likely to press it is the one whose Google sign-in has just failed, and
-   * making them discover the fallback mid-flow is the wrong order.
    */
-  const chooseRoute = (route: Route, local = false) => {
+  const chooseRoute = (route: Route) => {
     // The button of the route already showing is the way back out of it, the same as every other
     // disclosure in the app. Pressing a *different* card's button switches routes, and a switch
     // always opens.
@@ -437,29 +431,12 @@ export const Dashboard: React.FC = () => {
       setRouteCollapsed((collapsed) => !collapsed);
       return;
     }
-    openRouteFresh(route, local);
+    openRouteFresh(route);
   };
 
-  /**
-   * The card's quieter second link, which asks for the same route with a local file at the end.
-   *
-   * It never closes anything. Pressing "or save to this computer instead" on a card that is
-   * already open is someone changing their mind about the destination, not asking to put the
-   * screen away — and the route it would have folded up is the one holding their work.
-   */
-  const chooseLocalRoute = (route: 'draft' | 'screenshot' | 'edit') => {
-    setPreferLocalOutput(true);
-    if (route === openRoute) {
-      setRouteCollapsed(false);
-      return;
-    }
-    openRouteFresh(route, true);
-  };
-
-  /** Switch to a route from scratch: the shared half of the two handlers above. */
-  function openRouteFresh(route: Route, local: boolean) {
+  /** Switch to a route from scratch. */
+  function openRouteFresh(route: Route) {
     setRouteCollapsed(false);
-    setPreferLocalOutput(local);
     if (route === 'deploy') {
       handleDraftRubricChange('yes');
       return;
@@ -938,8 +915,6 @@ export const Dashboard: React.FC = () => {
                 onAction={() => chooseRoute('draft')}
                 open={openRoute === 'draft'}
                 controls="route-panel-phase1"
-                alternative="or save to this computer instead (.html)"
-                onAlternative={() => chooseLocalRoute('draft')}
               />
               <RouteCard
                 from={<Camera className="w-6 h-6 text-white" />}
@@ -952,8 +927,6 @@ export const Dashboard: React.FC = () => {
                 onAction={() => chooseRoute('screenshot')}
                 open={openRoute === 'screenshot'}
                 controls="route-panel-phase1"
-                alternative="or save to this computer instead (.html)"
-                onAlternative={() => chooseLocalRoute('screenshot')}
               />
               {/*
                 Third, because the order is the life of a rubric: make one, make one from a
@@ -973,8 +946,6 @@ export const Dashboard: React.FC = () => {
                 onAction={() => chooseRoute('edit')}
                 open={openRoute === 'edit'}
                 controls="route-panel-phase1"
-                alternative="or save to this computer instead (.html)"
-                onAlternative={() => chooseLocalRoute('edit')}
               />
               <RouteCard
                 from={<RubricGridIcon />}
@@ -988,17 +959,27 @@ export const Dashboard: React.FC = () => {
                 open={openRoute === 'deploy'}
                 controls="route-panel-deploy"
               />
-              {/*
-                No alternative on this card, deliberately.
-
-                "or just save the CSV files to this computer" was drafted for it, and it would
-                have been a lie: this route produces CSVs only after a conversion run, which is
-                gated on a Canvas course URL, so the link offered a shortcut that does not exist.
-                It is also the card that needs it least — its own file picker already has a Local
-                tab beside the Google one, so the way through without Google is visible on the
-                next screen rather than promised on this one.
-              */}
             </div>
+
+            {/*
+              What the three deleted links were for, said once and as a fact rather than a route.
+
+              Each of the first three cards carried "or save to this computer instead (.html)".
+              It read as a second way through, and it was not one: it set a flag whose only
+              effect anywhere was which of two buttons was blue on a card at the end of the run.
+              Same route, same screens, same sign-in. A link that changes a colour is one nobody
+              can explain to themselves later, and the first person to read this screen without
+              having built it asked what it was for.
+
+              The intent behind it was real — someone whose Google sign-in has failed should not
+              have to finish a whole run to find out there is a way through without it — so the
+              intent stays, as one line that states it, under all four cards instead of three
+              links that imply it.
+            */}
+            <p className="mt-4 text-center text-sm text-gray-700">
+              Google Drive is optional. Every route can save your rubrics to this computer
+              instead, as a .html file you can open in any browser.
+            </p>
 
             {/* "Yes" path — tabbed file upload area */}
             {openRoute === 'deploy' && (
@@ -1369,7 +1350,6 @@ export const Dashboard: React.FC = () => {
                 mode={phase1Mode === 'edit' ? 'edit' : 'draft'}
                 onAnalyzeDeploy={() => handleAnalyzeDeploy('no')}
                 canAnalyzeDeploy={geminiValid && canvasTokenValid}
-                preferLocalOutput={preferLocalOutput}
               />
             </div>
           )}
@@ -1382,7 +1362,6 @@ export const Dashboard: React.FC = () => {
               className="mt-4 focus:outline-none"
             >
               <ScreenshotConverter
-                preferLocalOutput={preferLocalOutput}
                 onAnalyzeDeploy={() => handleAnalyzeDeploy('no')}
                 canAnalyzeDeploy={geminiValid && canvasTokenValid}
               />

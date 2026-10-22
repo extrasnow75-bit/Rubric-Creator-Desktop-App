@@ -3,8 +3,8 @@ import React, { ReactNode } from 'react';
 /**
  * One of the three routes on the opening screen.
  *
- * Each card is a pair of icons, a heading, a line of explanation, a single action and one
- * alternative. The pair is what distinguishes these from three unrelated buttons: the blue
+ * Each card is a pair of icons, a heading, a line of explanation and a single action. The pair
+ * of icons is what distinguishes these from three unrelated buttons: the blue
  * rubric grid is the output of the first two cards and the input of the third, so reading down
  * the screen gives the whole workflow before anything is clicked.
  *
@@ -22,17 +22,6 @@ interface Props {
   description: string;
   action: string;
   onAction: () => void;
-  /**
-   * The quieter second route — omitted where there is no true one.
-   *
-   * On this screen it is the local-file path, for the person whose Google sign-in has just
-   * failed: making them start a flow to find out there is a way through without Google is the
-   * wrong order. It is optional because a card with no honest alternative must show none. A link
-   * promising something its destination cannot do is worse than no link, and worst for exactly
-   * the person who needed it.
-   */
-  alternative?: string;
-  onAlternative?: () => void;
   /**
    * Whether this card's route is the one currently showing below.
    *
@@ -157,8 +146,6 @@ export const RouteCard: React.FC<Props> = ({
   description,
   action,
   onAction,
-  alternative,
-  onAlternative,
   open = false,
   controls,
 }) => (
@@ -217,16 +204,5 @@ export const RouteCard: React.FC<Props> = ({
       {open ? 'Close' : action}
     </button>
 
-    {alternative && onAlternative && (
-      <div className="mt-2.5 text-center">
-        <button
-          type="button"
-          onClick={onAlternative}
-          className="text-sm text-brand hover:text-brand-dark underline underline-offset-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-        >
-          {alternative}
-        </button>
-      </div>
-    )}
   </div>
 );

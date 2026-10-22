@@ -103,15 +103,6 @@ interface Part1RubricProps {
   onAnalyzeDeploy?: () => void;
   canAnalyzeDeploy?: boolean;
   /**
-   * The person asked for a file on their computer, not a Google Doc.
-   *
-   * Set when they took the "or save to this computer instead (.html)" route off the opening
-   * screen. It does not remove the Drive button — a sign-in that failed once may work later —
-   * it swaps which of the two is the primary, so the route they chose is the one that looks
-   * like the way forward.
-   */
-  preferLocalOutput?: boolean;
-  /**
    * Where the rubrics come from: written from a description, or read out of a document.
    *
    * Everything after the first screen is identical — the same table, the same Request Changes,
@@ -125,7 +116,6 @@ interface Part1RubricProps {
 export const Part1Rubric: React.FC<Part1RubricProps> = ({
   onAnalyzeDeploy,
   canAnalyzeDeploy,
-  preferLocalOutput = false,
   mode = 'draft',
 }) => {
   const editing = mode === 'edit';
@@ -3097,11 +3087,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                       ? 'doc-save-hint'
                                       : undefined
                                 }
-                                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-gray-200 flex items-center gap-2 ${
-                                  preferLocalOutput
-                                    ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                                    : 'bg-brand text-white hover:bg-brand-dark'
-                                }`}
+                                className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-gray-200 flex items-center gap-2 bg-brand text-white hover:bg-brand-dark"
                               >
                                 {savingToDrive && <Loader2 className="w-4 h-4 animate-spin" />}
                                 {/*
@@ -3131,11 +3117,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                 type="button"
                                 onClick={handleSaveLocal}
                                 disabled={savingLocal}
-                                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 ${
-                                  preferLocalOutput
-                                    ? 'bg-brand text-white hover:bg-brand-dark'
-                                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                                }`}
+                                className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
                               >
                                 {savingLocal ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
