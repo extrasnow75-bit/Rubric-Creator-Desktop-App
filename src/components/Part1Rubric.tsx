@@ -1313,8 +1313,17 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       const named = state.savedDoc?.name ? `"${state.savedDoc.name}"` : 'your Google Doc';
       setChangeSummary(
         differed
-          ? `Your edits${stamp ? ` of ${stamp}` : ''} in ${named} are in. The rubrics on screen ` +
-              `are now what that document says, and they are what will go to Canvas.`
+          ? /*
+              The outcome, and nothing about how it was reached.
+
+              This used to add "the rubrics on screen are now what that document says, and they
+              are what will go to Canvas" — a description of the app swapping its copy for the
+              document's, which is true, is the mechanism, and is not what was asked. A reader
+              had to work out that "the rubrics on screen are now what the document says" was a
+              roundabout way of saying their edits would be deployed. Say that instead.
+            */
+            `Your edits${stamp ? ` of ${stamp}` : ''} in ${named} are in. Canvas will get ` +
+              `exactly what that document says.`
           : `No edits found. ${named} was last changed${stamp ? ` ${stamp}` : ''}, and it holds ` +
               `exactly what is already on screen. If that is earlier than the edit you remember ` +
               `making, the edit is in a different document — Open above goes to the one the app ` +
@@ -2890,15 +2899,23 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                first one. The other two are for a run with nowhere to write —
                                nothing saved yet, or a save that did not go through — which is the
                                gap this line was added for. */
-                            <p className="text-sm text-green-800 mt-1">
-                              {state.savedDoc && docIsCurrent
-                                ? lastSync === 'in'
-                                  ? 'The rubrics on screen came from your Google Doc, so the two now hold the same thing.'
-                                  : 'Your Google Doc has been updated to match. Same document, same link.'
-                                : state.savedDoc
-                                  ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — the button below sends them.'
-                                  : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
-                            </p>
+                            /*
+                              Nothing at all after a read back in. The line here said "the rubrics
+                              on screen came from your Google Doc, so the two now hold the same
+                              thing" — the same claim the sentence above it now makes, with the
+                              document named and the time it changed, and weaker for being vaguer.
+                              Two goes at one idea is what made the card hard to read: a second
+                              sentence invites you to look for a second meaning in it.
+                            */
+                            state.savedDoc && docIsCurrent && lastSync === 'in' ? null : (
+                              <p className="text-sm text-green-800 mt-1">
+                                {state.savedDoc && docIsCurrent
+                                  ? 'Your Google Doc has been updated to match. Same document, same link.'
+                                  : state.savedDoc
+                                    ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — the button below sends them.'
+                                    : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
+                              </p>
+                            )
                           ) : (
                             <p className="text-sm font-bold text-gray-900">
                               {state.savedDoc ? 'Google Doc' : 'Not saved yet'}
