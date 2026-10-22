@@ -571,6 +571,50 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     }
   };
 
+  /**
+   * Write down what an adopted document holds, the one time the app can know it.
+   *
+   * contentKey is how every later decision is made — whether there is anything to save, and
+   * whether a version that has moved moved for a reason. A document the app created has one
+   * from the moment it was written. A document the app was *handed* has none: adoption happens
+   * when the file is picked, before a word of it has been read, so until something writes to it
+   * the app has no record of its contents and has to treat every check as a possible conflict.
+   *
+   * Taken through the same parser the comparisons use, not from the rubrics on screen. Those
+   * came out of the model, which is free to tidy a stray capital on the way through; a record
+   * that does not match what a later read of the same untouched document produces is worse than
+   * no record, because it reports a conflict that is only the app disagreeing with itself.
+   *
+   * Best effort throughout. Failing to take a record costs a warning later, and nothing else.
+   */
+  const recordDocumentContents = async (rubrics: RubricData[]) => {
+    const doc = state.savedDoc;
+    if (!doc || doc.contentKey) return;
+    try {
+      const read = await window.api.rubric.readDriveDoc({ fileId: doc.fileId });
+      if (!read.ok) return;
+
+      const byTitle = new Map(read.rubrics.map((r) => [r.title.trim().toLowerCase(), r]));
+      const asHeld: RubricData[] = [];
+      for (const rubric of rubrics) {
+        const fromDoc = byTitle.get(rubric.title.trim().toLowerCase());
+        /* One rubric the parser cannot find under the name on screen makes the whole record a
+           guess, and a guess here is what overwrites somebody's wording later. */
+        if (!fromDoc) return;
+        asHeld.push(fromDoc);
+      }
+
+      setSavedDoc({
+        ...doc,
+        version: read.version || doc.version,
+        contentKey: rubricsFingerprint(asHeld),
+        heldRubrics: read.rubrics.length,
+      });
+    } catch {
+      /* No record, which is the state this was trying to leave. Nothing is worse for trying. */
+    }
+  };
+
   const handleGenerateRubric = async () => {
     if (!assignmentDescription.trim()) {
       setError(
@@ -897,6 +941,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         setShowDeployCard(false);
       }
 
+      /* An edit run is the app's first sight of somebody else's document, and the only moment it
+         can say what that document held before it touched anything. */
+      if (editing && made.length > 0) await recordDocumentContents(made);
+
       if (failed.length > 0) {
         /*
           What went wrong first, then what it cost.
@@ -1078,7 +1126,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       agreed = false,
       doc: known,
     }: { guard?: boolean; agreed?: boolean; doc?: SavedRubricDoc } = {},
-  ): Promise<string | null> => {
+    /*
+      Two different "no" answers, and the deploy gate needs to tell them apart.
+
+      A write can fail with something to say — Drive unreachable, the update refused — and it can
+      decline without words, because the card is already showing the reason and offering the move
+      that fits: a document in the bin, one somebody really has edited, one where writing would
+      drop rubrics the app never read. Returning null for both made "it worked" and "it stopped
+      and is waiting for you" the same answer.
+    */
+  ): Promise<{ written: boolean; message: string | null }> => {
     /*
       `known` is the document as the caller has just seen it, and passing it is not optional for
       a guarded write that follows a refresh in the same handler.
@@ -1091,7 +1148,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       handleApplyChanges works from `baseRubrics` rather than state.
     */
     const doc = known ?? state.savedDoc;
-    if (!doc) return null;
+    if (!doc) return { written: false, message: null };
 
     /*
       A write replaces the whole document, and this set may be a subset of it.
@@ -1104,7 +1161,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     const dropped = Math.max(0, (doc.heldRubrics ?? 0) - rubrics.length);
     if (doc.adopted && dropped > 0 && !agreed && shrinkAgreedFor !== doc.fileId) {
       setDocConflict('shrink');
-      return null;
+      return { written: false, message: null };
     }
 
     setSavingToDrive(true);
@@ -1121,12 +1178,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         fileId: doc.fileId,
         version: guard ? doc.version : undefined,
       });
-      if (!check.ok) return check.message;
+      if (!check.ok) return { written: false, message: check.message };
       if (check.status === 'trashed' || check.status === 'missing') {
         /* Not an error to report in words: the card says which of the two it is and offers the
            move that fits, which for a document that is gone is a new one. */
         setDocConflict(check.status);
-        return null;
+        return { written: false, message: null };
       }
       /*
         A moved counter is a reason to look, not a verdict.
@@ -1144,14 +1201,18 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       */
       if (check.status === 'edited' && !(await documentStillMatches(doc, rubrics))) {
         setDocConflict('edited');
-        return null;
+        return { written: false, message: null };
       }
     } catch (err) {
-      return `Could not reach Google Drive: ${err instanceof Error ? err.message : String(err)}`;
+      return {
+        written: false,
+        message: `Could not reach Google Drive: ${err instanceof Error ? err.message : String(err)}`,
+      };
     } finally {
       setSavingToDrive(false);
     }
-    return writeDocUpdate(rubrics);
+    const message = await writeDocUpdate(rubrics);
+    return { written: message === null, message };
   };
 
   /** Agree to the smaller document, for this document, and carry out the save that was held. */
@@ -1160,18 +1221,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     if (!doc) return;
     setShrinkAgreedFor(doc.fileId);
     setDocConflict(null);
-    const message = await saveRubricsToDoc(currentRubrics(), { agreed: true });
-    if (message) setError(message);
-  };
-
-  /**
-   * The button's own version: save what is on screen, and say so if it did not work.
-   *
-   * It stays because a rename or a points change in the instant section never runs the AI, so
-   * nothing else would carry those into the document.
-   */
-  const handleUpdateDoc = async () => {
-    const message = await saveRubricsToDoc(docPayload().rubrics);
+    const { message } = await saveRubricsToDoc(currentRubrics(), { agreed: true });
     if (message) setError(message);
   };
 
@@ -1320,6 +1370,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * has just changed underneath the person who ticked it, and a confirmation given for different
    * contents is not a confirmation. One extra click, only in the case that earns it.
    */
+  /** The rubrics the document no longer has under the names the app knows them by. */
+  const describeMissing = (missing: string[]) =>
+    `Could not find ${missing.join(', ')} in the document, so ${
+      missing.length === 1 ? 'it was' : 'they were'
+    } left as ${missing.length === 1 ? 'it is' : 'they are'}.`;
+
   const handleReadyForCanvas = async (checked: boolean) => {
     setReadyForCanvas(checked);
     if (!checked) {
@@ -1356,7 +1412,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     */
     const before = rubricsFingerprint(currentRubrics());
     try {
-      const { rubrics, message, missing, modifiedTime } = await refreshFromDoc();
+      const {
+        rubrics,
+        message,
+        missing,
+        modifiedTime,
+        doc: refreshedDoc,
+      } = await refreshFromDoc();
       if (message) {
         /* Not deployable on a document that cannot be read: the rubrics on screen may no longer
            be what it holds, and sending them anyway is the failure this is here to prevent. */
@@ -1364,10 +1426,11 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         setReadyForCanvas(false);
         return;
       }
+      const named = state.savedDoc?.name ? `"${state.savedDoc.name}"` : 'Your Google Doc';
+      const stamp = docStamp(modifiedTime);
+
       if (rubrics && rubricsFingerprint(rubrics) !== before) {
         setReadyForCanvas(false);
-        const stamp = docStamp(modifiedTime);
-        const named = state.savedDoc?.name ? `"${state.savedDoc.name}"` : 'Your Google Doc';
         setChangeSummary(
           hadUnsavedWork
             ? `${named} was changed${stamp ? ` ${stamp}` : ''}, and what it says has replaced ` +
@@ -1378,14 +1441,53 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 `edits. They are on screen now — check them, then tick the box again to send ` +
                 `these to Canvas.`,
         );
+        if (missing.length > 0) setError(describeMissing(missing));
+        return;
       }
-      if (missing.length > 0) {
-        setError(
-          `Could not find ${missing.join(', ')} in the document, so ${
-            missing.length === 1 ? 'it was' : 'they were'
-          } left as ${missing.length === 1 ? 'it is' : 'they are'}.`,
-        );
+      if (missing.length > 0) setError(describeMissing(missing));
+
+      /*
+        The document holds nothing new, so anything the app is holding can go out to it.
+
+        This is where the "Save changes to the Google Doc" button went. A rename or a points
+        change never runs the AI, so nothing carried those into the document — and since ticking
+        this box only ever read, Canvas could receive a rubric under a name the document had
+        never heard of. One button press standing between the two, on a screen whose whole claim
+        is that they are the same thing.
+
+        Writing here rather than at the moment of the rename keeps that section instant, keeps
+        one revision in the document's history per deploy instead of one per keystroke, and asks
+        the "this document holds more rubrics than the app does" question once rather than on
+        every tweak.
+
+        Safe because of what has just been established, not assumed: the refresh above proves
+        the document's contents match what the app last recorded, so there is nothing in it to
+        lose. saveRubricsToDoc checks that again for itself before writing a byte.
+      */
+      const record = refreshedDoc?.contentKey ?? state.savedDoc?.contentKey;
+      if (record === before) return;
+
+      const { written, message: docMessage } = await saveRubricsToDoc(docPayload().rubrics, {
+        guard: true,
+        doc: refreshedDoc ?? state.savedDoc ?? undefined,
+      });
+      if (docMessage) setError(docMessage);
+      /*
+        Either way, the tick does not survive a write that did not happen.
+
+        A refusal is reported by the card rather than in words — a document in the bin, one
+        somebody really has edited, one where writing would drop rubrics the app never read —
+        and each of those needs an answer from the user. Going on to deploy would put rubrics
+        into Canvas that the document does not have, which is the single divergence this screen
+        exists to prevent.
+      */
+      if (!written) {
+        setReadyForCanvas(false);
+        return;
       }
+      setChangeSummary(
+        `Your changes are in ${named}, and Canvas will get exactly what that document says.`,
+      );
     } finally {
       setIsCheckingDoc(false);
     }
@@ -1761,7 +1863,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         });
       }
       const docMessage = writingBack
-        ? await saveRubricsToDoc(nextRubrics, { guard: true, doc: refreshed.doc })
+        ? (await saveRubricsToDoc(nextRubrics, { guard: true, doc: refreshed.doc })).message
         : null;
       /* The summary above says the document was written. The save button's own success chip
          would say it again, a few lines below, in nearly the same words. */
@@ -2516,7 +2618,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   </table>
                 </div>
 
-                {/* Success Banner — below table */}
+                {/*
+                  Not after a change run, because the document card below already reports one.
+
+                  "Draft Rubric Updated! Your requested changes have been applied to the rubric"
+                  sat a few lines above "Updated 1 rubric — Template Quiz Assessment Rubric", in
+                  the same green, with the same tick. The second is the better sentence: it names
+                  which rubric changed, where the first could be any of eight. Two green boxes
+                  saying one thing is how a screen stops being read at all.
+
+                  The other two stay. A draft run and an upload set no change summary, so this is
+                  the only confirmation either of them gets.
+                */}
+                {rubricSource !== 'revised' && (
                 <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-4">
                   <div className="flex items-start gap-3">
                     <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
@@ -2525,12 +2639,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         <>
                           <p className="font-black text-green-900">✓ Draft Rubric Received!</p>
                           <p className="text-sm text-green-800">Your uploaded rubric has been processed and is ready to review.</p>
-                        </>
-                      ) : rubricSource === 'revised' ? (
-                        <>
-                          <p className="font-black text-green-900">✓ Draft Rubric Updated!</p>
-                          <p className="text-sm text-green-800">Your requested changes have been applied to the rubric.</p>
-                          <p className="text-sm text-green-800 mt-1">We recommend reviewing all changes before deploying to Canvas.</p>
                         </>
                       ) : (
                         <>
@@ -2542,6 +2650,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/*
                   Two buttons. One changes the rubric in front of you; the other discards the lot.
@@ -2929,7 +3038,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                               {docConflict === 'shrink'
                                 ? `This document holds ${state.savedDoc?.heldRubrics} rubrics, and the app has the ${currentRubrics().length} you chose to work on. Saving writes those and removes the other ${docRubricsDropped}, because the app never read them and cannot put them back. Google Docs keeps the previous version under File → Version history.`
                                 : docConflict === 'edited'
-                                  ? 'Your Google Doc has been changed in Google Docs since the app last wrote it, so the changes on screen were not written over it. If that edit was yours, it comes in by itself when you tick "ready to proceed" further down — nothing here needs pressing. If you would rather the rubrics on screen won, save over it with the button below; Google Docs keeps the previous version under File → Version history.'
+                                  ? 'Somebody has changed your Google Doc since the app last wrote to it, so the changes on screen were not written over it. If that edit was yours, tick "ready to proceed" further down and it comes in by itself — nothing here needs pressing. If it was not, open the document and see what is in it before you deploy; Google Docs keeps every earlier version under File → Version history.'
                                   : docConflict === 'trashed'
                                     ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
                                     : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
@@ -3079,58 +3188,43 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                               */}
 
                               {/*
-                                One button, two jobs. Once a document exists this writes back to
-                                it, which is what keeps its link permanent and its Google Docs
-                                revision history worth reading; creating another copy is the
-                                quieter link further along, where it reads as the deliberate
-                                choice it is rather than the default.
-                              */}
-                              {/*
+                                Only the half of this button that had a job left.
+
+                                It used to be two: create the document when there was none, and
+                                save over it when there was. The second is now done by the deploy
+                                gate, at the one moment the document and Canvas have to agree, so
+                                keeping a button for it meant keeping a button that was greyed
+                                out whenever it was not needed and redundant whenever it was.
+
+                                Creating is different and stays, because it asks which folder,
+                                and a question is not something a tick box can answer on
+                                somebody's behalf.
+
                                 aria-disabled, not disabled — the house rule, stated in full in
                                 CsvSaveOptions and kept by the deploy button further down this
                                 file. A `disabled` button leaves the tab order, so a keyboard
                                 user never reaches it, never learns why it is off, and cannot
                                 trigger the tooltip that was carrying the reason. The handler
                                 returns early instead, and the reason is a real paragraph tied
-                                on with aria-describedby — the same paragraph that was already
-                                on screen saying it, with nothing connecting the two.
+                                on with aria-describedby.
                               */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (savingToDrive || !state.isGoogleAuthenticated || docIsCurrent)
-                                    return;
-                                  void (state.savedDoc ? handleUpdateDoc() : handleExportToDrive());
-                                }}
-                                aria-disabled={
-                                  savingToDrive || !state.isGoogleAuthenticated || docIsCurrent
-                                }
-                                aria-describedby={
-                                  !state.isGoogleAuthenticated
-                                    ? 'doc-signin-hint'
-                                    : docIsCurrent
-                                      ? 'doc-save-hint'
-                                      : undefined
-                                }
-                                className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-gray-200 flex items-center gap-2 bg-brand text-white hover:bg-brand-dark"
-                              >
-                                {savingToDrive && <Loader2 className="w-4 h-4 animate-spin" />}
-                                {/*
-                                  "Update the Google Doc" was read as pulling the document's own
-                                  edits back into the app — the opposite of what it does. The
-                                  rubrics go out; the document is a destination, the same as the
-                                  button beside it. Two labels starting "Save to" can only be
-                                  read one way, and the line below carries what "Update" used to
-                                  say about replacing what is there.
-                                */}
-                                {savingToDrive
-                                  ? state.savedDoc
-                                    ? 'Saving…'
-                                    : 'Creating…'
-                                  : state.savedDoc
-                                    ? 'Save changes to the Google Doc'
-                                    : 'Open in Google Docs'}
-                              </button>
+                              {!state.savedDoc && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (savingToDrive || !state.isGoogleAuthenticated) return;
+                                    void handleExportToDrive();
+                                  }}
+                                  aria-disabled={savingToDrive || !state.isGoogleAuthenticated}
+                                  aria-describedby={
+                                    !state.isGoogleAuthenticated ? 'doc-signin-hint' : undefined
+                                  }
+                                  className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-gray-200 flex items-center gap-2 bg-brand text-white hover:bg-brand-dark"
+                                >
+                                  {savingToDrive && <Loader2 className="w-4 h-4 animate-spin" />}
+                                  {savingToDrive ? 'Creating…' : 'Open in Google Docs'}
+                                </button>
+                              )}
 
                               {/*
                                 Available whether or not the user is signed in. Google sign-in is
@@ -3167,36 +3261,33 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         </div>
 
                         {/*
-                          Where the previous version went, said once and quietly.
+                          The whole arrangement, in two sentences, because none of it is visible.
 
-                          This replaces a card that stopped the update to ask permission. The
-                          information in it was worth keeping — an update does replace whatever
-                          is in the document — but as a line beside the button rather than a gate
-                          in front of it. Google Docs keeps every revision, so nothing is lost
-                          that cannot be fetched back in two clicks.
+                          There is no longer a button on this card that writes to the document —
+                          the deploy gate does it — so nothing on screen suggests the two are
+                          kept together at all. These two lines are the only place that says so,
+                          which is why they say it in both directions: what you type in Google
+                          Docs comes in, what you change here goes out, and the moment both
+                          happen is the tick further down.
+
+                          The "saving replaces what is in the document" warning that used to sit
+                          here belonged to a button someone pressed. It is folded into the second
+                          sentence, where it describes something the app will do rather than
+                          something the reader is about to.
                         */}
                         {state.savedDoc && (
                           <p id="doc-save-hint" className="text-xs text-gray-600 mt-3">
-                            {docIsCurrent
-                              ? 'The document already holds these rubrics. Change one above and this turns back on.'
-                              : 'Saving replaces what is in the document. Google Docs keeps the previous version under File → Version history.'}
+                            You can edit the rubrics in Google Docs whenever you like, and you do
+                            not need to tell the app: when you tick "ready to proceed", it reads
+                            the document and takes what it finds.
                           </p>
                         )}
-
-                        {/*
-                          The one thing about this card nobody could work out by looking at it.
-
-                          Everything visible here sends rubrics *out* to the document, so there is
-                          nothing on screen to suggest the app ever reads it back — and it does,
-                          at the deploy gate, which is the only moment it matters. Said plainly,
-                          because the alternative was a button claiming to do it, and a button
-                          claiming to do it implied the gate did not.
-                        */}
                         {state.savedDoc && (
                           <p className="text-xs text-gray-600 mt-2">
-                            You can edit the rubrics in Google Docs whenever you like. The app reads
-                            the document again when you tick "ready to proceed", so your edits reach
-                            Canvas without anything to press here.
+                            That same tick saves anything you changed here into the document
+                            first, so the two always agree before a rubric reaches Canvas. It
+                            replaces what the document held; Google Docs keeps every earlier
+                            version under File → Version history.
                           </p>
                         )}
 

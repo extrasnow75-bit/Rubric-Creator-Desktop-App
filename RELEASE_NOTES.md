@@ -1,3 +1,62 @@
+## What's new in v0.9.34
+
+### Ticking the box no longer undoes itself
+
+Apply an AI change, then tick **"ready to proceed"**, and the tick cleared itself and asked to be
+ticked again — on a document nobody had touched.
+
+Drive's version is a counter, not a comparison. It moves whenever Google records anything about a
+file, including its own tidying in the seconds after the app writes one. So the app saw the counter
+ahead, read the document, and rebuilt rubrics identical to the ones already on screen. Nothing had
+changed and nothing was lost, but your tick was taken away and you were asked to review a
+difference that did not exist.
+
+The counter is still how the app decides whether to *look*. What it tells you, and whether your
+tick survives, now depends on the rubrics that came back.
+
+**The same fault had a worse version.** That counter also decided whether an AI change was allowed
+to save. If Google bumped it during the ten seconds of a run, the save refused — the amber warning
+over a document nobody had edited, and the change left on screen while Canvas got it. That is the
+v0.9.33 bug arriving by a second route. The check now reads the document and compares its actual
+contents before refusing anything.
+
+### The app keeps your Google Doc up to date by itself
+
+**"Save changes to the Google Doc" is gone.** Ticking "ready to proceed" now does it.
+
+Until now a rename or a points change — the instant, no-AI half of Request Changes — wrote
+nowhere. Only an AI change saved itself. So Canvas could receive a rubric under a name your Google
+Doc had never heard of, with one unpressed button standing between the two, on a screen whose whole
+claim is that they are the same thing.
+
+Now the tick does both halves: it reads the document, and it saves anything you have changed here
+into it before anything reaches Canvas.
+
+**It will not overwrite you.** The write happens only when the app can prove the document still
+holds exactly what it last recorded — so there is nothing in it to lose. If someone really has
+changed it, the tick clears and shows you what came back, exactly as before. And if the write
+cannot happen for any reason, the tick clears rather than deploying rubrics your document does not
+have.
+
+This is why it saves at the tick rather than the moment you rename something: the instant section
+stays instant, your document's version history gets one revision per deploy instead of one per
+keystroke, and the "this document holds more rubrics than the app does" question is asked once
+rather than on every tweak.
+
+**Open in Google Docs** stays on the card for a set that has no document yet — that one asks which
+folder, and a question is not something a tick box can answer for you.
+
+### One green box instead of two
+
+After a change run the screen said **"✓ Draft Rubric Updated! Your requested changes have been
+applied to the rubric"**, and a few lines below, in the same green with the same tick, **"Updated 1
+rubric — Template Quiz Assessment Rubric."**
+
+The second is the better sentence, because it names which rubric changed where the first could have
+meant any of eight. The first is gone. The confirmations after a draft run and after an upload stay
+— those set no summary, so it is the only one either of them gets.
+
+
 ## What's new in v0.9.33
 
 ### A false alarm every time you edited the Doc and then asked for a change
