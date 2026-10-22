@@ -18,13 +18,18 @@ Canvas" and "the document the app just read does not contain your edit".
 
 It now says which happened:
 
-> Read the Google Doc. It holds exactly what was already on screen, so nothing changed — if you
-> were expecting an edit of yours, it is not in the document the app just read.
+> **No edits found in your Google Doc.** It holds exactly what is already on screen. If you made
+> one, check you edited this document — Open above goes to the one the app is linked to.
 
-If you see that after making an edit, the edit is in a **different document** from the one the app
-is linked to. Use the **Open** link on the card to reach the right one — the app creates a new
-timestamped document each time you choose "Create a new one instead", so a Drive folder can hold
-several with near-identical names.
+and when it did find something:
+
+> **Your edits are in.** The rubrics on screen are now what the Google Doc says, and they are what
+> will go to Canvas.
+
+If you get the first one after making an edit, the edit is in a **different document** from the
+one the app is linked to. Use the **Open** link on the card to reach the right one — the app
+creates a new timestamped document each time you choose "Create a new one instead", so a Drive
+folder can hold several with near-identical names.
 
 ### Where a hand-typed line actually lands in Canvas
 

@@ -1250,6 +1250,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   /** The button's version: fetch whatever is in the document now, and say what happened. */
   const handleRereadDoc = async () => {
     if (!state.savedDoc) return;
+    /* What is on screen before the read, so the summary can say whether anything differed. */
+    const before = rubricsFingerprint(currentRubrics());
     setIsRereading(true);
     setError(null);
     setDriveSaveSuccess(null);
@@ -1263,9 +1265,23 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       }
       setReadyForCanvas(false);
       setShowDeployCard(false);
+      /*
+        The answer first, in the words of the question that was asked.
+
+        "Read your rubrics back in from the Google Doc" was shown whether an edit had been picked
+        up or the document turned out to hold exactly what was already on screen — opposite
+        outcomes, reported identically, which left a tester whose edit never reached Canvas with
+        no way to tell which half of the journey had lost it. Saying which happened is the whole
+        value of the sentence.
+      */
+      const differed = rubrics !== null && rubricsFingerprint(rubrics) !== before;
       setChangeSummary(
-        `Read your rubrics back in from the Google Doc. What is on screen is now what the ` +
-          `document says.`,
+        differed
+          ? 'Your edits are in. The rubrics on screen are now what the Google Doc says, and ' +
+              'they are what will go to Canvas.'
+          : 'No edits found in your Google Doc. It holds exactly what is already on screen. If ' +
+              'you made one, check you edited this document — Open above goes to the one the ' +
+              'app is linked to.',
       );
       if (missing.length > 0) {
         setError(
@@ -1277,7 +1293,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         );
       }
       if (!rubrics) {
-        setChangeSummary('Your Google Doc and the rubrics on screen already match.');
+        setChangeSummary('No edits found in your Google Doc. It already matches what is on screen.');
       }
     } finally {
       setIsRereading(false);
