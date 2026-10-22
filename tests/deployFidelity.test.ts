@@ -121,6 +121,51 @@ describe('what is in the document is what reaches Canvas', () => {
     )
   })
 
+  /*
+    The real one, cell for cell, from a document a tester edited in Google Docs: the criterion's
+    name in bold, the typed line under it, then the description that was already there. Three
+    paragraphs in one cell, which is what Google's export makes of it.
+
+    Where that line lands is worth stating, because it is not where the person typing it expects.
+    It joins the criterion's description — so Canvas puts it in the criterion's long description,
+    behind the "view longer description" link, rather than on the face of the rubric. Arriving
+    and being visible are different things.
+  */
+  it("carries a line typed under the criterion's name, as its long description", () => {
+    const edited = `
+      <h1>Part 1: Systems Analysis</h1>
+      <table>
+      <tr><th>Criteria</th><th>Exemplary</th><th>Proficient</th><th>Developing</th>
+          <th>Unsatisfactory</th><th>Points</th></tr>
+      <tr>
+        <td><p><span style="font-weight:700">Research and Fact-Finding</span></p>
+            <p><span>I MADE A MANUAL CHANGE</span></p>
+            <p><span>Thoroughness and reliability of data gathered.</span></p></td>
+        <td><p><span>32-27</span></p><p><span>Provides comprehensive evidence.</span></p></td>
+        <td><p><span>27-18</span></p><p><span>Provides solid evidence.</span></p></td>
+        <td><p><span>18-9</span></p><p><span>Relies on superficial research.</span></p></td>
+        <td><p><span>9-0</span></p><p><span>Fails to provide adequate research.</span></p></td>
+        <td><p><span>32 points</span></p></td>
+      </tr>
+      </table>`
+
+    const [read] = parseRubricsFromHtml(edited)
+    expect(read.criteria[0].category).toBe('Research and Fact-Finding')
+    expect(read.criteria[0].description).toBe(
+      'I MADE A MANUAL CHANGE Thoroughness and reliability of data gathered.',
+    )
+
+    const payload = buildRubricPayload(generateCsvFromRubricObject(read, 'ranges'), '82')
+    if (!payload.ok) throw new Error(payload.message)
+    const criteria = Object.values(
+      (payload.payload as { rubric: { criteria: Record<string, { long_description: string }> } })
+        .rubric.criteria,
+    )
+    expect(criteria[0].long_description).toBe(
+      'I MADE A MANUAL CHANGE Thoroughness and reliability of data gathered.',
+    )
+  })
+
   it('carries a criterion added to the document by hand', () => {
     const { read, payload } = throughTheWholeChain(rubric, (html) =>
       html.replace(

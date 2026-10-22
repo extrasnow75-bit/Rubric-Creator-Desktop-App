@@ -26,6 +26,19 @@ is linked to. Use the **Open** link on the card to reach the right one — the a
 timestamped document each time you choose "Create a new one instead", so a Drive folder can hold
 several with near-identical names.
 
+### Where a hand-typed line actually lands in Canvas
+
+Worth knowing, because it is not where you would expect. A line typed **under the criterion's
+name**, above the text already there, joins that criterion's **description** — and Canvas does not
+show a criterion description on the face of the rubric. It puts it behind the **"view longer
+description"** link next to the criterion name.
+
+So a line that arrives correctly can still look absent. If you are checking whether an edit made
+it, click **view longer description** on that criterion rather than reading the rubric grid.
+
+To have your words show on the rubric face instead, put them in one of the four rating cells, or
+in the criterion's name.
+
 ### A line that told the story backwards
 
 After reading the document in, the card said *"Your Google Doc has been updated to match"* — the
