@@ -12,6 +12,7 @@ import {
   GenerationSettings,
   RubricData,
   RubricMeta,
+  SavedRubricDoc,
 } from '../types';
 
 /**
@@ -1039,9 +1040,24 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    */
   const saveRubricsToDoc = async (
     rubrics: RubricData[],
-    { guard = false, agreed = false }: { guard?: boolean; agreed?: boolean } = {},
+    {
+      guard = false,
+      agreed = false,
+      doc: known,
+    }: { guard?: boolean; agreed?: boolean; doc?: SavedRubricDoc } = {},
   ): Promise<string | null> => {
-    const doc = state.savedDoc;
+    /*
+      `known` is the document as the caller has just seen it, and passing it is not optional for
+      a guarded write that follows a refresh in the same handler.
+
+      setSavedDoc only queues a state change. An async handler holds the `state` from the render
+      it started in, so a run that refreshes from the document and then writes to it reads, at
+      the write, the version from *before* its own refresh. The guard then compares a superseded
+      version against the live one, finds them different, and refuses a write that nothing had
+      conflicted with — the same trap this file already documents for `rubrics`, which is why
+      handleApplyChanges works from `baseRubrics` rather than state.
+    */
+    const doc = known ?? state.savedDoc;
     if (!doc) return null;
 
     /*
@@ -1156,6 +1172,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     missing: string[];
     /* When Google last recorded a change, present only when the document was actually read. */
     modifiedTime?: string;
+    /*
+      The document as it now stands, for a caller that goes on to write to it in the same tick.
+      setSavedDoc only queues, so the caller's own `state.savedDoc` still holds the version this
+      refresh has just superseded — see the note on saveRubricsToDoc's `known`.
+    */
+    doc?: SavedRubricDoc;
   }> => {
     const doc = state.savedDoc;
     const mine = currentRubrics();
@@ -1174,8 +1196,18 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           setDocConflict(check.status);
           return { rubrics: null, message: null, missing: [] };
         }
-        /* Nobody has touched it. What is on screen is already what the document says. */
-        if (check.status !== 'edited') return { rubrics: null, message: null, missing: [] };
+        /*
+          Nobody has touched it. What is on screen is already what the document says.
+
+          A standing "someone edited this" warning is retired here, because this is the moment it
+          is known to be false. It was only ever set by a write that the guard refused, and
+          nothing else cleared it on the way past — so a refused write left an amber card on
+          screen that outlived the condition behind it.
+        */
+        if (check.status !== 'edited') {
+          setDocConflict((current) => (current === 'edited' ? null : current));
+          return { rubrics: null, message: null, missing: [] };
+        }
       }
 
       const read = await window.api.rubric.readDriveDoc({ fileId: doc.fileId });
@@ -1194,19 +1226,27 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         return fromDoc;
       });
 
-      setRubrics(merged);
-      setLastSync('in');
-      /* The user's own words and numbers, so nothing downstream should tidy their points. */
-      setRubricSource('uploaded');
-      setDocConflict(null);
-      setSavedDoc({
+      const refreshed: SavedRubricDoc = {
         ...doc,
         version: read.version || doc.version,
         contentKey: rubricsFingerprint(merged),
         /* Now known exactly rather than remembered from the discovery pass. */
         heldRubrics: read.rubrics.length,
-      });
-      return { rubrics: merged, message: null, missing, modifiedTime: read.modifiedTime };
+      };
+
+      setRubrics(merged);
+      setLastSync('in');
+      /* The user's own words and numbers, so nothing downstream should tidy their points. */
+      setRubricSource('uploaded');
+      setDocConflict(null);
+      setSavedDoc(refreshed);
+      return {
+        rubrics: merged,
+        message: null,
+        missing,
+        modifiedTime: read.modifiedTime,
+        doc: refreshed,
+      };
     } catch (err) {
       return {
         rubrics: null,
@@ -1240,6 +1280,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
     setIsCheckingDoc(true);
     setError(null);
+    /*
+      Whether the app is holding anything the document does not, read before the refresh because
+      the refresh is what makes the two agree.
+
+      It decides which sentence the user gets. Taking the document's side is the right answer and
+      the one asked for — ticking this box says the document is as you want it — but a refresh
+      that replaces an AI change the app never managed to save is the document's side *winning*,
+      not merely arriving, and the difference is work the user can see on screen.
+    */
+    const hadUnsavedWork = !docIsCurrent;
     try {
       const { rubrics, message, missing, modifiedTime } = await refreshFromDoc();
       if (message) {
@@ -1254,9 +1304,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         const stamp = docStamp(modifiedTime);
         const named = state.savedDoc?.name ? `"${state.savedDoc.name}"` : 'Your Google Doc';
         setChangeSummary(
-          `${named} was changed${stamp ? ` ${stamp}` : ''} and the app did not have those ` +
-            `edits. They are on screen now — check them, then tick the box again to send these ` +
-            `to Canvas.`,
+          hadUnsavedWork
+            ? `${named} was changed${stamp ? ` ${stamp}` : ''}, and what it says has replaced ` +
+                `what was on screen — including anything the app had not yet saved to it. Check ` +
+                `the rubrics, then tick the box again to send these to Canvas. Google Docs keeps ` +
+                `every earlier version under File → Version history.`
+            : `${named} was changed${stamp ? ` ${stamp}` : ''} and the app did not have those ` +
+                `edits. They are on screen now — check them, then tick the box again to send ` +
+                `these to Canvas.`,
         );
       }
       if (missing.length > 0) {
@@ -1712,7 +1767,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           itemsProcessed: revised.length,
         });
       }
-      const docMessage = writingBack ? await saveRubricsToDoc(nextRubrics, { guard: true }) : null;
+      const docMessage = writingBack
+        ? await saveRubricsToDoc(nextRubrics, { guard: true, doc: refreshed.doc })
+        : null;
       /* The summary above says the document was written. The save button's own success chip
          would say it again, a few lines below, in nearly the same words. */
       if (writingBack && !docMessage) setDriveSaveSuccess(null);
