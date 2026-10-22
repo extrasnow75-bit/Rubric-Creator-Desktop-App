@@ -1037,6 +1037,40 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * outright cannot be written to by anybody, so an update there is not a risk to weigh but a
    * fact to report, and the only move left is a new document.
    */
+  /**
+   * Whether the document still holds what the app last recorded it as holding.
+   *
+   * Asked only when Drive says the version moved, and it costs the one read that answers it.
+   * Compared per rubric by title rather than wholesale, because the document may hold rubrics
+   * this set does not — opening a document of thirty-nine and working on two leaves the other
+   * thirty-seven out of every fingerprint the app takes.
+   *
+   * A rubric that cannot be found by name counts as a difference. Its name is the only handle
+   * the app has on it, so a rename in Google Docs is an edit this cannot see past, and guessing
+   * is how someone's wording gets overwritten.
+   */
+  const documentStillMatches = async (
+    doc: SavedRubricDoc,
+    rubrics: RubricData[],
+  ): Promise<boolean> => {
+    /* Nothing recorded to compare against — a document from an older session. Treat the move as
+       real: the cost of a needless warning is a click, the cost of the opposite is someone's
+       typing. */
+    if (!doc.contentKey) return false;
+
+    const read = await window.api.rubric.readDriveDoc({ fileId: doc.fileId });
+    if (!read.ok) return false;
+
+    const byTitle = new Map(read.rubrics.map((r) => [r.title.trim().toLowerCase(), r]));
+    const asTheDocumentHasThem: RubricData[] = [];
+    for (const rubric of rubrics) {
+      const fromDoc = byTitle.get(rubric.title.trim().toLowerCase());
+      if (!fromDoc) return false;
+      asTheDocumentHasThem.push(fromDoc);
+    }
+    return rubricsFingerprint(asTheDocumentHasThem) === doc.contentKey;
+  };
+
   const saveRubricsToDoc = async (
     rubrics: RubricData[],
     {
@@ -1088,11 +1122,28 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         version: guard ? doc.version : undefined,
       });
       if (!check.ok) return check.message;
-      if (check.status === 'edited' || check.status === 'trashed' || check.status === 'missing') {
-        /* Not an error to report in words: the card says which of the three it is, and offers
-           the move that fits — a new document when this one is gone, the save button when the
-           document is merely ahead of us. */
+      if (check.status === 'trashed' || check.status === 'missing') {
+        /* Not an error to report in words: the card says which of the two it is and offers the
+           move that fits, which for a document that is gone is a new one. */
         setDocConflict(check.status);
+        return null;
+      }
+      /*
+        A moved counter is a reason to look, not a verdict.
+
+        Drive's version moves whenever Google records anything about a file, its own processing
+        in the seconds after this app writes one included. Refusing on the counter alone puts up
+        "somebody edited your document" over a document nobody touched, and — far worse — leaves
+        the change that was being saved only on screen, so the document falls behind the rubrics
+        that go to Canvas.
+
+        So the contents decide. The document's own versions of exactly the rubrics being written
+        are compared against contentKey, which is the fingerprint of what the app last recorded
+        the document as holding. Identical means nothing to protect and the write goes ahead; a
+        difference, or a rubric no longer findable by name, is a real edit and stops it.
+      */
+      if (check.status === 'edited' && !(await documentStillMatches(doc, rubrics))) {
+        setDocConflict('edited');
         return null;
       }
     } catch (err) {
@@ -1289,6 +1340,21 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       not merely arriving, and the difference is work the user can see on screen.
     */
     const hadUnsavedWork = !docIsCurrent;
+    /*
+      What is on screen before the refresh, because the tick must survive a document that moved
+      without changing.
+
+      Drive's version counter is a counter, not a diff: it moves whenever Google records anything
+      about a file, which includes its own processing in the seconds after this app writes one.
+      So the common case — apply an AI change, which saves to the document, then tick the box —
+      found the counter ahead, read the document, and rebuilt rubrics identical to the ones
+      already on screen. Nothing had changed and nothing was lost, but the tick cleared itself
+      and asked the user to look at a difference that did not exist.
+
+      The counter stays the cheap way to decide whether to read. What the user is told, and
+      whether their tick is taken away from them, is decided by the rubrics that came back.
+    */
+    const before = rubricsFingerprint(currentRubrics());
     try {
       const { rubrics, message, missing, modifiedTime } = await refreshFromDoc();
       if (message) {
@@ -1298,7 +1364,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         setReadyForCanvas(false);
         return;
       }
-      if (rubrics) {
+      if (rubrics && rubricsFingerprint(rubrics) !== before) {
         setReadyForCanvas(false);
         const stamp = docStamp(modifiedTime);
         const named = state.savedDoc?.name ? `"${state.savedDoc.name}"` : 'Your Google Doc';
