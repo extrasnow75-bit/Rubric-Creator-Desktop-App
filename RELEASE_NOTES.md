@@ -1,3 +1,39 @@
+## What's new in v0.9.31
+
+### "Request Changes to Rubric"
+
+The button that opens the change panel read **Change this rubric**, which says nothing about how
+the change gets made. It now reads **Request Changes to Rubric**, and sits beside **I updated the
+Rubrics manually in the Google Doc** — one asks Gemini to make the change, the other tells the app
+you have already made it yourself. The panel's two sections still state the cost before you
+choose: *Instant · no AI* for renaming and points, *Asks the AI · about 10 seconds each* for a
+change in your own words.
+
+### The app now says whether reading the Doc actually changed anything
+
+**I updated the Rubrics manually in the Google Doc** reported the same success whether it had
+picked up an edit or found a document holding exactly what was already on screen. Those are very
+different things, and telling them apart is the difference between "your edit is on its way to
+Canvas" and "the document the app just read does not contain your edit".
+
+It now says which happened:
+
+> Read the Google Doc. It holds exactly what was already on screen, so nothing changed — if you
+> were expecting an edit of yours, it is not in the document the app just read.
+
+If you see that after making an edit, the edit is in a **different document** from the one the app
+is linked to. Use the **Open** link on the card to reach the right one — the app creates a new
+timestamped document each time you choose "Create a new one instead", so a Drive folder can hold
+several with near-identical names.
+
+### A line that told the story backwards
+
+After reading the document in, the card said *"Your Google Doc has been updated to match"* — the
+opposite of what had happened, and misleading in the one direction that matters, since it suggests
+your edit went out when in fact it came in. It now says the rubrics on screen came from the
+document.
+
+
 ## What's new in v0.9.30
 
 ### What is in your Google Doc is what goes to Canvas

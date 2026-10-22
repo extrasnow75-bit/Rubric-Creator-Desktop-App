@@ -189,6 +189,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
   const [isRereading, setIsRereading] = useState(false);
   /** Whether the Google Doc is being checked in answer to the ready-to-proceed tick. */
   const [isCheckingDoc, setIsCheckingDoc] = useState(false);
+  /**
+   * Which way the app and the document were last brought into line.
+   *
+   * 'out' means the rubrics were written to the document, 'in' means they were read from it.
+   * The card used to say "Your Google Doc has been updated to match" either way, which after a
+   * read is the story backwards — and backwards in the one direction that matters, because it
+   * tells someone their edit went out when in fact it came in.
+   */
+  const [lastSync, setLastSync] = useState<'in' | 'out' | null>(null);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>(() => getRecentDocs());
   const [showRecentDocs, setShowRecentDocs] = useState(false);
 
@@ -988,6 +997,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           heldRubrics: rubrics.length,
         });
         setDocConflict(null);
+        setLastSync('out');
         setDriveSaveSuccess('Saved to the Google Doc. Same document, same link.');
         return null;
       }
@@ -1164,6 +1174,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       });
 
       setRubrics(merged);
+      setLastSync('in');
       /* The user's own words and numbers, so nothing downstream should tidy their points. */
       setRubricSource('uploaded');
       setDocConflict(null);
@@ -2445,7 +2456,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     }`}
                   >
                     <RotateCw className="w-4 h-4" aria-hidden="true" />
-                    Change this rubric
+                    Request Changes to Rubric
                   </button>
                   {/*
                     Moved here from the bottom of "Adjust this rubric", which was the wrong home
@@ -2809,7 +2820,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                gap this line was added for. */
                             <p className="text-sm text-green-800 mt-1">
                               {state.savedDoc && docIsCurrent
-                                ? 'Your Google Doc has been updated to match. Same document, same link.'
+                                ? lastSync === 'in'
+                                  ? 'The rubrics on screen came from your Google Doc, so the two now hold the same thing.'
+                                  : 'Your Google Doc has been updated to match. Same document, same link.'
                                 : state.savedDoc
                                   ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — the button below sends them.'
                                   : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
