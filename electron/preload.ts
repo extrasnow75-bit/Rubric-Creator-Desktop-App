@@ -279,6 +279,8 @@ contextBridge.exposeInMainWorld('api', {
     pushRubric: (args: {
       csvContent: string
       courseUrl: string
+      /** Lets the renderer cancel this upload by id (see gemini.cancel). */
+      jobId?: string
     }): Promise<{ success: boolean; message: string }> =>
       ipcRenderer.invoke('canvas:pushRubric', args),
   },

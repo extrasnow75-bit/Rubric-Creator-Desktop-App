@@ -501,6 +501,8 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                     <div
                       ref={pasteAreaRef}
                       tabIndex={0}
+                      role="button"
+                      aria-label="Paste a screenshot from the clipboard"
                       onFocus={() => setIsPasteFocused(true)}
                       onBlur={() => setIsPasteFocused(false)}
                       onPaste={handlePasteAreaPaste}
@@ -831,14 +833,10 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                     </div>
                     <div>
                       <h3 className="text-lg font-black text-gray-900">Draft Rubric Document</h3>
-                      <p className="text-sm text-gray-600">Do you already have a draft rubric document ready to deploy?</p>
+                      <p className="text-sm text-gray-600">Add your draft rubric document below to deploy it.</p>
                     </div>
                   </div>
 
-                  <select aria-label="Do you already have a draft rubric document?" className="w-full px-4 py-3 border border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-900 mb-6">
-                    <option>Yes - I have a draft rubric document</option>
-                    <option>No - Create a new rubric</option>
-                  </select>
 
                   {/* File Upload Tabs */}
                   <div className="flex gap-3 mb-4 border-b border-gray-200 pb-3">

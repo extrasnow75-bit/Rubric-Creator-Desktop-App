@@ -13,6 +13,7 @@
  */
 import { randomBytes } from 'crypto'
 import { getAccessToken } from './googleAuth'
+import { fetchWithRetry, RequestTimeoutError } from './httpRetry'
 
 const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files'
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
@@ -122,9 +123,39 @@ function assertFileId(fileId: string): string {
   return fileId
 }
 
+/**
+ * A Drive request with a timeout and a retry on throttling.
+ *
+ * `creating` marks a request that makes a new file. It is only retried when Google says it did
+ * not process it (429), and a timeout is reported as "may have been created" rather than
+ * retried, because a second attempt could leave two copies in the user's Drive.
+ */
+async function driveFetch(
+  url: string,
+  init: RequestInit,
+  { creating = false }: { creating?: boolean } = {},
+): Promise<Response> {
+  try {
+    return await fetchWithRetry(url, init, {
+      idempotent: !creating,
+      // An upload of a large set can take a while on a slow connection.
+      timeoutMs: init.method && init.method !== 'GET' ? 90_000 : 30_000,
+    })
+  } catch (err) {
+    if (err instanceof RequestTimeoutError) {
+      throw new Error(
+        creating
+          ? 'Google Drive did not answer in time. The file may or may not have been created, so check your Drive before trying again.'
+          : 'Google Drive did not answer in time. Please try again.',
+      )
+    }
+    throw err
+  }
+}
+
 async function authorized(url: string, init?: RequestInit): Promise<Response> {
   const accessToken = await getAccessToken()
-  return fetch(url, {
+  return driveFetch(url, {
     ...init,
     headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${accessToken}` },
   })
@@ -427,14 +458,18 @@ export async function uploadToDrive(args: {
     supportsAllDrives: 'true',
   })
 
-  const response = await fetch(`${DRIVE_UPLOAD}?${params.toString()}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': `multipart/related; boundary=${boundary}`,
+  const response = await driveFetch(
+    `${DRIVE_UPLOAD}?${params.toString()}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
     },
-    body,
-  })
+    { creating: true },
+  )
 
   if (!response.ok) throw await driveError(response, 'file')
 
@@ -472,7 +507,7 @@ export async function updateDriveFile(args: {
   })
 
   const write = (metadata: Record<string, unknown>) =>
-    fetch(`${DRIVE_UPLOAD}/${fileId}?${params.toString()}`, {
+    driveFetch(`${DRIVE_UPLOAD}/${fileId}?${params.toString()}`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${accessToken}`,

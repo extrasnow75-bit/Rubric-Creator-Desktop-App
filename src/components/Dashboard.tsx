@@ -645,6 +645,7 @@ export const Dashboard: React.FC = () => {
           {/* Header */}
           <button
             onClick={() => setIsSetupOpen((v) => !v)}
+            aria-expanded={isSetupOpen}
             className="w-full bg-brand hover:bg-brand-dark text-white px-6 py-4 flex items-center gap-3 transition-colors cursor-pointer text-left"
           >
             <Settings2 className="w-5 h-5 flex-shrink-0" />
@@ -654,20 +655,26 @@ export const Dashboard: React.FC = () => {
               <div className="flex flex-col items-end gap-1">
                 <div className="flex items-center gap-2">
                   <div
+                    aria-hidden="true"
                     title="Gemini API Key"
                     className={`w-2.5 h-2.5 rounded-full transition-colors ${geminiValid ? 'bg-green-400' : 'bg-white/30'}`}
                   />
                   <div
+                    aria-hidden="true"
                     title="Canvas API Token"
                     className={`w-2.5 h-2.5 rounded-full transition-colors ${canvasTokenValid ? 'bg-green-400' : 'bg-white/30'}`}
                   />
                   <div
+                    aria-hidden="true"
                     title="Google Sign-In (optional)"
                     className={`w-2.5 h-2.5 rounded-full transition-colors ${googleSignedIn ? 'bg-green-400 opacity-80' : 'bg-white/20'}`}
                   />
                 </div>
                 <span className={`text-xs font-bold leading-none ${setupStatusColor}`}>
                   {setupStatusText}
+                </span>
+                <span className="sr-only">
+                  {`Gemini API key ${geminiValid ? 'saved' : 'not saved'}. Canvas token ${canvasTokenValid ? 'saved' : 'not saved'}. Google sign-in ${googleSignedIn ? 'signed in' : 'not signed in'}.`}
                 </span>
               </div>
               <ChevronDown
@@ -685,7 +692,7 @@ export const Dashboard: React.FC = () => {
                 <div className="flex items-center gap-2 mb-1">
                   <Key className="w-4 h-4 text-amber-600 flex-shrink-0" />
                   <h3 className="font-black text-lg text-gray-900">Gemini API Key</h3>
-                  {geminiValid && <Check className="w-4 h-4 text-green-500 ml-auto flex-shrink-0" />}
+                  {geminiValid && <><Check className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" /><span className="sr-only">(saved)</span></>}
                 </div>
                 {geminiValid ? (
                   <div>
@@ -1228,7 +1235,7 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-center gap-2 mb-1">
               <Link className="w-4 h-4 text-blue-600 flex-shrink-0" />
               <h3 className="font-black text-lg text-gray-900">Target Canvas Course</h3>
-              {courseVerified && <Check className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" />}
+              {courseVerified && <><Check className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" /><span className="sr-only">(verified)</span></>}
             </div>
             <p className="text-sm text-gray-600 mb-3">Enter the homepage URL of the Canvas course you want to deploy rubrics to.</p>
             <input

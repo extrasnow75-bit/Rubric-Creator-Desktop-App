@@ -11,6 +11,7 @@
  * and load the token from the keychain themselves at the moment they build the request.
  */
 import { getCanvasToken } from './credentials'
+import { fetchWithRetry, RequestTimeoutError } from './httpRetry'
 import { readSettings } from './settings'
 import { buildRubricPayload, parseCourseUrl, type CourseRef } from './canvasUtils'
 
@@ -115,9 +116,11 @@ export async function verifyToken(args?: {
   if (!token) return { ok: false, message: NO_TOKEN_MESSAGE }
 
   try {
-    const response = await fetch(`${ref.origin}/api/v1/users/self/profile`, {
-      headers: authHeaders(token),
-    })
+    const response = await fetchWithRetry(
+      `${ref.origin}/api/v1/users/self/profile`,
+      { headers: authHeaders(token) },
+      { idempotent: true },
+    )
     if (response.status === 401) {
       return {
         ok: false,
@@ -134,7 +137,7 @@ export async function verifyToken(args?: {
   } catch (e) {
     return {
       ok: false,
-      message: `Could not reach Canvas: ${e instanceof Error ? e.message : String(e)}`,
+      message: unreachableMessage(e),
     }
   }
 }
@@ -151,24 +154,44 @@ export async function getCourseName(args?: {
   if (!token) return { ok: false, message: NO_TOKEN_MESSAGE }
 
   try {
-    const response = await fetch(`${ref.origin}/api/v1/courses/${ref.courseId}`, {
-      headers: authHeaders(token),
-    })
+    const response = await fetchWithRetry(
+      `${ref.origin}/api/v1/courses/${ref.courseId}`,
+      { headers: authHeaders(token) },
+      { idempotent: true },
+    )
     if (!response.ok) return { ok: false, message: await readError(response) }
     const course = JSON.parse(stripJsonGuard(await response.text())) as { name?: string }
     return { ok: true, name: course.name }
   } catch (e) {
     return {
       ok: false,
-      message: `Could not reach Canvas: ${e instanceof Error ? e.message : String(e)}`,
+      message: unreachableMessage(e),
     }
   }
+}
+
+/**
+ * What the user is told when the request to Canvas failed before any answer came back.
+ *
+ * A timeout is different from "cannot connect": the request may have arrived. For an upload that
+ * means the rubric might already be in the course, so the message says to look before retrying,
+ * rather than inviting a second attempt that would make a duplicate.
+ */
+function unreachableMessage(e: unknown, creating = false): string {
+  if (e instanceof RequestTimeoutError) {
+    return creating
+      ? 'Canvas did not answer in time. The rubric may or may not have been created, so check the Rubrics page in your course before trying again.'
+      : 'Canvas did not answer in time. Please try again.'
+  }
+  return `Could not reach Canvas: ${e instanceof Error ? e.message : String(e)}`
 }
 
 /** Push one rubric CSV to a course's Rubrics list. */
 export async function pushRubric(args: {
   csvContent: string
   courseUrl?: string
+  /** Cancels the request, and any wait between retries. */
+  signal?: AbortSignal
 }): Promise<CanvasResult> {
   const resolved = resolveCourse(args.courseUrl)
   if ('error' in resolved) return { success: false, message: resolved.error }
@@ -181,11 +204,12 @@ export async function pushRubric(args: {
   if (!built.ok) return { success: false, message: built.message }
 
   try {
-    const response = await fetch(`${ref.origin}/api/v1/courses/${ref.courseId}/rubrics`, {
-      method: 'POST',
-      headers: authHeaders(token),
-      body: JSON.stringify(built.payload),
-    })
+    // Creating a rubric is not safe to repeat: only a 429 ("not processed, wait") is retried.
+    const response = await fetchWithRetry(
+      `${ref.origin}/api/v1/courses/${ref.courseId}/rubrics`,
+      { method: 'POST', headers: authHeaders(token), body: JSON.stringify(built.payload) },
+      { idempotent: false, signal: args.signal },
+    )
 
     if (response.status === 401) {
       return {
@@ -203,7 +227,12 @@ export async function pushRubric(args: {
           'this course — check that you are a teacher or designer there, not a student or observer.',
       }
     }
-    if (!response.ok) {
+    if (response.status === 429) {
+      return {
+        success: false,
+        message: 'Canvas is busy and asked the app to slow down. Wait a minute, then try again.',
+      }
+    }    if (!response.ok) {
       return {
         success: false,
         message: `Canvas error (${response.status}): ${await readError(response)}`,
@@ -216,11 +245,18 @@ export async function pushRubric(args: {
         "Success. The rubric has been uploaded and can now be found in your Canvas 'Rubrics' list.",
     }
   } catch (e) {
+    if (args.signal?.aborted) {
+      return {
+        success: false,
+        message:
+          'Upload cancelled. If it had already been sent, the rubric may still appear in your course.',
+      }
+    }
     // No CORS case to explain any more: this request is made from the main process, so a failure
     // here is a real network problem rather than the browser refusing to make the call.
     return {
       success: false,
-      message: `Could not reach Canvas: ${e instanceof Error ? e.message : String(e)}`,
+      message: unreachableMessage(e, true),
     }
   }
 }

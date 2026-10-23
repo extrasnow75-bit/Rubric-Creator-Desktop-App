@@ -3562,7 +3562,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             <div className="flex items-center gap-2 mb-1">
               <Link className="w-4 h-4 text-blue-600 flex-shrink-0" />
               <h3 className="font-black text-lg text-gray-900">Target Canvas Course</h3>
-              {deployCourseVerified && <Check className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" />}
+              {deployCourseVerified && <><Check className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" /><span className="sr-only">(verified)</span></>}
             </div>
             <p className="text-sm text-gray-600 mb-3">Enter the homepage URL of the Canvas course you want to deploy this rubric to.</p>
             <input

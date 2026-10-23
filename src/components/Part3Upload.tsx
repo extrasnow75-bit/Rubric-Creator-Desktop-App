@@ -15,6 +15,50 @@ interface BatchFile {
   message?: string;
 }
 
+/**
+ * The pause between one rubric's upload and the next.
+ *
+ * It used to be a flat ten seconds whether or not Canvas was busy, which made a 39-rubric set
+ * spend six minutes asleep. Throttling is now handled where it happens — the upload itself waits
+ * and retries when Canvas asks it to — so this is only a courtesy gap.
+ */
+const UPLOAD_GAP_MS = 1_500;
+
+/** Wait `ms`, ending early (by rejecting) if `signal` aborts. The listener never outlives the wait. */
+function pauseBetweenUploads(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(new Error('Upload cancelled'));
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error('Upload cancelled'));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+let pushJobCounter = 0;
+
+/** Upload one rubric, and cancel the request itself — not just the queue — if `signal` aborts. */
+async function pushRubricCancellable(
+  args: { csvContent: string; courseUrl: string },
+  signal: AbortSignal,
+) {
+  const jobId = `push-${++pushJobCounter}-${Date.now()}`;
+  const onAbort = () => {
+    void window.api.gemini.cancel(jobId);
+  };
+  signal.addEventListener('abort', onAbort, { once: true });
+  try {
+    return await window.api.canvas.pushRubric({ ...args, jobId });
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
 export const Part3Upload: React.FC = () => {
   const {
     state,
@@ -215,22 +259,15 @@ export const Part3Upload: React.FC = () => {
           }
 
           if (i > 0) {
-            addLog('Waiting 10 seconds before next upload…');
-            try {
-              await new Promise<void>((resolve, reject) => {
-                const timer = setTimeout(resolve, 10_000);
-                signal.addEventListener('abort', () => {
-                  clearTimeout(timer);
-                  reject(new Error('Upload cancelled'));
-                }, { once: true });
-              });
-            } catch {
-              addLog('Upload cancelled during wait');
-              setError('Upload cancelled by user');
-              break;
-            }
-            if (getAbortSignal().aborted) break;
-          }
+  try {
+    await pauseBetweenUploads(UPLOAD_GAP_MS, signal);
+  } catch {
+    addLog('Upload cancelled during wait');
+    setError('Upload cancelled by user');
+    break;
+  }
+  if (getAbortSignal().aborted) break;
+}
 
           const item = phase2Items[i];
           const fileName = `${item.name}.csv`;
@@ -244,10 +281,7 @@ export const Part3Upload: React.FC = () => {
           });
 
           try {
-            const result = await window.api.canvas.pushRubric({
-              csvContent: item.csvContent!,
-              courseUrl: courseHomeUrl,
-            });
+            const result = await pushRubricCancellable({ csvContent: item.csvContent!, courseUrl: courseHomeUrl }, signal);
             if (result.success) {
               setPhase2UploadStatuses(prev => ({ ...prev, [item.id]: { status: 'success', message: 'Successfully uploaded' } }));
               successCount++;
@@ -291,10 +325,7 @@ export const Part3Upload: React.FC = () => {
         setProgress({ currentStep: 'Uploading rubric to Canvas...' });
 
         try {
-          const result = await window.api.canvas.pushRubric({
-            csvContent: csvToUse,
-            courseUrl: courseHomeUrl,
-          });
+          const result = await pushRubricCancellable({ csvContent: csvToUse, courseUrl: courseHomeUrl }, getAbortSignal());
 
           if (result.success) {
             addLog('✓ Upload successful!');
@@ -342,25 +373,16 @@ export const Part3Upload: React.FC = () => {
             break;
           }
 
-          // Wait 10 seconds between uploads (not before the first)
-          if (i > 0) {
-            addLog('Waiting 10 seconds before next upload…');
-            try {
-              await new Promise<void>((resolve, reject) => {
-                const timer = setTimeout(resolve, 10_000);
-                signal.addEventListener('abort', () => {
-                  clearTimeout(timer);
-                  reject(new Error('Upload cancelled'));
-                }, { once: true });
-              });
-            } catch {
-              addLog('Upload cancelled during wait');
-              setError('Upload cancelled by user');
-              break;
-            }
-            // Re-check after the wait
-            if (getAbortSignal().aborted) break;
-          }
+                    if (i > 0) {
+  try {
+    await pauseBetweenUploads(UPLOAD_GAP_MS, signal);
+  } catch {
+    addLog('Upload cancelled during wait');
+    setError('Upload cancelled by user');
+    break;
+  }
+  if (getAbortSignal().aborted) break;
+}
 
           const file = updatedFiles[i];
           updatedFiles[i] = { ...file, status: 'uploading' };
@@ -376,10 +398,7 @@ export const Part3Upload: React.FC = () => {
           });
 
           try {
-            const result = await window.api.canvas.pushRubric({
-              csvContent: file.content,
-              courseUrl: courseHomeUrl,
-            });
+            const result = await pushRubricCancellable({ csvContent: file.content, courseUrl: courseHomeUrl }, signal);
 
             if (result.success) {
               updatedFiles[i] = {
@@ -921,7 +940,7 @@ export const Part3Upload: React.FC = () => {
                 announced, so this cannot live inside the block below — and an upload that takes
                 minutes previously finished in silence for anyone not watching the panel.
                 The deployment timeline deliberately stays outside the live region: announcing
-                every line of it, including each "Waiting 10 seconds before next upload", would
+                every line of it, including each upload's progress line, would
                 be unusable. */}
             <span role="status" aria-live="polite" className="sr-only">
               {uploadStatus?.message ?? ''}
@@ -1085,12 +1104,12 @@ export const Part3Upload: React.FC = () => {
                 <p className="text-xs text-gray-600 text-center mt-2">
                   {batchFiles.length === 1
                     ? 'Estimated time: ~2s'
-                    : `Estimated time: ~${batchFiles.length * 2 + (batchFiles.length - 1) * 10}s (${batchFiles.length} uploads + ${batchFiles.length - 1}×10s gaps)`}
+                    : `Estimated time: ~${Math.ceil(batchFiles.length * 2 + (batchFiles.length - 1) * (UPLOAD_GAP_MS / 1000))}s (${batchFiles.length} uploads, with a short pause between each)`}
                 </p>
               )}
               {!isUploading && uploadMode === 'from-phase2' && phase2Items.length > 1 && (
                 <p className="text-xs text-gray-600 text-center mt-2">
-                  {`Estimated time: ~${phase2Items.length * 2 + (phase2Items.length - 1) * 10}s (${phase2Items.length} uploads + ${phase2Items.length - 1}×10s gaps)`}
+                  {`Estimated time: ~${Math.ceil(phase2Items.length * 2 + (phase2Items.length - 1) * (UPLOAD_GAP_MS / 1000))}s (${phase2Items.length} uploads, with a short pause between each)`}
                 </p>
               )}
               {!isUploading && uploadMode === 'from-phase2' && phase2Items.length === 1 && (

@@ -303,8 +303,12 @@ ipcMain.handle('canvas:getCourseUrl', () => readSettings().canvasCourseUrl ?? nu
 // other host is refused in resolveCourse (see canvas.ts). Omitted, they use the saved course.
 ipcMain.handle('canvas:verifyToken', (_e, args?: { courseUrl?: string }) => verifyToken(args))
 ipcMain.handle('canvas:getCourseName', (_e, args?: { courseUrl?: string }) => getCourseName(args))
-ipcMain.handle('canvas:pushRubric', (_e, args: { csvContent: string; courseUrl?: string }) =>
-  pushRubric(args),
+ipcMain.handle(
+  'canvas:pushRubric',
+  (_e, args: { csvContent: string; courseUrl?: string; jobId?: string }) =>
+    withJob(args.jobId, (signal) =>
+      pushRubric({ csvContent: args.csvContent, courseUrl: args.courseUrl, signal }),
+    ),
 )
 
 // ─── Google sign-in ───────────────────────────────────────────────────────────
