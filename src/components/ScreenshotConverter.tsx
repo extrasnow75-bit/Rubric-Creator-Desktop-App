@@ -188,7 +188,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
       saveRecentImage({ name: result.name, fileId: result.fileId, mimeType: result.mimeType, source: 'picker' });
       setRecentImages(getRecentImages());
     } catch (err: any) {
-      setError(`Google Drive error: ${err.message}`);
+      setError(err.message);
     } finally {
       setIsPickerLoading(false);
     }
@@ -470,7 +470,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
-                      className={`relative w-full p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all ${
+                      className={`relative w-full p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-2 ${
                         isDragging
                           ? 'bg-blue-50 border-blue-400'
                           : 'bg-gray-50 border-gray-200 hover:border-blue-300'
@@ -626,7 +626,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                         onChange={(e) => setDriveImageUrl(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleFetchDriveUrl(); }}
                         placeholder="drive.google.com/file/d/… or drive.google.com/open?id=…"
-                        className="w-full px-4 py-3 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none mb-3"
+                        className="w-full px-4 py-3 border border-gray-500 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none mb-3"
                       />
                       <p className="text-xs text-gray-600 mb-4">
                         Supports PNG, JPG, and WebP image files stored in Drive. The file must be accessible to your signed-in account.
@@ -835,7 +835,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                     </div>
                   </div>
 
-                  <select className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-900 mb-6">
+                  <select aria-label="Do you already have a draft rubric document?" className="w-full px-4 py-3 border border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-900 mb-6">
                     <option>Yes - I have a draft rubric document</option>
                     <option>No - Create a new rubric</option>
                   </select>
@@ -930,7 +930,8 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                     value={canvasUrl}
                     onChange={(e) => setCanvasUrl(e.target.value)}
                     placeholder="https://canvas.institution.edu/courses/12345"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-6"
+                    aria-label="Canvas course homepage URL"
+                    className="w-full px-4 py-3 border border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-6"
                   />
 
                   <button
@@ -988,8 +989,9 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
           <textarea
             value={requestChangesText}
             onChange={(e) => setRequestChangesText(e.target.value)}
+            aria-label="Describe the changes you want made to the rubric"
             placeholder="e.g. Add a new category for Peer Collaboration worth 10 points. Rename 'Communication' to 'Written Communication'. Increase the Exemplary threshold for Problem Analysis to 24-22 pts."
-            className="w-full h-40 p-4 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none resize-none mb-4 text-sm"
+            className="w-full h-40 p-4 border border-gray-500 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none resize-none mb-4 text-sm"
           />
 
           {state.error && (

@@ -300,7 +300,7 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
               }}
               aria-label="Search your Drive by file name"
               placeholder="Search your Drive by file name…"
-              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full pl-9 pr-4 py-2 border border-gray-500 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </form>
 

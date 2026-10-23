@@ -33,6 +33,12 @@
 @tailwind utilities;
 
 @layer base {
+  /* Tailwind's preflight placeholder is gray-400, 2.5:1 on white. gray-500 is 4.8:1. */
+  ::placeholder {
+    color: #6b7280;
+    opacity: 1;
+  }
+
   body {
     @apply bg-gray-50 font-sans;
   }

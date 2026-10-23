@@ -188,7 +188,7 @@ export const RubricAdjustPanel: React.FC<Props> = ({
               }
               if (e.key === 'Escape') setDraftName(rubric.title);
             }}
-            className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium text-gray-900 focus:border-brand focus:outline-none transition-all disabled:bg-gray-100"
+            className="w-full px-4 py-2.5 border-2 border-gray-500 rounded-xl font-medium text-gray-900 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 transition-all disabled:bg-gray-100"
           />
           <p className="text-xs text-gray-600 mt-1">This is the name Canvas will show.</p>
         </div>
@@ -211,7 +211,7 @@ export const RubricAdjustPanel: React.FC<Props> = ({
                   applyPoints();
                 }
               }}
-              className="w-28 px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium text-gray-900 focus:border-brand focus:outline-none transition-all disabled:bg-gray-100"
+              className="w-28 px-4 py-2.5 border-2 border-gray-500 rounded-xl font-medium text-gray-900 focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 transition-all disabled:bg-gray-100"
             />
             {/*
               An explicit button, not applied on change. Rescaling rewrites the points on every

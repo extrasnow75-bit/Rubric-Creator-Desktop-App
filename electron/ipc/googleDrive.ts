@@ -100,7 +100,10 @@ async function driveError(response: Response, noun: string): Promise<Error> {
     )
   }
   const detail = await parseGoogleError(response)
-  return new Error(`Google Drive error (${response.status})${detail ? `: ${detail}` : ''}`)
+  // The status code and Google's reason string stay out of the sentence: they mean nothing to
+  // the person reading it. The detail is logged so it is not lost.
+  console.warn(`Google Drive request failed (${response.status})${detail ? `: ${detail}` : ''}`)
+  return new Error('Google Drive could not complete that request. Please try again in a moment.')
 }
 
 /**

@@ -116,7 +116,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '' }) =>
           {hasDetails && (
             <button
               onClick={() => setShowDetails(prev => !prev)}
-              className="mt-2 flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors"
+              className="mt-2 flex items-center gap-1 text-xs text-red-700 hover:text-red-900 transition-colors"
             >
               {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               {showDetails ? 'Hide technical details' : 'Show technical details'}

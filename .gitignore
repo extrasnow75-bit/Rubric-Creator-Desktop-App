@@ -44,3 +44,6 @@ release/
 
 # TypeScript incremental-build caches
 *.tsbuildinfo
+
+# Claude Code worktrees
+.claude/worktrees/

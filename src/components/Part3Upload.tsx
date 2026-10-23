@@ -761,7 +761,7 @@ export const Part3Upload: React.FC = () => {
                         onChange={(e) => setDriveUrl(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleFetchFromDriveUrl(); }}
                         placeholder="docs.google.com/spreadsheets/d/… or drive.google.com/file/d/…"
-                        className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm mb-3"
+                        className="w-full px-4 py-3 border border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm mb-3"
                       />
                       <button
                         onClick={handleFetchFromDriveUrl}
@@ -784,13 +784,14 @@ export const Part3Upload: React.FC = () => {
                   <Upload className="w-5 h-5 text-blue-600" />
                   Batch Rubric Queue
                 </h3>
-                <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:border-blue-400 transition-all cursor-pointer relative">
+                <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:border-blue-400 transition-all cursor-pointer relative focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-2">
                   <input
                     type="file"
                     multiple
                     accept=".csv,.zip"
                     onChange={(e) => handleFileSelect(e.target.files)}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    aria-label="Drop CSV or ZIP rubric files here, or click to browse"
                   />
                   <Upload className="w-8 h-8 text-gray-600 mx-auto mb-2" />
                   <p className="text-sm font-bold text-gray-700">
@@ -952,13 +953,14 @@ export const Part3Upload: React.FC = () => {
               <h3 className="font-bold text-gray-900 mb-4 uppercase text-sm tracking-wider">Target Course & User</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">
+                  <label htmlFor="part3-course-url" className="block text-sm font-bold text-gray-700 mb-1">
                     Canvas Course URL
                   </label>
                   <p className="text-xs text-gray-900 mb-2">
                     Paste the URL of your Canvas course home page.
                   </p>
                   <input
+                    id="part3-course-url"
                     type="text"
                     value={courseUrl}
                     onChange={(e) => {
@@ -966,7 +968,7 @@ export const Part3Upload: React.FC = () => {
                       setCourseUrl(e.target.value);
                     }}
                     placeholder="https://boisestate.instructure.com/courses/12345"
-                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                    className="w-full px-4 py-3 border border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                   />
                 </div>
 
@@ -1039,7 +1041,8 @@ export const Part3Upload: React.FC = () => {
                     value={manualCsv}
                     onChange={(e) => setManualCsv(e.target.value)}
                     placeholder="Paste your CSV content here..."
-                    className="w-full h-32 p-3 border rounded-xl mt-3 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-mono"
+                    aria-label="Paste CSV content"
+                    className="w-full h-32 p-3 border border-gray-500 rounded-xl mt-3 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-mono"
                   />
                 )}
               </div>

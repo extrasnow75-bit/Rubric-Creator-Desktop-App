@@ -709,7 +709,8 @@ export const Dashboard: React.FC = () => {
                       onChange={(e) => { setApiKeyInput(e.target.value); setKeyValidationResult('idle'); }}
                       onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey()}
                       placeholder="Paste your API key here..."
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-mono focus:border-amber-400 focus:outline-none transition-all mb-3"
+                      aria-label="Google Gemini API key"
+                      className="w-full px-4 py-3 border-2 border-gray-500 rounded-xl text-sm font-mono focus:border-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 transition-all mb-3"
                     />
                     {keyValidationResult === 'invalid' && (
                       <div className="flex items-center gap-2 mb-3 text-red-600">
@@ -799,7 +800,8 @@ export const Dashboard: React.FC = () => {
                         onChange={(e) => { setCanvasTokenInput(e.target.value); setCanvasTokenError(null); }}
                         onKeyDown={(e) => e.key === 'Enter' && handleSaveCanvasToken()}
                         placeholder="Paste your Canvas token here..."
-                        className={`w-full px-4 py-3 border-2 rounded-xl text-sm font-mono focus:outline-none transition-all pr-10 ${canvasTokenError ? 'border-red-400' : 'border-gray-200 focus:border-red-400'}`}
+                        aria-label="Canvas access token"
+                        className={`w-full px-4 py-3 border-2 rounded-xl text-sm font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 transition-all pr-10 ${canvasTokenError ? 'border-red-600' : 'border-gray-500 focus:border-red-600'}`}
                       />
                       <button
                         type="button"
@@ -1016,7 +1018,7 @@ export const Dashboard: React.FC = () => {
                       onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                       onDragLeave={() => setIsDragging(false)}
                       onDrop={handleDrop}
-                      className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
+                      className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-2 ${
                         isDragging ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/30'
                       }`}
                     >
@@ -1234,14 +1236,15 @@ export const Dashboard: React.FC = () => {
               value={courseUrlInput}
               onChange={(e) => handleCourseUrlChange(e.target.value)}
               placeholder="https://canvas.institution.edu/courses/12345"
+              aria-label="Canvas course homepage URL"
               aria-invalid={!!((courseUrlInput && !courseUrlValid) || courseNameError)}
               aria-describedby={courseNameError ? 'course-status' : undefined}
-              className={`w-full px-4 py-3 border-2 rounded-xl text-sm focus:outline-none transition-all ${
+              className={`w-full px-4 py-3 border-2 rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 transition-all ${
                 (courseUrlInput && !courseUrlValid) || courseNameError
                   ? 'border-red-300 focus:border-red-400'
                   : courseVerified
                   ? 'border-green-400 focus:border-green-500'
-                  : 'border-gray-200 focus:border-blue-400'
+                  : 'border-gray-500 focus:border-blue-600'
               }`}
             />
             {courseUrlInput && !courseUrlValid && (

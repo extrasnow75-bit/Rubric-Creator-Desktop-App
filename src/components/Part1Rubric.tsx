@@ -3574,6 +3574,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 setDeployCourseName(null);
               }}
               placeholder="https://canvas.institution.edu/courses/12345"
+              aria-label="Canvas course homepage URL"
               aria-invalid={!!((deployUrlInput && !deployUrlValid) || deployNameError)}
               aria-describedby={deployNameError ? 'deploy-course-status' : undefined}
               /* The border alone was the focus indicator, and every colour it took — blue-400,

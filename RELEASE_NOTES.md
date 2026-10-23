@@ -1,3 +1,31 @@
+## What's new in v1.0.0
+
+This is the first full release. It is the same app as v0.9.34, with the changes below on top.
+
+### Easier to use with a keyboard or a screen reader
+
+- **You can see where you are on the file drop zones.** Pressing Tab onto "drop a file here" now
+  draws a ring around the whole box. Before, the focus was there but invisible.
+- **Every text box has a name.** Boxes that showed only grey hint text — the API key, the Canvas
+  token, the course link and the paste-your-changes box — are now named, so a screen reader says
+  what each one is for.
+- **Hint text and some buttons are easier to read.** The grey hint text inside empty boxes is
+  darker, and so are a few small red and green messages. The amber "Retry" and red "Stop" buttons
+  now have enough contrast against their white text.
+- **Boxes you type in have clearer borders and a clearer focus ring.**
+
+### If Google needs you to sign in, it now says so in plain words
+
+When the app needs you to sign in to Google — to create a Google Doc or to fetch files from Drive —
+the message is now an ordinary sentence. Some of those messages used to arrive with a line of
+internal wording in front of them, such as "Error invoking remote method". That is gone, and so are
+status numbers and error codes. For example, a sign-in that did not finish now says: **"Google
+sign-in did not finish. Please try signing in again."**
+
+### Tidying
+
+- Two leftover development folders were removed from the project.
+
 ## What's new in v0.9.34
 
 ### Ticking the box no longer undoes itself

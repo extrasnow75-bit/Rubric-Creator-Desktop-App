@@ -54,7 +54,7 @@ function loadTokens(): StoredTokens | null {
 }
 
 function saveTokens(t: StoredTokens): void {
-  if (!safeStorage.isEncryptionAvailable()) throw new Error('OS keychain not available')
+  if (!safeStorage.isEncryptionAvailable()) throw new Error("This computer's secure storage is not available, so the app cannot keep your Google sign-in. Please restart the app and try again.")
   writeFileSync(TOKEN_PATH, safeStorage.encryptString(JSON.stringify(t)))
 }
 
@@ -180,9 +180,9 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
         server.close()
         focusAppWindow()
 
-        if (error) return finish(() => reject(new Error(`Google sign-in was cancelled (${error}).`)))
+        if (error) return finish(() => reject(new Error('Google sign-in was cancelled.')))
         if (returnedState !== state) {
-          return finish(() => reject(new Error('Sign-in state mismatch — aborted for safety.')))
+          return finish(() => reject(new Error('Google sign-in could not be verified, so it was stopped for your safety. Please try signing in again.')))
         }
         finish(() => resolve({ code: returnedCode!, redirectUri }))
       })
@@ -244,7 +244,7 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
             } catch {
               /* already closed */
             }
-            reject(new Error('Google sign-in timed out.'))
+            reject(new Error('Google sign-in timed out. Please try signing in again.'))
           }),
         180_000,
       )
@@ -266,7 +266,8 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
   })
   if (!tokenRes.ok) {
     const detail = await tokenRes.text().catch(() => '')
-    throw new Error(`Google token exchange failed (${tokenRes.status}). ${detail.slice(0, 300)}`)
+    console.warn(`Google token exchange failed (${tokenRes.status}). ${detail.slice(0, 300)}`)
+    throw new Error('Google sign-in did not finish. Please try signing in again.')
   }
 
   const data = (await tokenRes.json()) as TokenResponse

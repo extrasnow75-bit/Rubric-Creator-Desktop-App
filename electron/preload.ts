@@ -20,6 +20,28 @@ interface DriveFile {
 }
 
 /**
+ * `ipcRenderer.invoke` for the channels that talk to Google, with Electron's error framing removed.
+ *
+ * A message thrown in the main process reaches the renderer as
+ * `Error invoking remote method 'drive:upload': Error: You need to go to Initial Setup…`,
+ * and most screens print `err.message` as it comes. Stripping it here, once, means a person who
+ * needs to sign in to Google reads the plain sentence the main process wrote — not a channel
+ * name — wherever the call was made from. Only the framing is removed; the sentence is untouched.
+ */
+function invokeReadable<T>(channel: string, ...args: unknown[]): Promise<T> {
+  return ipcRenderer.invoke(channel, ...args).catch((err: unknown) => {
+    let message = (err instanceof Error ? err.message : String(err)).trim()
+    message = message.replace(/^Error invoking remote method '[^']*':\s*/, '')
+    let previous: string
+    do {
+      previous = message
+      message = message.replace(/^(?:[A-Z][A-Za-z]*)?Error:\s*/, '')
+    } while (message !== previous)
+    throw new Error(message || 'Something went wrong talking to Google. Please try again.')
+  })
+}
+
+/**
  * The renderer's entire view of the outside world.
  *
  * Every method here is a deliberate grant, so the shape of this object is the app's real
@@ -105,31 +127,31 @@ contextBridge.exposeInMainWorld('api', {
   rubric: {
     /** Creates a Google Doc in Drive and opens it in the browser. Needs a Google sign-in. */
     exportToDrive: (args: unknown): Promise<unknown> =>
-      ipcRenderer.invoke('rubric:exportToDrive', args),
+      invokeReadable('rubric:exportToDrive', args),
     /** Rewrites a document this app made earlier, keeping its id, link and revision history. */
     updateDriveDoc: (args: unknown): Promise<unknown> =>
-      ipcRenderer.invoke('rubric:updateDriveDoc', args),
+      invokeReadable('rubric:updateDriveDoc', args),
     /** Whether that document is still there, and still as the app left it. */
     checkDriveDoc: (args: unknown): Promise<unknown> =>
-      ipcRenderer.invoke('rubric:checkDriveDoc', args),
+      invokeReadable('rubric:checkDriveDoc', args),
     /** The rubrics the document holds right now, read from its own tables. No AI, no cost. */
     readDriveDoc: (args: unknown): Promise<unknown> =>
-      ipcRenderer.invoke('rubric:readDriveDoc', args),
+      invokeReadable('rubric:readDriveDoc', args),
     /** Saves the same rubric as a .html file. Works with no Google account at all. */
     saveHtml: (args: {
       rubric: unknown
     }): Promise<{ ok: boolean; path?: string; cancelled?: boolean; message?: string }> =>
-      ipcRenderer.invoke('rubric:saveHtml', args),
+      invokeReadable('rubric:saveHtml', args),
   },
   google: {
     signIn: (options?: {
       useAnotherAccount?: boolean
     }): Promise<{ signedIn: boolean; email?: string; name?: string; picture?: string }> =>
-      ipcRenderer.invoke('google:signIn', options),
-    signOut: (): Promise<void> => ipcRenderer.invoke('google:signOut'),
+      invokeReadable('google:signIn', options),
+    signOut: (): Promise<void> => invokeReadable('google:signOut'),
     /** Identity only. There is no call that returns the Google access token. */
     status: (): Promise<{ signedIn: boolean; email?: string; name?: string; picture?: string }> =>
-      ipcRenderer.invoke('google:status'),
+      invokeReadable('google:status'),
     /** Fires when a stored sign-in turns out to be dead. Returns an unsubscribe function. */
     onSignedOut: (callback: () => void): (() => void) => {
       const listener = () => callback()
@@ -147,23 +169,23 @@ contextBridge.exposeInMainWorld('api', {
       pageToken?: string
       pageSize?: number
     }): Promise<{ files: DriveFile[]; nextPageToken?: string }> =>
-      ipcRenderer.invoke('drive:listFiles', args),
+      invokeReadable('drive:listFiles', args),
     /** Accepts any of the Drive URL shapes, or a bare file id. */
     resolveUrl: (
       url: string,
     ): Promise<
       { ok: true; fileId: string; name: string; mimeType: string } | { ok: false; message: string }
-    > => ipcRenderer.invoke('drive:resolveUrl', url),
-    getDocText: (fileId: string): Promise<string> => ipcRenderer.invoke('drive:getDocText', fileId),
+    > => invokeReadable('drive:resolveUrl', url),
+    getDocText: (fileId: string): Promise<string> => invokeReadable('drive:getDocText', fileId),
     getSheetCsv: (fileId: string): Promise<string> =>
-      ipcRenderer.invoke('drive:getSheetCsv', fileId),
+      invokeReadable('drive:getSheetCsv', fileId),
     downloadBytes: (fileId: string): Promise<Uint8Array> =>
-      ipcRenderer.invoke('drive:downloadBytes', fileId),
+      invokeReadable('drive:downloadBytes', fileId),
     /** Bytes ready for processing; a Google Doc arrives converted to .docx. */
     fetchForProcessing: (
       fileId: string,
     ): Promise<{ name: string; mimeType: string; bytes: Uint8Array }> =>
-      ipcRenderer.invoke('drive:fetchForProcessing', fileId),
+      invokeReadable('drive:fetchForProcessing', fileId),
     upload: (args: {
       content: string | Uint8Array
       name: string
@@ -171,7 +193,7 @@ contextBridge.exposeInMainWorld('api', {
       targetMimeType?: string
       folderId?: string
     }): Promise<{ fileId: string; webViewLink: string }> =>
-      ipcRenderer.invoke('drive:upload', args),
+      invokeReadable('drive:upload', args),
     /** Takes a file id, not a URL: main builds the address, so this cannot open anything else. */
   },
   gemini: {

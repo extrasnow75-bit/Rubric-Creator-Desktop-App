@@ -58,12 +58,12 @@ const RubricErrorLine: React.FC<{ error: string }> = ({ error }) => {
       </p>
       <button
         onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
-        className="text-[10px] text-red-400 hover:text-red-600 mt-0.5 underline underline-offset-2"
+        className="text-xs text-red-700 hover:text-red-900 mt-0.5 underline underline-offset-2"
       >
         {expanded ? 'hide details' : 'view full error'}
       </button>
       {expanded && (
-        <pre className="mt-1.5 text-[10px] text-red-500 bg-red-50 border border-red-200 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-all">
+        <pre className="mt-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-all">
           {error}
         </pre>
       )}
@@ -909,7 +909,7 @@ export const Part2WordToCsv: React.FC = () => {
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                    className={`relative w-full p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all ${
+                    className={`relative w-full p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-2 ${
                       isDragging
                         ? 'bg-blue-50 border-blue-400'
                         : 'bg-gray-50 border-gray-200 hover:border-blue-300'
@@ -1159,7 +1159,7 @@ export const Part2WordToCsv: React.FC = () => {
                         {result.status === 'error' && (
                           <button
                             onClick={() => handleRetryRubric(i)}
-                            className="flex-shrink-0 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 transition-all flex items-center gap-1.5"
+                            className="flex-shrink-0 px-3 py-1.5 bg-amber-700 text-white rounded-lg text-xs font-bold hover:bg-amber-800 transition-all flex items-center gap-1.5"
                           >
                             <RotateCcw className="w-3.5 h-3.5" />
                             Retry
@@ -1215,7 +1215,7 @@ export const Part2WordToCsv: React.FC = () => {
                           ~{fmtSeconds(dynamicRemainingS)} remaining
                         </span>
                       ) : (
-                        <span className="text-green-600 font-semibold">Wrapping up…</span>
+                        <span className="text-green-700 font-semibold">Wrapping up…</span>
                       )}
                     </div>
 
@@ -1268,7 +1268,7 @@ export const Part2WordToCsv: React.FC = () => {
                       disabled={!isGeneratingAll && (attachments.length === 0 || isPreScanning)}
                       className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 ${
                         isGeneratingAll
-                          ? 'bg-red-500 text-white hover:bg-red-600'
+                          ? 'bg-red-600 text-white hover:bg-red-700'
                           : allDone
                           ? 'bg-gray-100 text-gray-600 hover:bg-gray-200 shadow-none'
                           : 'bg-brand text-white hover:bg-brand-dark disabled:bg-gray-200 disabled:text-gray-400'
