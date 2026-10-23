@@ -1,3 +1,34 @@
+## What's new in v1.0.1
+
+### Uploading to Canvas copes with a busy Canvas
+
+- **A busy Canvas no longer stops your upload.** When Canvas says it is overloaded, the app now
+  waits the length of time Canvas asks for and tries again by itself, a few times, before giving up.
+  If it still cannot get through, you are told Canvas is busy and to wait a minute — not shown a
+  status number.
+- **An upload can no longer hang forever.** If Canvas or Google Drive stops answering, the app
+  gives up after about half a minute (a minute and a half for a big Drive upload) and tells you.
+- **It will not make duplicates.** If the app does not hear back about a new rubric or a new Drive
+  file, it does not send it again, because it may already be there. The message says so and tells
+  you to check your course's Rubrics page or your Drive first.
+- **Cancel really cancels.** Pressing Cancel during an upload now stops the request that is in
+  progress, not just the ones waiting behind it.
+- **Batches are much faster.** The app used to wait a fixed ten seconds between rubrics, which
+  added up to six minutes for a set of 39. The wait is now a second and a half, because the app
+  now slows down by itself when Canvas asks it to.
+
+### Screen readers
+
+- The Initial Setup bar says whether it is open or closed.
+- The coloured dots and green ticks in Initial Setup now have words that say what they mean
+  (for example "Gemini API key saved").
+- The "paste a screenshot" box has a name, so a screen reader announces what it is for.
+
+### Removed
+
+- The screenshot tool had a "Do you already have a draft rubric document?" drop-down that did
+  nothing. It is gone; the line above it now simply tells you to add your draft document.
+
 ## What's new in v1.0.0
 
 This is the first full release. It is the same app as v0.9.34, with the changes below on top.
