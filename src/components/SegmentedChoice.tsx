@@ -47,7 +47,16 @@ export function SegmentedChoice<T extends string>({
       <legend className="text-sm font-bold text-gray-900 mb-2">{label}</legend>
       <div className="flex gap-2">
         {options.map((option) => (
-          <label key={option.value} className="flex-1 cursor-pointer">
+          /*
+            `relative` is what keeps the hidden radio inside its own button. An `sr-only` input is
+            absolutely positioned, and with no positioned ancestor of its own the nearest one is
+            the app shell — which is `overflow-hidden` and does not scroll with <main>. Clicking
+            a segment focuses the radio, the browser scrolls whatever it must to reveal it, and
+            what it scrolled was the shell: the whole app slid up out of the window and left a
+            blank page. Anchoring the input to the label means it scrolls with <main> and is
+            already in view when it takes focus.
+          */
+          <label key={option.value} className="relative flex-1 cursor-pointer">
             <input
               type="radio"
               name={groupName}
