@@ -1,4 +1,4 @@
-## What's new in v1.0.3-rc.2
+## What's new in v1.0.3-rc.3
 
 **This is a test version of 1.0.3, shared before everyone gets it.** It is marked as a pre-release,
 so it does not appear as the current version and the app does not offer it as an update. If you are
@@ -20,6 +20,17 @@ then the Google Doc card (**Open in Google Docs** and **Save to this computer as
 then the buttons that change the rubric. **Request Changes to Rubric** is now called **Ask Gemini to
 make changes to rubric(s)**. On the screenshot screen, **Save to this computer** is renamed the same
 way.
+
+After you save the rubric as an HTML file, the **Deploy to Canvas** card shows a short yellow note.
+It says that if you edit the file yourself, you should click **Start Over** and choose *Upload your
+existing draft rubrics to Canvas*, because the Deploy button sends the rubrics as they are in the
+app, not your edited file. The note only appears after you have saved an HTML file, and it also
+appears on the screenshot screen. The message under the save button is shorter too: it now shows
+where the file went and points to the how-to, instead of talking about the Google Doc, which
+someone saving a file may not have.
+
+The two buttons in the Google Doc card, **Open in Google Docs** and **Save to this computer as an
+.html file**, now sit side by side so the second one is not missed.
 
 Under the note, **How do I edit the HTML version of the rubric file?** opens step-by-step
 instructions: how to open the saved file in Notepad (or TextEdit on a Mac), what to change and what

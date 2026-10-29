@@ -8,6 +8,7 @@ import { pdfjsLib } from '../utils/pdfWorker';
 import { Upload, Download, Loader2, Trash2, Image as ImageIcon, HardDrive, FolderOpen, Clipboard, Clock, ChevronDown, ChevronUp, X, RotateCw, CheckCircle, FileText } from 'lucide-react';
 import ErrorDisplay from './ErrorDisplay';
 import { getRecentImages, saveRecentImage, RecentImage } from '../utils/recentImages';
+import { HtmlCopyNotice } from './HtmlCopyNotice';
 
 interface ScreenshotConverterProps {
   /**
@@ -55,6 +56,8 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isPasteFocused, setIsPasteFocused] = useState(false);
+  /* True once the rubric has been saved as an .html file; shows the note on the deploy card. */
+  const [savedHtmlCopy, setSavedHtmlCopy] = useState(false);
   const [settings] = useState<GenerationSettings>({
     totalPoints: 100,
     pointStyle: PointStyle.RANGE,
@@ -297,10 +300,12 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
   const handleSaveLocal = async () => {
     if (!state.rubric) return;
     const result = await window.api.rubric.saveHtml({ rubrics: [state.rubric] });
+    if (result.ok) setSavedHtmlCopy(true);
     if (!result.ok && !result.cancelled) setError(result.message ?? 'Could not save the file.');
   };
 
   const handleReset = () => {
+    setSavedHtmlCopy(false);
     setImageFile(null);
     setImagePreview(null);
     setRubric(null);
@@ -931,6 +936,8 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                     aria-label="Canvas course homepage URL"
                     className="w-full px-4 py-3 border border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-6"
                   />
+
+                  {savedHtmlCopy && <HtmlCopyNotice />}
 
                   <button
                     onClick={handleDeployToCanvas}

@@ -103,6 +103,7 @@ import type { RubricPlanRow } from '../utils/rubricPlan';
 import { DeliverableChecklist } from './DeliverableChecklist';
 import { RubricSwitcher } from './RubricSwitcher';
 import { SegmentedChoice } from './SegmentedChoice';
+import { HtmlCopyNotice } from './HtmlCopyNotice';
 import { Loader2, Download, FileText, CheckCircle, ArrowRight, RotateCw,
   RotateCcw, X, Clock, ChevronDown, ChevronUp, Link, Check, AlertTriangle } from 'lucide-react';
 import ErrorDisplay from './ErrorDisplay';
@@ -245,6 +246,12 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     or a new run starts, because after either it no longer describes the screen.
   */
   const [importNotice, setImportNotice] = useState<string | null>(null);
+  /*
+    True once the rubrics have been saved to this computer as an .html file. It decides whether
+    the deploy card tells the person that editing that file by hand needs the upload route
+    instead. Cleared with the rest when a new set of rubrics replaces these.
+  */
+  const [savedHtmlCopy, setSavedHtmlCopy] = useState(false);
   /*
     How the passages a person typed into the Google Doc by hand fared in the last AI change run:
     how many were kept, which were not (with a way to put them back), and which cells now read
@@ -956,6 +963,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         setChangeSummary(null);
         setImportNotice(null);
         setManualEditReport(null);
+        setSavedHtmlCopy(false);
         setChangesConfirmed(false);
         /*
           Forget the remembered document — except on an edit run, where it IS the document these
@@ -1630,17 +1638,18 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       });
       if (result.ok) {
         /*
-          Said at the moment the file appears, because nothing later will say it.
+          The path, and where to read about editing the file. What happens to the file once it
+          has been edited is said on the deploy card (HtmlCopyNotice), which appears only after
+          this save: the earlier wording here talked about the Google Doc, which a person
+          choosing this route may not have.
 
-          A local .html file is a copy and nothing more: it has no file id, the app never looks
-          at it again, and there is no route back in — the pickers on this screen and the main
-          screen take .docx, .doc, .pdf and .txt, so the file cannot even be offered back. Only
-          the Google Doc is read before a deploy. Someone who saves a copy, edits the copy and
-          deploys would otherwise send the unedited rubrics with nothing on screen to explain it.
+          The file can be brought back in: the start screen's upload route takes .html as well as
+          Word and PDF files.
         */
+        setSavedHtmlCopy(true);
         setDriveSaveSuccess(
-          `Saved to ${result.path}. That file is a copy — edits you make in it stay in it. ` +
-            `Before deploying, the app reads your Google Doc, not this file.`,
+          `Saved to ${result.path}. To edit it, see "How do I edit the HTML version of the ` +
+            `rubric file?" above.`,
         );
       } else if (!result.cancelled) {
         setError(result.message ?? 'Could not save the file.');
@@ -3127,6 +3136,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                 returns early instead, and the reason is a real paragraph tied
                                 on with aria-describedby.
                               */}
+                              {/*
+                                Side by side. Stacked, the second button — the only way to get the
+                                rubric out with no Google account — sat on a row of its own and was
+                                easy to scroll past. flex-1 gives each half the row, and the label
+                                is allowed to wrap onto two lines in a narrow window rather than
+                                push its neighbour onto another row.
+                              */}
+                              <div className="flex w-full items-stretch gap-3">
                               {!state.savedDoc && (
                                 <button
                                   type="button"
@@ -3138,7 +3155,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                   aria-describedby={
                                     !state.isGoogleAuthenticated ? 'doc-signin-hint' : undefined
                                   }
-                                  className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-gray-200 flex items-center gap-2 bg-brand text-white hover:bg-brand-dark"
+                                  className="flex-1 justify-center text-center px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-gray-200 flex items-center gap-2 bg-brand text-white hover:bg-brand-dark"
                                 >
                                   {savingToDrive && <Loader2 className="w-4 h-4 animate-spin" />}
                                   {savingToDrive ? 'Creating…' : 'Open in Google Docs'}
@@ -3155,7 +3172,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                 type="button"
                                 onClick={handleSaveLocal}
                                 disabled={savingLocal}
-                                className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 ${!state.savedDoc ? 'flex-1 justify-center text-center' : ''}`}
                               >
                                 {savingLocal ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -3164,6 +3181,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                                 )}
                                 {savingLocal ? 'Saving…' : 'Save to this computer as an .html file'}
                               </button>
+                              </div>
 
                               {state.savedDoc && (
                                 <button
@@ -3607,6 +3625,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
               ? ' Ticking the box below checks your Google Doc first, so anything you have typed into it by hand goes too.'
               : ''}
           </p>
+
+          {savedHtmlCopy && <HtmlCopyNotice />}
 
           {/*
             Named here as well as on each rubric, because this is the screen where the decision
