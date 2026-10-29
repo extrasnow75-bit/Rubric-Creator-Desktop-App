@@ -203,13 +203,24 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * Analyze button, so the switch was never what made the run possible. The tab stays put now
    * and the words are folded under the file's name.
    */
-  const [inputMode, setInputMode] = useState<'text' | 'google-doc'>('google-doc');
+  const [inputMode, setInputMode] = useState<'text' | 'google-doc' | 'paste'>('google-doc');
+  /**
+   * Whether the choose-a-source area (the three tabs and what is under them) is showing once a
+   * document has been loaded. It folds away after a load, because the person has answered the
+   * question it asks; the caret on the file's row brings it back. It is also brought back when
+   * they return to this form from the list of parts, since that is the moment someone changes
+   * their mind about the file.
+   */
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [googleDocUrl, setGoogleDocUrl] = useState<string>('');
   const [fetchingGoogleDoc, setFetchingGoogleDoc] = useState(false);
   const [isPickerLoading, setIsPickerLoading] = useState(false);
 
   // File picker feedback & recent docs
   const [pickedFileName, setPickedFileName] = useState<string | null>(null);
+  React.useEffect(() => {
+    if (pickedFileName) setSourceOpen(false);
+  }, [pickedFileName]);
   /** Whether the text read out of the chosen document is open for checking. */
   const [showPickedText, setShowPickedText] = useState(false);
   /** Whether the document is being read again to pick up edits made in Google Docs. */
@@ -413,16 +424,25 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         setAssignmentDescription(result.value);
+        setPickedFileName(file.name);
+        setShowPickedText(false);
+        setSourceOpen(false);
 
       } else if (name.endsWith('.pdf')) {
         // Extract plain text from PDF using pdfjs-dist
         const arrayBuffer = await file.arrayBuffer();
         setAssignmentDescription(await extractPdfText(arrayBuffer, file.name));
+        setPickedFileName(file.name);
+        setShowPickedText(false);
+        setSourceOpen(false);
 
       } else {
         // Plain text fallback (.txt and others)
         const text = await file.text();
         setAssignmentDescription(text);
+        setPickedFileName(file.name);
+        setShowPickedText(false);
+        setSourceOpen(false);
       }
     } catch (err) {
       setError(`Failed to read file: ${err}`);
@@ -2246,7 +2266,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 rows={plan}
                 onChange={setPlan}
                 onConfirm={() => void handleConfirmPlan()}
-                onCancel={() => setPlan(null)}
+                onCancel={() => {
+                  setPlan(null);
+                  setSourceOpen(true);
+                }}
                 busy={isGenerating}
                 mode={mode}
               />
@@ -2320,195 +2343,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
               these two buttons do not keep, and claiming it without keeping it reads worse to
               someone relying on it than two honest buttons do.
             */}
-            <div className="flex gap-3 mb-6 border-b border-gray-200">
-              <button
-                onClick={() => {
-                  setInputMode('google-doc');
-                  setError(null);
-                }}
-                aria-current={inputMode === 'google-doc' ? 'true' : undefined}
-                className={`px-4 py-3 font-bold border-b-2 transition-all ${
-                  inputMode === 'google-doc'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                From Google Drive
-              </button>
-              <button
-                onClick={() => {
-                  setInputMode('text');
-                  setGoogleDocUrl('');
-                  setError(null);
-                }}
-                aria-current={inputMode === 'text' ? 'true' : undefined}
-                className={`px-4 py-3 font-bold border-b-2 transition-all ${
-                  inputMode === 'text'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                From Local Drive
-              </button>
-            </div>
-
-            {inputMode === 'text' ? (
-              <>
-                {/* File Upload Area */}
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              /*
-                focus-within, because the thing that takes focus here is the file input stretched
-                invisibly across the box at opacity-0 — it is reachable and correctly named, but
-                any ring it draws is invisible too, so a keyboard user lost the caret entirely
-                for one stop. The ring goes on the box they can actually see.
-              */
-              className={`relative w-full p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-2 ${
-                isDragging
-                  ? 'bg-blue-50 border-blue-400'
-                  : 'bg-gray-50 border-gray-200 hover:border-blue-300'
-              }`}
-            >
-              <FileText className="w-8 h-8 text-gray-600" />
-              <p className="text-sm font-bold text-gray-800">
-                {editing
-                  ? 'Drop a rubric document here or click to browse'
-                  : 'Drop an assignment description document here or click to browse'}
-              </p>
-              <p className="text-xs text-gray-700">(.docx, .pdf, or .txt)</p>
-              <input
-                type="file"
-                accept=".txt,.docx,.pdf"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    handleFileUpload(e.target.files[0]);
-                  }
-                }}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                id="file-input"
-                aria-label={
-                  editing
-                    ? 'Drop a rubric document here or click to browse'
-                    : 'Drop an assignment description document here or click to browse'
-                }
-              />
-            </div>
-
-            {/* Text Extraction Label */}
-            <p
-              id="paste-description-label"
-              className="text-xs font-bold text-gray-700 uppercase tracking-wider mt-6 mb-2"
-            >
-              Or type it here
-            </p>
-
-            {/*
-              Named by the line above it, which was doing the job of a label without being one,
-              leaving the placeholder as the only name this field had. The bare `border` class
-              resolved to gray-200 — 1.24:1 against white, so the box had no visible edge either.
-            */}
-            <textarea
-              value={assignmentDescription}
-              onChange={(e) => setAssignmentDescription(e.target.value)}
-              aria-labelledby="paste-description-label"
-              placeholder={
-                editing
-                  ? 'Or paste your rubrics here...'
-                  : 'Or paste your assignment description here...'
-              }
-              className="w-full h-48 p-4 border border-gray-500 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-            />
-
-            {/* Error Display */}
-            {state.error && (
-              <ErrorDisplay error={state.error} className="mt-6" />
-            )}
-
-                {/* Generate Button */}
-                <button
-                  onClick={handleGenerateRubric}
-                  disabled={isGenerating || isDiscovering || plan !== null || !assignmentDescription.trim()}
-                  className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-200 disabled:text-gray-700 active:scale-95 mt-6 flex items-center justify-center gap-2"
-                >
-                  {(isGenerating || isDiscovering) && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {isDiscovering
-                    ? editing
-                      ? 'Finding the rubrics...'
-                      : 'Reading the description...'
-                    : isGenerating
-                      ? editing
-                        ? 'Reading the rubrics...'
-                        : 'Generating Rubric...'
-                      : editing
-                        ? 'Find the rubrics in this document'
-                        : 'Analyze Description'}
-                </button>
-                {assignmentDescription.trim() && (
-                  <p className="text-xs text-gray-600 text-center mt-2 italic">
-                    {editing
-                      ? 'The app lists the rubrics it finds first. Nothing is read in full until you tick the ones you want.'
-                      : 'The app reads the description first to see how many rubrics it needs. Nothing is written until you confirm.'}
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                {/* Google Account Status */}
-                {state.isGoogleAuthenticated ? (
-                  <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center">
-                        <span className="text-green-800 font-black text-sm">✓</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-green-900">Signed in as {state.googleUser?.name}</p>
-                        <p className="text-xs text-green-800">{state.googleUser?.email}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => signOutGoogle()}
-                      className="text-xs font-bold text-green-800 hover:text-green-900 transition-all"
-                    >
-                      Sign Out
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-                    <p className="text-sm font-bold text-gray-700 mb-2">Google sign-in required</p>
-                    <p className="text-xs text-gray-700 mb-3">Sign in to access Google Docs directly from your Drive.</p>
-                    <button
-                      onClick={() => startGoogleAuth()}
-                      className="w-full py-2.5 px-4 bg-white border border-gray-300 rounded-lg font-bold text-sm text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                      </svg>
-                      Sign in with Google
-                    </button>
-                  </div>
-                )}
-
-                {/* Browse Drive button */}
-                <button
-                  onClick={handlePickerOpen}
-                  disabled={isPickerLoading || fetchingGoogleDoc || !state.isGoogleAuthenticated}
-                  className="w-full py-3 px-4 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:bg-gray-200 disabled:text-gray-700 transition-all text-sm flex items-center justify-center gap-2 mb-6"
-                >
-                  {(isPickerLoading || fetchingGoogleDoc) ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19 2H5C3.9 2 3 2.9 3 4v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 12 12 12s-3.5-1.57-3.5-3.5S10.07 5 12 5zm7 14H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/>
-                    </svg>
-                  )}
-                  {isPickerLoading ? 'Opening Drive...' : fetchingGoogleDoc ? 'Fetching Document...' : 'Browse Google Drive'}
-                </button>
-
                 {/*
                   What was loaded, and what it gave us.
 
@@ -2523,6 +2357,24 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     <div className="flex items-center gap-2 px-3 py-2">
                       <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
                       <span className="text-sm font-bold text-blue-800 truncate flex-1">{pickedFileName}</span>
+                      {/*
+                        The way back to the source area, drawn to be seen: the brand colour of the
+                        Analyze button, a 20px chevron and a word beside it. The first version was a
+                        small grey caret and was easy to miss.
+                      */}
+                      <button
+                        type="button"
+                        onClick={() => setSourceOpen((open) => !open)}
+                        aria-expanded={sourceOpen}
+                        aria-controls="description-source"
+                        className="flex items-center gap-1 pl-3 pr-2 py-1.5 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-dark transition-colors flex-shrink-0"
+                      >
+                        {sourceOpen ? 'Hide choices' : 'Change file'}
+                        <ChevronDown
+                          className={`w-5 h-5 transition-transform ${sourceOpen ? 'rotate-180' : ''}`}
+                          aria-hidden="true"
+                        />
+                      </button>
                       <button
                         onClick={() => {
                           setPickedFileName(null);
@@ -2580,6 +2432,192 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     )}
                   </div>
                 )}
+
+            {(!pickedFileName || sourceOpen) && (
+            <div id="description-source">
+            <div className="flex gap-3 mb-6 border-b border-gray-200">
+              <button
+                onClick={() => {
+                  setInputMode('google-doc');
+                  setError(null);
+                }}
+                aria-current={inputMode === 'google-doc' ? 'true' : undefined}
+                className={`px-4 py-3 font-bold border-b-2 transition-all ${
+                  inputMode === 'google-doc'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                From Google Drive
+              </button>
+              <button
+                onClick={() => {
+                  setInputMode('text');
+                  setGoogleDocUrl('');
+                  setError(null);
+                }}
+                aria-current={inputMode === 'text' ? 'true' : undefined}
+                className={`px-4 py-3 font-bold border-b-2 transition-all ${
+                  inputMode === 'text'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                From Local Drive
+              </button>
+              {/*
+                Typing or pasting gets a tab of its own. It used to sit under the file dropzone on
+                the local tab, which hid the one option for someone with no description written
+                yet. Opening it drops the loaded file's name: the words stay in the box to be
+                edited, but they are no longer that file's words.
+              */}
+              <button
+                onClick={() => {
+                  setInputMode('paste');
+                  setGoogleDocUrl('');
+                  setPickedFileName(null);
+                  setError(null);
+                }}
+                aria-current={inputMode === 'paste' ? 'true' : undefined}
+                className={`px-4 py-3 font-bold border-b-2 transition-all ${
+                  inputMode === 'paste'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Type or paste text
+              </button>
+            </div>
+
+
+            {inputMode === 'text' ? (
+              <>
+                {/* File Upload Area */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              /*
+                focus-within, because the thing that takes focus here is the file input stretched
+                invisibly across the box at opacity-0 — it is reachable and correctly named, but
+                any ring it draws is invisible too, so a keyboard user lost the caret entirely
+                for one stop. The ring goes on the box they can actually see.
+              */
+              className={`relative w-full p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 cursor-pointer transition-all focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-2 ${
+                isDragging
+                  ? 'bg-blue-50 border-blue-400'
+                  : 'bg-gray-50 border-gray-200 hover:border-blue-300'
+              }`}
+            >
+              <FileText className="w-8 h-8 text-gray-600" />
+              <p className="text-sm font-bold text-gray-800">
+                {editing
+                  ? 'Drop a rubric document here or click to browse'
+                  : 'Drop an assignment description document here or click to browse'}
+              </p>
+              <p className="text-xs text-gray-700">(.docx, .pdf, or .txt)</p>
+              <input
+                type="file"
+                accept=".txt,.docx,.pdf"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    handleFileUpload(e.target.files[0]);
+                  }
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                id="file-input"
+                aria-label={
+                  editing
+                    ? 'Drop a rubric document here or click to browse'
+                    : 'Drop an assignment description document here or click to browse'
+                }
+              />
+            </div>
+
+              </>
+            ) : inputMode === 'paste' ? (
+              <>
+            {/* Text Extraction Label */}
+            <p
+              id="paste-description-label"
+              className="text-xs font-bold text-gray-700 uppercase tracking-wider mt-6 mb-2"
+            >
+              Type or paste it here
+            </p>
+
+            {/*
+              Named by the line above it, which was doing the job of a label without being one,
+              leaving the placeholder as the only name this field had. The bare `border` class
+              resolved to gray-200 — 1.24:1 against white, so the box had no visible edge either.
+            */}
+            <textarea
+              value={assignmentDescription}
+              onChange={(e) => setAssignmentDescription(e.target.value)}
+              aria-labelledby="paste-description-label"
+              placeholder={
+                editing
+                  ? 'Paste your rubrics here...'
+                  : 'Describe the assignment, or paste its instructions here. Rough notes are fine.'
+              }
+              className="w-full h-48 p-4 border border-gray-500 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+            />
+
+              </>
+            ) : (
+              <>
+                {/* Google Account Status */}
+                {state.isGoogleAuthenticated ? (
+                  <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center">
+                        <span className="text-green-800 font-black text-sm">✓</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-green-900">Signed in as {state.googleUser?.name}</p>
+                        <p className="text-xs text-green-800">{state.googleUser?.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => signOutGoogle()}
+                      className="text-xs font-bold text-green-800 hover:text-green-900 transition-all"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
+                    <p className="text-sm font-bold text-gray-700 mb-2">Google sign-in required</p>
+                    <p className="text-xs text-gray-700 mb-3">Sign in to access Google Docs directly from your Drive.</p>
+                    <button
+                      onClick={() => startGoogleAuth()}
+                      className="w-full py-2.5 px-4 bg-white border border-gray-300 rounded-lg font-bold text-sm text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                      </svg>
+                      Sign in with Google
+                    </button>
+                  </div>
+                )}
+
+                {/* Browse Drive button */}
+                <button
+                  onClick={handlePickerOpen}
+                  disabled={isPickerLoading || fetchingGoogleDoc || !state.isGoogleAuthenticated}
+                  className="w-full py-3 px-4 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:bg-gray-200 disabled:text-gray-700 transition-all text-sm flex items-center justify-center gap-2 mb-6"
+                >
+                  {(isPickerLoading || fetchingGoogleDoc) ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19 2H5C3.9 2 3 2.9 3 4v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 12 12 12s-3.5-1.57-3.5-3.5S10.07 5 12 5zm7 14H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/>
+                    </svg>
+                  )}
+                  {isPickerLoading ? 'Opening Drive...' : fetchingGoogleDoc ? 'Fetching Document...' : 'Browse Google Drive'}
+                </button>
 
                 {/* Recent Documents */}
                 {recentDocs.length > 0 && (
@@ -2647,44 +2685,52 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   </button>
                 </div>
 
-                {/* Error Display */}
-                {state.error && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-2xl mt-6">
-                    <p className="text-sm text-red-700 font-bold">{state.error}</p>
-                  </div>
-                )}
-
-                {/*
-                  Amber, not red, and it sits below the error rather than replacing it: nothing
-                  has failed here. It answers the question a slow run provokes — is this stuck? —
-                  and it is a status rather than a problem, so it never takes the error's colour.
-                */}
-                {paceNotice && (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl mt-6" role="status">
-                    <p className="text-sm text-amber-800">{paceNotice}</p>
-                  </div>
-                )}
-
-                {/* Generate Button */}
-                <button
-                  onClick={handleGenerateRubric}
-                  disabled={isGenerating || isDiscovering || plan !== null || !assignmentDescription.trim()}
-                  className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-200 disabled:text-gray-700 active:scale-95 mt-6 flex items-center justify-center gap-2"
-                >
-                  {(isGenerating || isDiscovering) && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {isDiscovering
-                    ? editing
-                      ? 'Finding the rubrics...'
-                      : 'Reading the description...'
-                    : isGenerating
-                      ? editing
-                        ? 'Reading the rubrics...'
-                        : 'Generating Rubric...'
-                      : editing
-                        ? 'Find the rubrics in this document'
-                        : 'Analyze Description'}
-                </button>
               </>
+            )}
+            </div>
+            )}
+
+            {/* Error Display */}
+            {state.error && (
+              <ErrorDisplay error={state.error} className="mt-6" />
+            )}
+
+            {/*
+              Amber, not red, and it sits below the error rather than replacing it: nothing
+              has failed here. It answers the question a slow run provokes — is this stuck? —
+              and it is a status rather than a problem, so it never takes the error's colour.
+            */}
+            {paceNotice && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl mt-6" role="status">
+                <p className="text-sm text-amber-800">{paceNotice}</p>
+              </div>
+            )}
+
+            {/* Generate Button: outside the folding area so it stays in reach once a file is loaded */}
+            <button
+              onClick={handleGenerateRubric}
+              disabled={isGenerating || isDiscovering || plan !== null || !assignmentDescription.trim()}
+              className="w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all disabled:bg-gray-200 disabled:text-gray-700 active:scale-95 mt-6 flex items-center justify-center gap-2"
+            >
+              {(isGenerating || isDiscovering) && <Loader2 className="w-5 h-5 animate-spin" />}
+              {isDiscovering
+                ? editing
+                  ? 'Finding the rubrics...'
+                  : 'Reading the description...'
+                : isGenerating
+                  ? editing
+                    ? 'Reading the rubrics...'
+                    : 'Generating Rubric...'
+                  : editing
+                    ? 'Find the rubrics in this document'
+                    : 'Analyze Description'}
+            </button>
+            {assignmentDescription.trim() && (
+              <p className="text-xs text-gray-600 text-center mt-2 italic">
+                {editing
+                  ? 'The app lists the rubrics it finds first. Nothing is read in full until you tick the ones you want.'
+                  : 'The app reads the description first to see how many rubrics it needs. Nothing is written until you confirm.'}
+              </p>
             )}
             </>
             )}
@@ -2734,7 +2780,10 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                       rows={plan}
                       onChange={setPlan}
                       onConfirm={() => void handleConfirmPlan()}
-                      onCancel={() => setPlan(null)}
+                      onCancel={() => {
+                  setPlan(null);
+                  setSourceOpen(true);
+                }}
                       mode={mode}
                       busy={isGenerating}
                     />
@@ -3353,6 +3402,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                         onClick={() => {
                           setShowStartOverCard(false);
                           setPlan(lastPlan);
+                          setSourceOpen(true);
                         }}
                         className="px-4 py-2 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark transition-all active:scale-95"
                       >
@@ -3868,9 +3918,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         >
           <ArrowRight className="w-5 h-5" />
           {onAnalyzeDeploy
-            ? state.rubrics.length > 1
-              ? `Deploy All ${state.rubrics.length} Rubrics to Canvas`
-              : 'Deploy Displayed Rubric to Canvas'
+            ? "I'm ready to deploy my rubric(s) to Canvas"
             : 'Continue to Part 2: Convert to CSV'}
         </button>
 

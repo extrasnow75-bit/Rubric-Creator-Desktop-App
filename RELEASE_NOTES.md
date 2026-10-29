@@ -1,8 +1,24 @@
-## What's new in v1.0.3-rc.3
+## What's new in v1.0.3-rc.4
 
 **This is a test version of 1.0.3, shared before everyone gets it.** It is marked as a pre-release,
 so it does not appear as the current version and the app does not offer it as an update. If you are
 trying it, please report what you find to the eCampus team.
+
+### The Create Draft Rubric card folds away once a description is loaded
+
+After you pick a file from Google Drive or from your computer, the three choices under it (the
+Drive picker, the paste-a-URL box and the file drop area) fold into one row showing the file's name
+and how many words were read. A blue **Change file** button on that row brings the choices back. The
+choices also reopen when you return to this form from the list of parts. **Analyze Description**
+stays on screen the whole time.
+
+Typing or pasting a description now has its own tab, **Type or paste text**, beside **From Google
+Drive** and **From Local Drive**. A file you choose from your computer now shows in the same file row
+as one from Drive.
+
+The button at the bottom of the review screen, and on the screenshot screen, now reads **I'm ready to
+deploy my rubric(s) to Canvas**, because clicking it opens the Canvas course step rather than
+starting the upload.
 
 ### The review screen points you to your Google Doc or a saved web page
 

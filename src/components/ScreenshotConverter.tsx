@@ -821,7 +821,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                 className={`w-full py-4 bg-brand text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-brand-dark transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed ${showUploadSection ? 'opacity-50 pointer-events-none' : ''}`}
               >
                 <Upload className="w-5 h-5" />
-                Deploy Displayed Rubric to Canvas
+                I'm ready to deploy my rubric(s) to Canvas
               </button>
             </div>
 
