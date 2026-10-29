@@ -671,7 +671,7 @@ ipcMain.handle(
       title: docNameFor(args.rubrics, args.documentTitle),
     } as RubricData
     const { filePath } = await dialog.showSaveDialog({
-      defaultPath: rubricFileName(named, 'html'),
+      defaultPath: join(app.getPath('downloads'), rubricFileName(named, 'html')),
       filters: [{ name: 'Web page', extensions: ['html'] }],
     })
     if (!filePath) return { ok: false as const, cancelled: true as const }
@@ -701,8 +701,11 @@ ipcMain.handle(
     // filename rather than a location something else picked.
     const safeName = (args.defaultName || 'export').replace(/[/\\]/g, '_').replace(/^\.+/, '')
     const safeExt = /^[A-Za-z0-9]{1,8}$/.test(args.ext) ? args.ext : 'txt'
+    // Downloads, named outright. A bare filename leaves the folder to the OS, which opens the last
+    // place any dialog in the app was used, or the install folder on a first run — nowhere a person
+    // looks for a file they have just made.
     const { filePath } = await dialog.showSaveDialog({
-      defaultPath: safeName,
+      defaultPath: join(app.getPath('downloads'), safeName),
       filters: [{ name: args.label, extensions: [safeExt] }],
     })
     if (!filePath) return { ok: false as const, cancelled: true as const }
