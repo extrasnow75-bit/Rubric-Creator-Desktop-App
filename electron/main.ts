@@ -564,6 +564,33 @@ ipcMain.handle('rubric:readDriveDoc', async (_e, args: { fileId: string }) => {
   }
 })
 
+/**
+ * Read the rubrics out of an .html file the person chose, typically the one this app saved and
+ * they then edited. Plain parsing, no AI: the same reader the Google Doc path uses.
+ *
+ * A file it cannot read is an answer, not a prompt to guess. The words say what to do next,
+ * because the person reading them has just edited a file by hand and may have damaged the table.
+ */
+ipcMain.handle('rubric:parseHtml', (_e, args: { html: string }) => {
+  if (typeof args?.html !== 'string' || args.html.trim().length === 0) {
+    return { ok: false as const, message: 'That file is empty.' }
+  }
+  if (args.html.length > 10_000_000) {
+    return { ok: false as const, message: 'That file is too large to be a rubric document.' }
+  }
+  try {
+    return { ok: true as const, rubrics: parseRubricsFromHtml(args.html) }
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : ''
+    return {
+      ok: false as const,
+      message:
+        `We could not read this file as a rubric. ${reason} ` +
+        `If you edited it in Word, save it as a Word document (.docx) and upload that instead.`.trim(),
+    }
+  }
+})
+
 ipcMain.handle('rubric:checkDriveDoc', async (_e, args: { fileId: string; version?: string }) => {
   try {
     const state = await describeDriveFile(args.fileId)

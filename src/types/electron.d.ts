@@ -144,6 +144,10 @@ declare global {
           | { ok: true; rubrics: RubricData[]; version: string; modifiedTime: string }
           | { ok: false; message: string }
         >
+        /** The rubrics in an .html file's text: a saved, possibly edited, rubric document. */
+        parseHtml(args: { html: string }): Promise<
+          { ok: true; rubrics: RubricData[] } | { ok: false; message: string }
+        >
         /** The same document as .html. Works with no Google account. */
         saveHtml(args: {
           rubrics: RubricData[]

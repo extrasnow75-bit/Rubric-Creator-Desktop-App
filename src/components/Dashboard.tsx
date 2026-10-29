@@ -20,6 +20,7 @@ import { validateGeminiApiKey } from '../services/geminiService';
 import { AnalyzeDeploySection, UploadedDocFile } from './AnalyzeDeploySection';
 import { Part1Rubric } from './Part1Rubric';
 import { ScreenshotConverter } from './ScreenshotConverter';
+import { isHtmlFileName } from '../utils/htmlRubricFile';
 
 // ─── Google Icon ──────────────────────────────────────────────────────────────
 
@@ -473,19 +474,38 @@ export const Dashboard: React.FC = () => {
       f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
       f.type === 'application/msword' ||
       f.type === 'application/pdf' ||
+      isHtmlFileName(f.name) ||
       f.name.toLowerCase().endsWith('.docx') ||
       f.name.toLowerCase().endsWith('.doc') ||
       f.name.toLowerCase().endsWith('.pdf');
 
-    const docs = arr.filter(isSupported);
+    const supported = arr.filter(isSupported);
     const rejected = arr.filter((f) => !isSupported(f));
+    const problems: string[] = [];
 
     // Say what was refused. Returning quietly is what made a dropped PDF look like a broken app.
-    setDocFileError(
-      rejected.length === 0
-        ? null
-        : `${rejected.map((f) => f.name).join(', ')} — this box takes Word (.docx) or PDF files.`,
-    );
+    if (rejected.length > 0) {
+      problems.push(
+        `${rejected.map((f) => f.name).join(', ')} — this box takes Word (.docx), PDF or saved web page (.html) files.`,
+      );
+    }
+
+    /*
+      A saved web page is read here, before it is queued, so a file that cannot be read says so
+      now rather than partway through a deploy. The reading is plain code (no AI): it is the page
+      this app wrote, with whatever the person changed in it.
+    */
+    const docs: File[] = [];
+    for (const f of supported) {
+      if (!isHtmlFileName(f.name)) {
+        docs.push(f);
+        continue;
+      }
+      const read = await window.api.rubric.parseHtml({ html: await f.text() });
+      if (read.ok) docs.push(f);
+      else problems.push(`${f.name} — ${read.message}`);
+    }
+    setDocFileError(problems.length === 0 ? null : problems.join(' '));
 
     if (docs.length === 0) return;
     const converted = await Promise.all(
@@ -496,7 +516,9 @@ export const Dashboard: React.FC = () => {
           f.type ||
           (f.name.toLowerCase().endsWith('.pdf')
             ? 'application/pdf'
-            : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            : isHtmlFileName(f.name)
+              ? 'text/html'
+              : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
       })),
     );
     setUploadedFiles((prev) => {
@@ -1037,14 +1059,14 @@ export const Dashboard: React.FC = () => {
                           reaches the input's own default). */}
                       <input
                         type="file"
-                        accept=".docx,.doc,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/pdf"
+                        accept=".docx,.doc,.pdf,.html,.htm,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/pdf,text/html"
                         multiple
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        aria-label="Drop a Word (.docx) or PDF file here, or click to browse"
+                        aria-label="Drop a Word (.docx), PDF or saved web page (.html) file here, or click to browse"
                         onChange={handleFileInput}
                       />
                       <FileText className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-                      <p className="text-sm font-bold text-gray-700">Drop a Word (.docx) or PDF file here, or click to browse</p>
+                      <p className="text-sm font-bold text-gray-700">Drop a Word (.docx), PDF or saved web page (.html) file here, or click to browse</p>
                     </div>
                   </>
                 )}

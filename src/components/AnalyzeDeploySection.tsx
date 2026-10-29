@@ -13,6 +13,7 @@ import { useCopyAction } from '../hooks/useCopyAction';
 import { CsvSaveOptions } from './CsvSaveOptions';
 import { useSession } from '../contexts/SessionContext';
 import { isPinnedToBottom } from '../utils/followScroll';
+import { isHtmlFileName, textFromBase64, scoringMethodOf } from '../utils/htmlRubricFile';
 
 /**
  * How long to wait before the single retry.
@@ -204,6 +205,31 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
           for (let i = 0; i < totalFiles; i++) {
             if (signal.aborted) throw new Error('Cancelled');
             const file = uploadedFiles[i];
+
+            /*
+              A saved web page is read, not analyzed: the app wrote the table, so the rubrics come
+              straight back out of it with their wording exactly as it now stands. No model is
+              asked, so nothing is guessed and no AI quota is spent.
+            */
+            if (isHtmlFileName(file.name)) {
+              addLog(`Reading "${file.name}"…`, 'info');
+              const read = await window.api.rubric.parseHtml({ html: textFromBase64(file.data) });
+              if (!read.ok) {
+                addLog(`Could not read "${file.name}": ${read.message}`, 'error');
+              } else {
+                addLog(`Found ${read.rubrics.length} rubric(s) in "${file.name}"`, 'success');
+                for (const rubric of read.rubrics) {
+                  if (signal.aborted) throw new Error('Cancelled');
+                  const csv = generateCsvFromRubricObject(rubric, scoringMethodOf(rubric));
+                  pending.push({ name: rubric.title, csvContent: csv });
+                  setConvertedCsvs((prev) => [...prev, { name: rubric.title, csvContent: csv }]);
+                  addLog(`CSV generated: "${rubric.title}"`, 'success');
+                }
+              }
+              setProgress(Math.round(((i + 1) / totalFiles) * 40));
+              continue;
+            }
+
             addLog(`Analyzing "${file.name}"…`, 'info');
             const attachment = { name: file.name, mimeType: file.mimeType, data: file.data };
             try {

@@ -137,6 +137,9 @@ contextBridge.exposeInMainWorld('api', {
     /** The rubrics the document holds right now, read from its own tables. No AI, no cost. */
     readDriveDoc: (args: unknown): Promise<unknown> =>
       invokeReadable('rubric:readDriveDoc', args),
+    /** Reads the rubrics out of the text of an .html file. No Google account needed. */
+    parseHtml: (args: { html: string }): Promise<unknown> =>
+      invokeReadable('rubric:parseHtml', args),
     /** Saves the same rubric as a .html file. Works with no Google account at all. */
     saveHtml: (args: {
       rubric: unknown

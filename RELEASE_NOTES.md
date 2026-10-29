@@ -1,3 +1,42 @@
+## What's new in v1.0.3-rc.1
+
+**This is a test version of 1.0.3, shared before everyone gets it.** It is marked as a pre-release,
+so it does not appear as the current version and the app does not offer it as an update. If you are
+trying it, please report what you find to the eCampus team.
+
+### The review screen points you to your Google Doc or a saved web page
+
+The small table on the **Review Your Draft Rubrics** screen is gone. It showed each criterion's name
+and the points for its ratings, and nothing else, so it looked like the whole rubric and was not.
+The full rubric, with every description and the wording of every rating, is in your Google Doc or in
+the web page you can save.
+
+In its place is a short note with two buttons:
+
+- **Open your Google Doc** opens the document the app made for you.
+- **Save as HTML file** saves the rubrics as a web page on your computer. It does the same thing as
+  **Save to this computer** further down the screen, and works with or without a Google account.
+
+The note also says you can ask Gemini for changes, or edit the Google Doc or the HTML file yourself.
+
+Under the note, **How do I edit the HTML version of the rubric file?** opens step-by-step
+instructions: how to open the saved file in Notepad (or TextEdit on a Mac), what to change and what
+to leave alone, how to save it so it keeps the right file type, and how to upload it again.
+
+### Upload your edited web page to Canvas, no Google account needed
+
+On the start screen, the **Upload your existing draft rubrics to Canvas** box took Word and PDF
+files. It now takes the saved web page (.html) too.
+
+The app reads the rubrics straight out of the page, with your changes exactly as you typed them. No AI
+is used, so there is nothing to guess and no AI limit to run into.
+
+If the file cannot be read, for example because part of the table was deleted while editing, the app
+says so on the spot and tells you to save the file as a Word document and upload that instead.
+
+To get back to the start screen from the review screen, click **Start Over** at the top right of the
+window. Save your edited file first, because Start Over clears the rubrics from the app.
+
 ## What's new in v1.0.2
 
 ### Text you type into your Google Doc survives a change request

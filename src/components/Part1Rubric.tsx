@@ -2772,30 +2772,104 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   />
                 )}
 
-                {/* Preview Table */}
-                <div className="overflow-x-auto mb-6 border rounded-2xl">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="px-4 py-2 text-left font-black text-gray-900">Criteria</th>
-                        <th className="px-4 py-2 text-left font-black text-gray-900">Exemplary</th>
-                        <th className="px-4 py-2 text-left font-black text-gray-900">Proficient</th>
-                        <th className="px-4 py-2 text-left font-black text-gray-900">Developing</th>
-                        <th className="px-4 py-2 text-left font-black text-gray-900">Unsatisfactory</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {state.rubric.criteria.map((criterion, i) => (
-                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="px-4 py-2 font-bold text-gray-900">{criterion.category}</td>
-                          <td className="px-4 py-2 text-gray-700">{criterion.exemplary.points}</td>
-                          <td className="px-4 py-2 text-gray-700">{criterion.proficient.points}</td>
-                          <td className="px-4 py-2 text-gray-700">{criterion.developing.points}</td>
-                          <td className="px-4 py-2 text-gray-700">{criterion.unsatisfactory.points}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {/*
+                  Where the preview table used to be.
+
+                  The table showed each criterion's name and the points for its four ratings, and
+                  nothing else - not the criterion's description, not a word of the rating text.
+                  It looked like the rubric and was not, so people reasonably asked why the
+                  wording was missing. The full rubric is in the Google Doc, or in the web page
+                  that Save to this computer writes, and that is where it should be read. This
+                  says so, and links to the Doc when there is one.
+                */}
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                  <p className="text-sm font-bold text-blue-900">
+                    Review your draft rubric in your Google Doc or a saved web page
+                  </p>
+                  <p className="text-sm text-blue-900 mt-1">
+                    You can request edits through Gemini or just make edits in the Google Document
+                    or the HTML document yourself.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {state.savedDoc && (
+                      <a
+                        href={state.savedDoc.webViewLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 text-sm font-bold text-blue-900 bg-white border border-blue-300 rounded-lg hover:bg-blue-100 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 outline-none"
+                      >
+                        Open your Google Doc
+                      </a>
+                    )}
+                    {/*
+                      The same save as "Save to this computer" in the document card further down,
+                      put where the person is reading about it. That card is easy to scroll past,
+                      and this is the file the how-to below is about.
+                    */}
+                    <button
+                      type="button"
+                      onClick={handleSaveLocal}
+                      disabled={savingLocal}
+                      className="px-3 py-1.5 text-sm font-bold text-blue-900 bg-white border border-blue-300 rounded-lg hover:bg-blue-100 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 outline-none"
+                    >
+                      {savingLocal ? 'Saving…' : 'Save as HTML file'}
+                    </button>
+                  </div>
+                  {!state.savedDoc && state.isGoogleAuthenticated && (
+                    <p className="text-sm text-blue-900 mt-2">
+                      To work in Google Docs instead, use Open in Google Docs further down this
+                      page.
+                    </p>
+                  )}
+
+                  {/*
+                    How to edit the saved web page, for someone who has never opened one as text.
+                    Closed until asked for, so the note stays short for the people who do not need
+                    it. The last step is about getting the edited file back in, which is the part
+                    that cannot be worked out from the screen: it goes through the start screen,
+                    and Start Over clears the rubrics from the app, so the file has to be saved
+                    first.
+                  */}
+                  <details className="mt-3 pt-3 border-t border-blue-200">
+                    <summary className="text-sm font-bold text-blue-900 cursor-pointer rounded focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 outline-none">
+                      How do I edit the HTML version of the rubric file?
+                    </summary>
+                    <div className="mt-2 p-3 bg-white rounded-xl text-sm text-gray-900">
+                      <ol className="list-decimal pl-5 space-y-2">
+                        <li>
+                          Find the .html file you saved on your computer. Right-click it, choose{' '}
+                          <strong>Open with</strong>, then <strong>Notepad</strong>.
+                        </li>
+                        <li>
+                          Change only the words. Leave anything inside angle brackets, such as{' '}
+                          <code>&lt;td&gt;</code> or <code>&lt;/p&gt;</code>, exactly as it is.
+                          Those control the layout.
+                        </li>
+                        <li>
+                          Choose <strong>File &gt; Save As</strong>. Keep the name ending in{' '}
+                          <strong>.html</strong>, set <strong>Save as type</strong> to{' '}
+                          <strong>All Files</strong>, and set <strong>Encoding</strong> to{' '}
+                          <strong>UTF-8</strong>.
+                        </li>
+                        <li>
+                          To upload your edited HTML file to Canvas, click the{' '}
+                          <strong>Start Over</strong> button at the top right of the window and
+                          confirm. On the start screen, choose{' '}
+                          <strong>Upload your existing draft rubrics to Canvas</strong> and pick
+                          your .html file.
+                        </li>
+                      </ol>
+                      <p className="mt-3 text-gray-700">
+                        Save your edited file before you click Start Over, because Start Over
+                        clears the rubrics from the app.
+                      </p>
+                      <p className="mt-2 text-gray-700">
+                        On a Mac, open TextEdit, turn on <strong>Settings &gt; Open and Save &gt;
+                        Display HTML files as HTML code</strong>, then open the file. Before
+                        saving, choose <strong>Format &gt; Make Plain Text</strong>.
+                      </p>
+                    </div>
+                  </details>
                 </div>
 
                 {/*
