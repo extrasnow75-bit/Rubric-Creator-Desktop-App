@@ -271,10 +271,11 @@ export const applyRubricChanges = async (
   rubric: RubricData,
   changeRequest: string,
   signal?: AbortSignal,
+  protectedEdits?: { criterion: string; where: string; passages: string[] }[],
 ): Promise<RubricData> => {
   const edited = await chained(
     withCancellation(signal, (jobId) =>
-      window.api.gemini.applyRubricChanges({ rubric, changeRequest, jobId }),
+      window.api.gemini.applyRubricChanges({ rubric, changeRequest, jobId, protectedEdits }),
     ),
   );
   return preserveTotalAcrossEdit(rubric, edited, changeRequest);

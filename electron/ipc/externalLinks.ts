@@ -42,6 +42,8 @@ const STATIC_ALLOWED_HOSTS = new Set([
   'github.com',
   // The eCampus Help Center (Confluence), linked from the Help Center panel.
   'boisestateecampus.atlassian.net',
+  // The walkthrough video (Panopto), linked from the Help Center panel and every release page.
+  'boisestate.hosted.panopto.com',
 ])
 
 /**

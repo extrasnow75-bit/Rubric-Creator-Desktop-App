@@ -1,3 +1,72 @@
+## What's new in v1.0.2-rc.1
+
+**This is a test version of 1.0.2, shared before everyone gets it.** It is marked as a pre-release,
+so it does not appear as the current version and the app does not offer it as an update. If you are
+trying it, please report what you find to the eCampus team.
+
+### Text you type into your Google Doc survives a change request
+
+If you typed something into a rating cell of your Google Doc and then pressed **Request Changes to
+Rubric**, the app could write its own copy of the rubric over the top and your typing was gone.
+That is fixed.
+
+Before the AI makes any change, the app now reads your Google Doc as it stands, works out which
+passages you added or corrected by hand, and tells the AI to keep them word for word. The words
+around your passage may still be adjusted if your request needs it — "make the tone more formal"
+can still reword a cell you edited — but your own text stays.
+
+When the change is done, the app checks each of your passages is still there and tells you:
+
+- **Everything kept:** a short message saying how many of your passages are still in the rubrics.
+- **Something was dropped:** the passage is listed by rubric and criterion, with a button to **put
+  back your version of that cell**. Putting a cell back replaces its current wording with what it
+  said in your Doc.
+- **A cell now reads differently:** a "see how the cell you edited now reads" section shows the
+  cell before and after.
+
+One thing to know: Google saves your typing a moment after you make it. If you press Request
+Changes within a few seconds of typing, wait a little and try again so Google has finished saving.
+
+If your Google Doc is one the app has no earlier copy of (for example, one from before this
+version), the app says so rather than guessing which passages are yours.
+
+### The "ready to proceed" box stays ticked
+
+When you ticked **Ready to proceed** and the Google Doc had changed, the app brought the changes in
+and then **cleared your tick**, so you had to tick it a second time.
+
+Now the tick stays. Ticking means "my Doc is ready as it is", so the app takes in what the Doc says
+and Canvas gets exactly that. A message stays on screen beside the box, naming each rubric that
+changed, so you can look. The tick is cleared only when something really is wrong: the Doc cannot
+be read, cannot be saved, or has been changed by someone else in a way the app cannot merge.
+
+The app also no longer reports changes that nobody made. Google quietly alters spacing and the
+style of quotation marks and dashes when it stores a document, and those used to count as "the Doc
+changed". They no longer do.
+
+**What this gives up:** before, the cleared tick made you stop and look at the imported rubrics
+before anything could go to Canvas. Now you can deploy right after ticking, so the message beside
+the box is the only prompt to look.
+
+### Choosing the "Single" point style no longer blanks the window
+
+Clicking **Single** under **Point style** could slide the whole app out of view and leave a blank
+page. It stays put now. The same fix applies to the Ranges / Fixed choice on the Word-to-CSV
+screen.
+
+### Saving to your computer opens in your Downloads folder
+
+When you were not signed in to Google and saved a rubric (or its CSV or ZIP files) to your computer,
+the Save window could open in an unexpected folder. It now opens in **Downloads**, with the file
+name already filled in. You can still choose any other folder.
+
+### Help Center
+
+- The **KB Article** link now opens the article on Confluence instead of the Google Doc draft.
+- There is a new **Watch the Walkthrough Video** link. It opens the video on Panopto in your web
+  browser, and you do not need to sign in.
+- The same video now appears near the top of each release page on GitHub.
+
 ## What's new in v1.0.1
 
 ### Uploading to Canvas copes with a busy Canvas

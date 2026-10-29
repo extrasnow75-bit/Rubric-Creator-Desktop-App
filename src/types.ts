@@ -122,6 +122,16 @@ export interface SavedRubricDoc {
    * on a document from an older session, which simply means the button stays available.
    */
   contentKey?: string;
+  /**
+   * The rubrics themselves as the document last held them, not just their signature.
+   *
+   * The signature can say that a document changed but not what was added. Keeping the wording is
+   * what lets the app compare the document word by word before an AI revision, list the passages
+   * a person typed in by hand, and check they came through (see utils/manualEdits.ts). Absent on
+   * a document from an older session, in which case the app says it cannot tell rather than
+   * guessing.
+   */
+  rubrics?: RubricData[];
 }
 
 export interface RubricMeta {

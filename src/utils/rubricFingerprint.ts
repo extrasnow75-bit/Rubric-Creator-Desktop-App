@@ -60,3 +60,60 @@ export function rubricsFingerprint(rubrics: readonly RubricData[]): string {
   }
   return `${text.length.toString(36)}-${hash.toString(36)}`;
 }
+
+/**
+ * Text as a person reads it, not as a file stores it.
+ *
+ * Google rewrites what it is given. A rubric written to a Doc and read back can differ from the
+ * original only in no-break spaces, doubled or trailing spaces, curly against straight quotes, or
+ * an en dash where a hyphen went in. None of those is something a person changed, and reporting
+ * them as an edit makes the app announce changes nobody made.
+ */
+export function plainText(text: string | undefined | null): string {
+  return (text ?? '')
+    .replace(/[\u00a0\u2007\u202f\u200b\u200c\u200d\ufeff]/g, ' ')
+    .replace(/[\u2018\u2019\u201a\u2032]/g, "'")
+    .replace(/[\u201c\u201d\u201e\u2033]/g, '"')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** The same shape as `signatureOf`, with every string reduced to what a person would compare. */
+function plainSignatureOf(rubric: RubricData): string {
+  return [
+    plainText(rubric.title),
+    ...rubric.criteria.map((criterion) =>
+      [
+        plainText(criterion.category),
+        plainText(criterion.description),
+        plainText(criterion.exemplary?.text),
+        plainText(String(criterion.exemplary?.points ?? '')).replace(/\s/g, ''),
+        plainText(criterion.proficient?.text),
+        plainText(String(criterion.proficient?.points ?? '')).replace(/\s/g, ''),
+        plainText(criterion.developing?.text),
+        plainText(String(criterion.developing?.points ?? '')).replace(/\s/g, ''),
+        plainText(criterion.unsatisfactory?.text),
+        plainText(String(criterion.unsatisfactory?.points ?? '')).replace(/\s/g, ''),
+      ].join('\u001f'),
+    ),
+  ].join('\u001e');
+}
+
+/**
+ * The titles of the rubrics in `after` whose wording or points differ from the rubric of the
+ * same name in `before`, ignoring the formatting changes described at `plainText`.
+ *
+ * Matched by title, the way the app matches a rubric to its place in a document. A rubric with
+ * no namesake in `before` counts as changed.
+ */
+export function changedRubricTitles(
+  before: readonly RubricData[],
+  after: readonly RubricData[],
+): string[] {
+  const earlier = new Map(before.map((r) => [plainText(r.title).toLowerCase(), plainSignatureOf(r)]));
+  return after
+    .filter((r) => earlier.get(plainText(r.title).toLowerCase()) !== plainSignatureOf(r))
+    .map((r) => r.title);
+}

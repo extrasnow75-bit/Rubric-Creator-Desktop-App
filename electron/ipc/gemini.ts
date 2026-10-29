@@ -19,6 +19,7 @@
 import { GoogleGenAI, Chat, Type } from '@google/genai'
 import { createHash } from 'node:crypto'
 import { extractDocxText } from './docxText'
+import { protectedEditsPrompt, type ProtectedEdit } from './protectedEdits'
 import { buildRubricCsv, ExtractedCriterion } from './rubricCsv'
 import { getGeminiApiKey } from './credentials'
 import {
@@ -1203,6 +1204,7 @@ export async function applyRubricChanges(
   rubric: RubricData,
   changeRequest: string,
   signal?: AbortSignal,
+  protectedEdits?: ProtectedEdit[],
 ): Promise<RubricData> {
   await throttle(signal);
 
@@ -1221,7 +1223,7 @@ export async function applyRubricChanges(
 
     REQUESTED CHANGES:
     ${changeRequest}
-
+    ${protectedEditsPrompt(protectedEdits)}
     Return the modified rubric in the same JSON structure.
     Only change point totals if the user explicitly requests a redistribution of points.
 

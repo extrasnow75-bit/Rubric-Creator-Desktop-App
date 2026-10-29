@@ -16,6 +16,7 @@ describe('isAllowedExternalUrl', () => {
       'https://canvas.instructure.com/doc/api/file.accessing_via_api.html',
       'https://github.com/owner/repo/releases/latest',
       'https://boisestateecampus.atlassian.net/wiki/x/ABC',
+      'https://boisestate.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=b3b2622f-8e1e-4b35-a22d-b4ef013e4bc7',
     ]) {
       expect(isAllowedExternalUrl(url), url).toBe(true)
     }

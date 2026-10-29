@@ -251,6 +251,8 @@ declare global {
           rubric: RubricData
           changeRequest: string
           jobId?: string
+          /** Passages typed into the Google Doc by hand, which the revision must keep. */
+          protectedEdits?: { criterion: string; where: string; passages: string[] }[]
         }): Promise<RubricData>
         analyzeCsvForCanvas(a: {
           csvContent: string

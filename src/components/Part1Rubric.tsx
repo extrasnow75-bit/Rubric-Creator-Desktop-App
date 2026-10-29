@@ -3,7 +3,17 @@ import { useSession } from '../contexts/SessionContext';
 import { useCopyAction } from '../hooks/useCopyAction';
 import { ipcErrorMessage } from '../utils/ipcErrorMessage';
 import { describeDuplicateTitles } from '../utils/duplicateTitles';
-import { rubricsFingerprint } from '../utils/rubricFingerprint';
+import { rubricsFingerprint, changedRubricTitles } from '../utils/rubricFingerprint';
+import {
+  findManualEdits,
+  protectedEditsFor,
+  editsForRubric,
+  checkEditsSurvived,
+  restoreCell,
+  type ManualEdit,
+  type LostPassage,
+  type RewordedCell,
+} from '../utils/manualEdits';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
 import {
   AppMode,
@@ -228,6 +238,25 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
   // Ready-for-Canvas confirmation checkbox
   const [readyForCanvas, setReadyForCanvas] = useState(false);
+  /*
+    What ticking "ready to proceed" brought in from the Google Doc, kept for as long as it is
+    true. It used to be a one-line change summary that the next click wiped out, on a card above
+    the box rather than beside it, so it was easy never to see. Cleared when the box is unticked
+    or a new run starts, because after either it no longer describes the screen.
+  */
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+  /*
+    How the passages a person typed into the Google Doc by hand fared in the last AI change run:
+    how many were kept, which were not (with a way to put them back), and which cells now read
+    differently. Persistent for the same reason as importNotice - a message that disappears is a
+    loss nobody was told about. Null when the run had nothing to report.
+  */
+  const [manualEditReport, setManualEditReport] = useState<{
+    kept: number;
+    lost: LostPassage[];
+    reworded: RewordedCell[];
+    note: string | null;
+  } | null>(null);
 
   // Inline replace card
 
@@ -608,6 +637,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         ...doc,
         version: read.version || doc.version,
         contentKey: rubricsFingerprint(asHeld),
+        rubrics: asHeld,
         heldRubrics: read.rubrics.length,
       });
     } catch {
@@ -924,6 +954,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         // longer exist, and the remembered Google Doc holds the set that has just been replaced.
         setRevisedIndexes([]);
         setChangeSummary(null);
+        setImportNotice(null);
+        setManualEditReport(null);
         setChangesConfirmed(false);
         /*
           Forget the remembered document — except on an edit run, where it IS the document these
@@ -1054,6 +1086,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           // What the document now holds. The save button compares against this to know whether
           // there is anything left to save.
           contentKey: rubricsFingerprint(rubrics),
+          rubrics,
           /* And how many, because the write has just made it true: whatever the document held
              before, it holds exactly these now. Without this the warning about removing the
              others would go on being shown after they had already gone. */
@@ -1265,9 +1298,14 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
    * would otherwise carry on against the rubrics it already had.
    */
   const refreshFromDoc = async (
-    { force = false }: { force?: boolean } = {},
+    { force = false, protectLocal = false }: { force?: boolean; protectLocal?: boolean } = {},
   ): Promise<{
     rubrics: RubricData[] | null;
+    /*
+      What the document itself holds for these rubrics, read just now. Differs from `rubrics`
+      only when `protectLocal` kept an on-screen rubric the document had not changed.
+    */
+    docRubrics?: RubricData[];
     message: string | null;
     missing: string[];
     /* When Google last recorded a change, present only when the document was actually read. */
@@ -1315,7 +1353,9 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
       const byTitle = new Map(read.rubrics.map((r) => [r.title.trim().toLowerCase(), r]));
       const missing: string[] = [];
-      const merged = mine.map((rubric) => {
+      /* What the document holds, rubric for rubric. This, not the screen, is what gets recorded
+         as the document's contents. */
+      const docVersion = mine.map((rubric) => {
         const fromDoc = byTitle.get(rubric.title.trim().toLowerCase());
         if (!fromDoc) {
           /* A rubric renamed inside the document cannot be matched: its name is how it is
@@ -1325,11 +1365,31 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         }
         return fromDoc;
       });
+      /*
+        Before an AI change, only a rubric the document has actually moved on is replaced.
+
+        The screen can hold edits the document has not received yet — a rename, a points change.
+        Reading the document and taking it wholesale would erase those, so where the document
+        still says what it said when the app last synced, the screen's version stays. Where there
+        is nothing to compare with, the document wins, as it always has.
+      */
+      const baselineByTitle = new Map(
+        (doc.rubrics ?? []).map((r) => [r.title.trim().toLowerCase(), r]),
+      );
+      const merged = protectLocal
+        ? mine.map((rubric, i) => {
+            const was = baselineByTitle.get(rubric.title.trim().toLowerCase());
+            return was && changedRubricTitles([was], [docVersion[i]]).length === 0
+              ? rubric
+              : docVersion[i];
+          })
+        : docVersion;
 
       const refreshed: SavedRubricDoc = {
         ...doc,
         version: read.version || doc.version,
-        contentKey: rubricsFingerprint(merged),
+        contentKey: rubricsFingerprint(docVersion),
+        rubrics: docVersion,
         /* Now known exactly rather than remembered from the discovery pass. */
         heldRubrics: read.rubrics.length,
       };
@@ -1342,6 +1402,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       setSavedDoc(refreshed);
       return {
         rubrics: merged,
+        docRubrics: docVersion,
         message: null,
         missing,
         modifiedTime: read.modifiedTime,
@@ -1378,6 +1439,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
   const handleReadyForCanvas = async (checked: boolean) => {
     setReadyForCanvas(checked);
+    setImportNotice(null);
     if (!checked) {
       setShowDeployCard(false);
       return;
@@ -1411,6 +1473,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       whether their tick is taken away from them, is decided by the rubrics that came back.
     */
     const before = rubricsFingerprint(currentRubrics());
+    const rubricsBefore = currentRubrics();
     try {
       const {
         rubrics,
@@ -1429,19 +1492,39 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       const named = state.savedDoc?.name ? `"${state.savedDoc.name}"` : 'Your Google Doc';
       const stamp = docStamp(modifiedTime);
 
-      if (rubrics && rubricsFingerprint(rubrics) !== before) {
-        setReadyForCanvas(false);
-        setChangeSummary(
-          hadUnsavedWork
-            ? `${named} was changed${stamp ? ` ${stamp}` : ''}, and what it says has replaced ` +
-                `what was on screen — including anything the app had not yet saved to it. Check ` +
-                `the rubrics, then tick the box again to send these to Canvas. Google Docs keeps ` +
-                `every earlier version under File → Version history.`
-            : `${named} was changed${stamp ? ` ${stamp}` : ''} and the app did not have those ` +
-                `edits. They are on screen now — check them, then tick the box again to send ` +
-                `these to Canvas.`,
-        );
+      if (rubrics) {
+        /*
+          The document was read, and what it holds is now on screen. Whether that is worth
+          telling the user is decided by what they would see, not by the bytes: Google changes
+          spacing and punctuation style on its own, and announcing a "change" nobody made is
+          what used to take the tick away for nothing (see changedRubricTitles).
+        */
+        const changed = changedRubricTitles(rubricsBefore, rubrics);
+        if (changed.length > 0) {
+          /*
+            The tick stays. Ticking says "the Doc is ready as it stands", and the Doc has just
+            been brought in, so what Canvas will get is exactly what the Doc says. The notice
+            names the rubrics so the user can look; it does not ask them to tick again.
+
+            What this gives up: the old version cleared the tick so the user had to look at the
+            imported rubrics before anything could be sent. Now they can deploy straight away
+            after ticking, so the notice is the only prompt to look — it stays on screen for
+            that reason.
+          */
+          const list = changed.map((t) => `"${t}"`).join(', ');
+          setImportNotice(
+            `${named} was changed${stamp ? ` ${stamp}` : ''}, so the app has taken in what it ` +
+              `says. ${changed.length === 1 ? 'This rubric differs' : 'These rubrics differ'} ` +
+              `from what was on screen: ${list}. Canvas will get exactly what the document ` +
+              `says.` +
+              (hadUnsavedWork
+                ? ` Changes that were on screen but not yet saved to the document have been ` +
+                  `replaced. Google Docs keeps every earlier version under File → Version history.`
+                : ''),
+          );
+        }
         if (missing.length > 0) setError(describeMissing(missing));
+        /* Screen and document now agree, so there is nothing to write back. */
         return;
       }
       if (missing.length > 0) setError(describeMissing(missing));
@@ -1515,6 +1598,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           name: result.name ?? 'Rubric',
           version: result.version ?? '',
           contentKey: rubricsFingerprint(docPayload().rubrics),
+          rubrics: docPayload().rubrics,
         });
         setDriveSaveSuccess(`Opened in your browser, saved to "${folder.folderName}"`);
       } else {
@@ -1704,6 +1788,8 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     setIsApplyingChanges(true);
     setError(null);
     setChangeSummary(null);
+    setImportNotice(null);
+    setManualEditReport(null);
     setRevisedIndexes([]);
     setPaceNotice(null);
     startProgress(queuedIndexes.length, true);
@@ -1721,7 +1807,20 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       proceed from rubrics known to be out of date.
     */
     setProgress({ currentStep: 'Checking your Google Doc...', percentage: 0, itemsProcessed: 0 });
-    const refreshed = await refreshFromDoc();
+    /*
+      What the app last left in the document, taken before the refresh below replaces it with
+      what the document holds now. The difference between the two is what the person typed.
+    */
+    const baseline = state.savedDoc?.rubrics;
+    /*
+      Always read the document's real contents, never trust the version counter here.
+
+      Google saves typing a moment after it happens, so the counter can still be where it was
+      when the person has just edited - and the check that goes by the counter then reports
+      "nobody has touched it", and the run goes ahead on the app's stale copy and writes the
+      result over the whole document. One quick read, no AI, is cheap beside that.
+    */
+    const refreshed = await refreshFromDoc({ force: true, protectLocal: true });
     if (refreshed.message) {
       setError(refreshed.message);
       stopProgress();
@@ -1729,6 +1828,33 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       return;
     }
     const baseRubrics = refreshed.rubrics ?? currentRubrics();
+
+    /*
+      The words the person typed into the document since the app last synced it, found by plain
+      comparison with no AI. They are handed to the model to keep, and checked afterwards.
+    */
+    let manualEdits: ManualEdit[] = [];
+    let editNote: string | null = null;
+    if (refreshed.docRubrics && state.savedDoc) {
+      if (!baseline) {
+        editNote =
+          'This Google Doc is from before the app kept a copy to compare against, so it cannot ' +
+          'tell which passages you typed in by hand. The AI was asked to leave anything it did ' +
+          'not need to change as it is - look over the rubrics before you deploy.';
+      } else {
+        const found = findManualEdits(baseline, refreshed.docRubrics);
+        manualEdits = found.edits;
+        if (found.noBaseline.length > 0) {
+          const names = found.noBaseline.map((t) => '"' + t + '"').join(', ');
+          editNote =
+            'The app has no earlier copy of ' + names + ' to compare against, so hand-typed ' +
+            'passages in ' + (found.noBaseline.length === 1 ? 'it' : 'them') + ' could not be protected.';
+        }
+      }
+    }
+    const lostPassages: LostPassage[] = [];
+    const rewordedCells: RewordedCell[] = [];
+    let keptCount = 0;
 
     /* One signal for the run, for the reason given in generateRubricsFor: re-reading it per
        rubric hands back a fresh controller after Stop, and the loop carries on. */
@@ -1781,7 +1907,19 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       const target = baseRubrics[index];
       if (!target) return;
       try {
-        const updated = await applyRubricChanges(target, changeDrafts[index] ?? '', signal);
+        const updated = await applyRubricChanges(
+          target,
+          changeDrafts[index] ?? '',
+          signal,
+          protectedEditsFor(manualEdits, target.title),
+        );
+        const mine = editsForRubric(manualEdits, target.title);
+        if (mine.length > 0) {
+          const survived = checkEditsSurvived(mine, updated);
+          lostPassages.push(...survived.lost);
+          rewordedCells.push(...survived.reworded);
+          keptCount += mine.reduce((n, e) => n + e.passages.length, 0) - survived.lost.length;
+        }
         updateRubricAt(index, updated);
         nextRubrics[index] = updated;
         revised.push(index);
@@ -1884,11 +2022,53 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       if (docMessage) problems.push(docMessage);
       if (problems.length > 0) setError(problems.join(' '));
 
+      if (manualEdits.length > 0 || editNote) {
+        setManualEditReport({
+          kept: keptCount,
+          lost: lostPassages,
+          reworded: rewordedCells,
+          note: editNote,
+        });
+      }
+
       setTimeout(() => stopProgress(), 500);
     } finally {
       unsubscribeRetry();
       setIsApplyingChanges(false);
     }
+  };
+
+  /**
+   * Put a person's version of a cell back, after a revision dropped something they had typed.
+   *
+   * Replaces that cell's current wording with what it said in their Google Doc, so any change the
+   * run made to the same cell goes too - which is why this is a button they press rather than
+   * something done for them. It lands on screen only; it reaches the Google Doc when "ready to
+   * proceed" is ticked, the same as every other change made here.
+   */
+  const handleRestoreCell = (edit: ManualEdit) => {
+    const rubrics = currentRubrics();
+    const index = rubrics.findIndex(
+      (r) => r.title.trim().toLowerCase() === edit.rubricTitle.trim().toLowerCase(),
+    );
+    if (index < 0) return;
+    updateRubricAt(index, restoreCell(rubrics[index], edit));
+    setReadyForCanvas(false);
+    setManualEditReport((prev) =>
+      prev
+        ? {
+            ...prev,
+            lost: prev.lost.filter(
+              (l) =>
+                !(
+                  l.edit.rubricTitle === edit.rubricTitle &&
+                  l.edit.criterion === edit.criterion &&
+                  l.edit.field === edit.field
+                ),
+            ),
+          }
+        : prev,
+    );
   };
 
   const handleRecentDocClick = async (doc: RecentDoc) => {
@@ -3428,6 +3608,105 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             </div>
           )}
 
+        {/*
+          How the passages typed into the Google Doc by hand fared in the last change run.
+
+          Shown whether or not anything went wrong: "all 2 of your edits were kept" is the thing a
+          person who just typed into the Doc wants to know, and silence would look the same as a
+          report that never ran. Stays until the next run, unticking or a new set of rubrics.
+        */}
+        {manualEditReport && (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`mb-3 p-4 rounded-2xl border-2 ${
+              manualEditReport.lost.length > 0
+                ? 'border-amber-300 bg-amber-50'
+                : 'border-green-300 bg-green-50'
+            }`}
+          >
+            <p
+              className={`text-sm font-bold ${
+                manualEditReport.lost.length > 0 ? 'text-amber-900' : 'text-green-900'
+              }`}
+            >
+              Text you typed into your Google Doc
+            </p>
+
+            {manualEditReport.kept > 0 && (
+              <p className="text-sm text-gray-900 mt-1">
+                {manualEditReport.lost.length === 0
+                  ? manualEditReport.kept === 1
+                    ? 'The passage you added by hand is still in the rubrics.'
+                    : `All ${manualEditReport.kept} passages you added by hand are still in the rubrics.`
+                  : `${manualEditReport.kept} of the passages you added by hand are still in the rubrics.`}
+              </p>
+            )}
+
+            {manualEditReport.lost.length > 0 && (
+              <>
+                <p className="text-sm text-amber-900 mt-2">
+                  {manualEditReport.lost.length === 1
+                    ? 'This passage you added was not in the revised rubric:'
+                    : 'These passages you added were not in the revised rubrics:'}
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {manualEditReport.lost.map((item, i) => (
+                    <li key={i} className="text-sm text-gray-900">
+                      <span className="font-bold">&ldquo;{item.passage}&rdquo;</span>
+                      <span className="block text-xs text-gray-700">
+                        {item.edit.rubricTitle} &rsaquo; {item.edit.criterion}, {item.edit.where}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreCell(item.edit)}
+                        className="mt-1 px-3 py-1.5 text-xs font-bold bg-white text-amber-900 border-2 border-amber-700 rounded-lg hover:bg-amber-100 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 outline-none"
+                      >
+                        Put back my version of this cell
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-gray-700 mt-2">
+                  Putting a cell back replaces its current wording with what it said in your Google
+                  Doc. It reaches the Doc when you tick &ldquo;ready to proceed&rdquo;.
+                </p>
+              </>
+            )}
+
+            {manualEditReport.reworded.length > 0 && (
+              <details className="mt-2">
+                <summary className="text-sm font-bold text-gray-900 cursor-pointer">
+                  {manualEditReport.reworded.length === 1
+                    ? 'See how the cell you edited now reads'
+                    : `See how the ${manualEditReport.reworded.length} cells you edited now read`}
+                </summary>
+                <ul className="mt-2 space-y-3">
+                  {manualEditReport.reworded.map((cell, i) => (
+                    <li key={i} className="text-sm text-gray-900">
+                      <span className="block text-xs font-bold text-gray-700">
+                        {cell.rubricTitle} &rsaquo; {cell.criterion}, {cell.where}
+                      </span>
+                      <span className="block mt-1">
+                        <span className="font-bold">Before: </span>
+                        {cell.before}
+                      </span>
+                      <span className="block mt-1">
+                        <span className="font-bold">After: </span>
+                        {cell.after}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
+            {manualEditReport.note && (
+              <p className="text-sm text-amber-900 mt-2">{manualEditReport.note}</p>
+            )}
+          </div>
+        )}
+
         {/* Ready confirmation checkbox */}
         {onAnalyzeDeploy && (
           /*
@@ -3471,6 +3750,18 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
               </span>
             </span>
           </label>
+        )}
+
+        {/* What ticking the box brought in from the Google Doc. Stays until the box is unticked
+            or a new run starts — a message that vanishes on the next click is easy to miss. */}
+        {importNotice && readyForCanvas && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="mb-3 p-4 rounded-2xl border-2 border-amber-300 bg-amber-50"
+          >
+            <p className="text-sm text-amber-900">{importNotice}</p>
+          </div>
         )}
 
         {/* Deploy Action — bottom */}

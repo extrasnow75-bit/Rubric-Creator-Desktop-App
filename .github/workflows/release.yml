@@ -154,6 +154,9 @@ jobs:
           test "$(ls -1 | wc -l)" -eq 3
 
       - name: Write release notes
+        # The walkthrough is a clickable picture, not an embedded player: GitHub release pages strip
+        # iframes. The picture is docs/video-thumbnail.png on master, so it needs to be there.
+        #
         # Quoted heredoc so the markdown's backticks are not run as command substitution; the
         # version is substituted afterwards.
         #
@@ -180,6 +183,13 @@ jobs:
           The Assets section further down holds the same files. Ignore the two "Source code"
           links beside them — GitHub adds those to every release automatically. They are not
           the app.
+
+          ## Watch the walkthrough
+
+          [![A short video that walks through Canvas Rubric Creator. Click the picture to watch it.](https://raw.githubusercontent.com/__REPO__/master/docs/video-thumbnail.png)](https://boisestate.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=b3b2622f-8e1e-4b35-a22d-b4ef013e4bc7)
+
+          Click the picture to watch the video. It opens on Panopto in your web browser, and you
+          do not need to sign in.
 
           NOTES
           cat RELEASE_NOTES.md >> notes.md

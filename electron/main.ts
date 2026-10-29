@@ -430,8 +430,18 @@ ipcMain.handle(
 
 ipcMain.handle(
   'gemini:applyRubricChanges',
-  (_e, a: { rubric: RubricData; changeRequest: string; jobId?: string }) =>
-    withJob(a.jobId, (s) => gemini.applyRubricChanges(a.rubric, a.changeRequest, s)),
+  (
+    _e,
+    a: {
+      rubric: RubricData
+      changeRequest: string
+      jobId?: string
+      protectedEdits?: { criterion: string; where: string; passages: string[] }[]
+    },
+  ) =>
+    withJob(a.jobId, (s) =>
+      gemini.applyRubricChanges(a.rubric, a.changeRequest, s, a.protectedEdits),
+    ),
 )
 
 ipcMain.handle(

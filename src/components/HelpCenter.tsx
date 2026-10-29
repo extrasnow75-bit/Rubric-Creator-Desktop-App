@@ -4,19 +4,29 @@ import { RefreshCw } from 'lucide-react';
 import { useDialogFocus, useInertWhenHidden } from '../hooks/useDialogFocus';
 
 /**
- * The eCampus KB article for this app.
+ * The eCampus KB article for this app, on Confluence.
  *
- * TEMPORARY — this points at the Google Doc draft, not the published Confluence page. When the
- * article moves to Confluence, replace it with the short /wiki/x/ form rather than the long
- * /wiki/spaces/…/pages/… one: the short link survives the page being renamed or moved between
- * spaces, which the long form does not. Both hosts are already on the allowlist in
- * electron/ipc/externalLinks.ts, so neither needs a change there.
+ * This is the long /wiki/spaces/…/pages/… form. The short /wiki/x/… form (Confluence: Share →
+ * Copy link) is better when there is one, because it survives the page being renamed or moved
+ * between spaces and the long form does not — swap it in here if the article is ever moved.
+ * The host is on the allowlist in electron/ipc/externalLinks.ts.
  *
  * Setting this to null hides the card entirely, which is why the placeholder was null rather than
  * a dead link — an article link that 404s is worse than no link at all.
  */
 const HELP_CENTER_ARTICLE_URL: string | null =
-  'https://docs.google.com/document/d/1zVFVvstKLI1o2tnLV4Uc5Jykcb_41V5AfhXXwHsbHsI/edit';
+  'https://boisestateecampus.atlassian.net/wiki/spaces/EKB/pages/5254709251/Canvas+Rubric+Creator+Desktop+App';
+
+/**
+ * The walkthrough video, hosted on Panopto.
+ *
+ * A link rather than an embedded player: the app blocks framed content from other sites (see the
+ * Content-Security-Policy in electron.vite.config.ts), and the link opens in the user's browser.
+ * The same video is linked from every GitHub release page. Its host is on the allowlist in
+ * electron/ipc/externalLinks.ts.
+ */
+const WALKTHROUGH_VIDEO_URL =
+  'https://boisestate.hosted.panopto.com/Panopto/Pages/Viewer.aspx?id=b3b2622f-8e1e-4b35-a22d-b4ef013e4bc7';
 
 interface HelpCenterProps {
   isOpen: boolean;
@@ -301,6 +311,18 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
                   </p>
                 </div>
               )}
+
+              <a
+                href={WALKTHROUGH_VIDEO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all group"
+              >
+                <span className="text-sm font-bold text-blue-900">
+                  Canvas Rubric Creator App — Watch the Walkthrough Video
+                </span>
+                <span className="text-blue-700 ml-3"><ExternalLinkIcon /></span>
+              </a>
 
               <a
                 href="https://drive.google.com/drive/folders/1JHSAm6uXphyZSx6I3hUT70l-IwW6T4FK?usp=sharing"
