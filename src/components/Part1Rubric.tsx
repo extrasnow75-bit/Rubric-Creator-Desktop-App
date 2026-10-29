@@ -2773,6 +2773,40 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 )}
 
                 {/*
+                  Not after a change run, because the document card below already reports one.
+
+                  "Draft Rubric Updated! Your requested changes have been applied to the rubric"
+                  sat a few lines above "Updated 1 rubric — Template Quiz Assessment Rubric", in
+                  the same green, with the same tick. The second is the better sentence: it names
+                  which rubric changed, where the first could be any of eight. Two green boxes
+                  saying one thing is how a screen stops being read at all.
+
+                  The other two stay. A draft run and an upload set no change summary, so this is
+                  the only confirmation either of them gets.
+                */}
+                {rubricSource !== 'revised' && (
+                <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      {rubricSource === 'uploaded' ? (
+                        <>
+                          <p className="font-black text-green-900">✓ Draft Rubric Received!</p>
+                          <p className="text-sm text-green-800">Your uploaded rubric has been processed and is ready to review.</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-black text-green-900">✓ Draft Rubric Created!</p>
+                          <p className="text-sm text-green-800">Your draft rubric has been generated successfully.</p>
+                          <p className="text-sm text-green-800 mt-1">We recommend making your own edits to this AI-generated rubric.</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                )}
+
+                {/*
                   Where the preview table used to be.
 
                   The table showed each criterion's name and the points for its four ratings, and
@@ -2784,37 +2818,22 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 */}
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
                   <p className="text-sm font-bold text-blue-900">
-                    Review your draft rubric in your Google Doc or a saved web page
+                    Review your draft rubric(s) in a Google Doc or an HTML file
                   </p>
                   <p className="text-sm text-blue-900 mt-1">
                     You can request edits through Gemini or just make edits in the Google Document
                     or the HTML document yourself.
                   </p>
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    {state.savedDoc && (
-                      <a
-                        href={state.savedDoc.webViewLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 text-sm font-bold text-blue-900 bg-white border border-blue-300 rounded-lg hover:bg-blue-100 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 outline-none"
-                      >
-                        Open your Google Doc
-                      </a>
-                    )}
-                    {/*
-                      The same save as "Save to this computer" in the document card further down,
-                      put where the person is reading about it. That card is easy to scroll past,
-                      and this is the file the how-to below is about.
-                    */}
-                    <button
-                      type="button"
-                      onClick={handleSaveLocal}
-                      disabled={savingLocal}
-                      className="px-3 py-1.5 text-sm font-bold text-blue-900 bg-white border border-blue-300 rounded-lg hover:bg-blue-100 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 outline-none"
+                  {state.savedDoc && (
+                    <a
+                      href={state.savedDoc.webViewLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block mt-2 px-3 py-1.5 text-sm font-bold text-blue-900 bg-white border border-blue-300 rounded-lg hover:bg-blue-100 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 outline-none"
                     >
-                      {savingLocal ? 'Saving…' : 'Save as HTML file'}
-                    </button>
-                  </div>
+                      Open your Google Doc
+                    </a>
+                  )}
                   {!state.savedDoc && state.isGoogleAuthenticated && (
                     <p className="text-sm text-blue-900 mt-2">
                       To work in Google Docs instead, use Open in Google Docs further down this
@@ -2873,38 +2892,352 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                 </div>
 
                 {/*
-                  Not after a change run, because the document card below already reports one.
+                  Everything about the document, at the point the document is finished with.
 
-                  "Draft Rubric Updated! Your requested changes have been applied to the rubric"
-                  sat a few lines above "Updated 1 rubric — Template Quiz Assessment Rubric", in
-                  the same green, with the same tick. The second is the better sentence: it names
-                  which rubric changed, where the first could be any of eight. Two green boxes
-                  saying one thing is how a screen stops being read at all.
+                  It sits directly under the note that sends people to the document, so the link and
+                  the save buttons are the next thing on the screen after being told to go and read
+                  it, and above the buttons that change the rubric.
 
-                  The other two stay. A draft run and an upload set no change summary, so this is
-                  the only confirmation either of them gets.
+                  One card in three states. A run summary that needs the document updated, a
+                  document edited by hand since the app wrote it, and the plain record of where
+                  the rubrics went are all the same question — what should happen to this file —
+                  so they share one set of buttons instead of stacking three panels with three
+                  versions of the same two actions.
+
+                  The live region is inside, around the message text alone — see the comment on
+                  it. The result of a run is announced; the buttons beside it are not.
                 */}
-                {rubricSource !== 'revised' && (
-                <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-4">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      {rubricSource === 'uploaded' ? (
-                        <>
-                          <p className="font-black text-green-900">✓ Draft Rubric Received!</p>
-                          <p className="text-sm text-green-800">Your uploaded rubric has been processed and is ready to review.</p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="font-black text-green-900">✓ Draft Rubric Created!</p>
-                          <p className="text-sm text-green-800">Your draft rubric has been generated successfully.</p>
-                          <p className="text-sm text-green-800 mt-1">We recommend making your own edits to this AI-generated rubric.</p>
-                        </>
-                      )}
+                <div>
+                  <div
+                    className={`mb-3 p-4 rounded-2xl border ${
+                      docCardState === 'conflict'
+                        ? 'bg-amber-50 border-amber-200'
+                        : docCardState === 'updated'
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {docCardState === 'conflict' ? (
+                        <AlertTriangle
+                          className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                          aria-hidden="true"
+                        />
+                      ) : docCardState === 'updated' ? (
+                        <CheckCircle
+                          className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+
+                      <div className="min-w-0 flex-1">
+                        {/*
+                          Only the words are live.
+
+                          This used to sit on the card itself, which meant every button label
+                          inside it was re-read whenever any of them changed — "Saving…", "Link
+                          copied", the hint under the buttons — so the one sentence that matters
+                          arrived buried in a recital of the whole card. Interactive controls do
+                          not belong in a live region; the rest of this file already knows that.
+                        */}
+                        <div role="status" aria-live="polite">
+                          {/* The run first, where there has been one: it is why the rest matters. */}
+                          {changeSummary && !isApplyingChanges && (
+                            <p
+                              className={`text-sm font-bold ${
+                                docCardState === 'conflict' ? 'text-amber-900' : 'text-green-900'
+                              }`}
+                            >
+                              {changeSummary}
+                            </p>
+                          )}
+
+                          {docCardState === 'conflict' ? (
+                            <p className="text-sm text-amber-900 mt-1">
+                              {docConflict === 'shrink'
+                                ? `This document holds ${state.savedDoc?.heldRubrics} rubrics, and the app has the ${currentRubrics().length} you chose to work on. Saving writes those and removes the other ${docRubricsDropped}, because the app never read them and cannot put them back. Google Docs keeps the previous version under File → Version history.`
+                                : docConflict === 'edited'
+                                  ? 'Somebody has changed your Google Doc since the app last wrote to it, so the changes on screen were not written over it. If that edit was yours, tick "ready to proceed" further down and it comes in by itself — nothing here needs pressing. If it was not, open the document and see what is in it before you deploy; Google Docs keeps every earlier version under File → Version history.'
+                                  : docConflict === 'trashed'
+                                    ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
+                                    : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
+                            </p>
+                          ) : changeSummary && !isApplyingChanges ? (
+                            /* The run writes the document too, so the ordinary reading is the
+                               first one. The other two are for a run with nowhere to write —
+                               nothing saved yet, or a save that did not go through — which is the
+                               gap this line was added for. */
+                            /*
+                              Nothing at all after a read back in. The line here said "the rubrics
+                              on screen came from your Google Doc, so the two now hold the same
+                              thing" — the same claim the sentence above it now makes, with the
+                              document named and the time it changed, and weaker for being vaguer.
+                              Two goes at one idea is what made the card hard to read: a second
+                              sentence invites you to look for a second meaning in it.
+                            */
+                            state.savedDoc && docIsCurrent && lastSync === 'in' ? null : (
+                              <p className="text-sm text-green-800 mt-1">
+                                {state.savedDoc && docIsCurrent
+                                  ? 'Your Google Doc has been updated to match. Same document, same link.'
+                                  : state.savedDoc
+                                    ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — the button below sends them.'
+                                    : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
+                              </p>
+                            )
+                          ) : (
+                            <p className="text-sm font-bold text-gray-900">
+                              {state.savedDoc ? 'Google Doc' : 'Not saved yet'}
+                            </p>
+                          )}
+                        </div>
+
+                        {/*
+                          The document's own name, on screen rather than announced once and
+                          forgotten. Creating it used to return a file id and a link that were
+                          both thrown away, so the only record of where the rubrics went was a
+                          browser tab that may have opened behind the app or on another screen.
+                        */}
+                        {state.savedDoc && (
+                          <>
+                            <p
+                              className="text-sm text-gray-700 truncate mt-2"
+                              title={state.savedDoc.name}
+                            >
+                              {state.savedDoc.name}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-4 mt-1">
+                              {/* A plain link: the window's navigation guard sends it to the
+                                  system browser, and Google Docs is already on the external-link
+                                  allowlist. */}
+                              <a
+                                href={state.savedDoc.webViewLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-bold text-brand hover:text-brand-dark underline"
+                              >
+                                Open
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => state.savedDoc && copy(state.savedDoc.webViewLink)}
+                                className="text-sm font-bold text-brand hover:text-brand-dark underline"
+                              >
+                                {copyState === 'copied'
+                                  ? 'Link copied'
+                                  : copyState === 'failed'
+                                    ? 'Could not copy'
+                                    : 'Copy link'}
+                              </button>
+                            </div>
+                          </>
+                        )}
+
+                        {/*
+                          The buttons the state calls for, and never two that contradict.
+
+                          A gone document offers the one move left. There is nothing to weigh:
+                          the file cannot be written to by anybody, so Overwrite and Leave it
+                          alone would both be buttons that do nothing.
+                        */}
+                        <div className="flex flex-wrap items-center gap-3 mt-3">
+                          {docGone ? (
+                            <button
+                              type="button"
+                              onClick={handleExportToDrive}
+                              disabled={savingToDrive}
+                              className="px-3 py-2 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                            >
+                              Create a new document
+                            </button>
+                          ) : docConflict === 'shrink' ? (
+                            /*
+                              Two answers, and neither of them is a refusal. Keeping the whole
+                              document means a new file, because the rubrics that would be lost
+                              are not in the app to be written into it; keeping this document
+                              means accepting what it holds afterwards. Both are reasonable, so
+                              the app asks once and then stays out of the way.
+                            */
+                            <>
+                              <button
+                                type="button"
+                                onClick={handleSaveSmallerAnyway}
+                                disabled={savingToDrive}
+                                className="px-4 py-2 rounded-xl text-sm font-bold bg-brand text-white hover:bg-brand-dark disabled:bg-gray-200 disabled:text-gray-700 flex items-center gap-2"
+                              >
+                                {savingToDrive && (
+                                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                )}
+                                {currentRubrics().length === 1
+                                  ? 'Save just this rubric to it'
+                                  : `Save just these ${currentRubrics().length} to it`}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleExportToDrive}
+                                disabled={savingToDrive}
+                                className="px-3 py-2 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                              >
+                                Put them in a new document instead
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              {/*
+                                "I updated the Rubrics manually in the Google Doc" stood here.
+
+                                It read as the thing that made a hand edit count, and it was
+                                never that. Ticking "ready to proceed" has read this document
+                                since the document became the source of truth, so an edit made
+                                in Google Docs reaches Canvas whether or not anything here is
+                                pressed — confirmed by a tester who deployed a hand edit and an
+                                AI change together without once touching this button.
+
+                                A second control doing what the deploy gate already does is not
+                                a convenience. It implies the gate does not do it, which leaves
+                                anyone who misses the button assuming their edits were dropped,
+                                and anyone who finds it believing editing in Google Docs needs
+                                the app's permission first. Both were observed.
+
+                                What it did that nothing else does is force a read regardless of
+                                Drive's version counter. That counter is what the tick relies on,
+                                and it moves whenever a document's contents do, so the only case
+                                left uncovered is a counter that lies — at which point a button
+                                labelled as a statement about your own editing is the wrong
+                                remedy anyway.
+                              */}
+
+                              {/*
+                                Only the half of this button that had a job left.
+
+                                It used to be two: create the document when there was none, and
+                                save over it when there was. The second is now done by the deploy
+                                gate, at the one moment the document and Canvas have to agree, so
+                                keeping a button for it meant keeping a button that was greyed
+                                out whenever it was not needed and redundant whenever it was.
+
+                                Creating is different and stays, because it asks which folder,
+                                and a question is not something a tick box can answer on
+                                somebody's behalf.
+
+                                aria-disabled, not disabled — the house rule, stated in full in
+                                CsvSaveOptions and kept by the deploy button further down this
+                                file. A `disabled` button leaves the tab order, so a keyboard
+                                user never reaches it, never learns why it is off, and cannot
+                                trigger the tooltip that was carrying the reason. The handler
+                                returns early instead, and the reason is a real paragraph tied
+                                on with aria-describedby.
+                              */}
+                              {!state.savedDoc && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (savingToDrive || !state.isGoogleAuthenticated) return;
+                                    void handleExportToDrive();
+                                  }}
+                                  aria-disabled={savingToDrive || !state.isGoogleAuthenticated}
+                                  aria-describedby={
+                                    !state.isGoogleAuthenticated ? 'doc-signin-hint' : undefined
+                                  }
+                                  className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-gray-200 flex items-center gap-2 bg-brand text-white hover:bg-brand-dark"
+                                >
+                                  {savingToDrive && <Loader2 className="w-4 h-4 animate-spin" />}
+                                  {savingToDrive ? 'Creating…' : 'Open in Google Docs'}
+                                </button>
+                              )}
+
+                              {/*
+                                Available whether or not the user is signed in. Google sign-in is
+                                the part of this app most likely to be broken for someone, and a
+                                rubric they cannot get out of the app is worse than one in a
+                                slightly less convenient format.
+                              */}
+                              <button
+                                type="button"
+                                onClick={handleSaveLocal}
+                                disabled={savingLocal}
+                                className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                              >
+                                {savingLocal ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Download className="w-4 h-4" />
+                                )}
+                                {savingLocal ? 'Saving…' : 'Save to this computer as an .html file'}
+                              </button>
+
+                              {state.savedDoc && (
+                                <button
+                                  type="button"
+                                  onClick={handleExportToDrive}
+                                  disabled={savingToDrive}
+                                  className="text-sm text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
+                                >
+                                  Create a new one instead
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+
+                        {/*
+                          The whole arrangement, in two sentences, because none of it is visible.
+
+                          There is no longer a button on this card that writes to the document —
+                          the deploy gate does it — so nothing on screen suggests the two are
+                          kept together at all. These two lines are the only place that says so,
+                          which is why they say it in both directions: what you type in Google
+                          Docs comes in, what you change here goes out, and the moment both
+                          happen is the tick further down.
+
+                          The "saving replaces what is in the document" warning that used to sit
+                          here belonged to a button someone pressed. It is folded into the second
+                          sentence, where it describes something the app will do rather than
+                          something the reader is about to.
+                        */}
+                        {state.savedDoc && (
+                          <p id="doc-save-hint" className="text-xs text-gray-600 mt-3">
+                            You can edit the rubrics in Google Docs whenever you like, and you do
+                            not need to tell the app: when you tick "ready to proceed", it reads
+                            the document and takes what it finds.
+                          </p>
+                        )}
+                        {state.savedDoc && (
+                          <p className="text-xs text-gray-600 mt-2">
+                            That same tick saves anything you changed here into the document
+                            first, so the two always agree before a rubric reaches Canvas. It
+                            replaces what the document held; Google Docs keeps every earlier
+                            version under File → Version history.
+                          </p>
+                        )}
+
+                        {/*
+                          After the first time, a line rather than a question. The answer has
+                          been given for this document; what is left is making sure the next
+                          save is never a surprise.
+                        */}
+                        {docWouldShrink && docConflict !== 'shrink' && (
+                          <p className="text-xs text-amber-900 mt-3">
+                            This document holds {state.savedDoc?.heldRubrics} rubrics. Saving
+                            writes the {currentRubrics().length} on screen and removes the other{' '}
+                            {docRubricsDropped}.
+                          </p>
+                        )}
+
+                        {driveSaveSuccess && (
+                          <p className="text-xs text-green-800 font-bold mt-3">
+                            ✓ {driveSaveSuccess}
+                          </p>
+                        )}
+                        {!state.isGoogleAuthenticated && (
+                          <p id="doc-signin-hint" className="text-xs text-gray-600 mt-3">
+                            You need to go to Initial Setup and sign into Google first to use the
+                            Google Docs route. Saving to this computer works either way.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-                )}
 
                 {/*
                   Two buttons. One changes the rubric in front of you; the other discards the lot.
@@ -2940,7 +3273,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                     }`}
                   >
                     <RotateCw className="w-4 h-4" aria-hidden="true" />
-                    Request Changes to Rubric
+                    Ask Gemini to make changes to rubric(s)
                   </button>
                   {/*
                     Moved here from the bottom of "Adjust this rubric", which was the wrong home
@@ -3225,354 +3558,6 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   </div>
                 )}
 
-                {/*
-                  Everything about the document, at the point the document is finished with.
-
-                  It used to sit above the rubric table, which is where a user asked why: every
-                  action on the document happens after the rubric has been read and changed, and
-                  the card naming it sat a scroll above all of them. It is now the last thing in
-                  the review card, directly before Deploy to Canvas.
-
-                  One card in three states. A run summary that needs the document updated, a
-                  document edited by hand since the app wrote it, and the plain record of where
-                  the rubrics went are all the same question — what should happen to this file —
-                  so they share one set of buttons instead of stacking three panels with three
-                  versions of the same two actions.
-
-                  The live region is inside, around the message text alone — see the comment on
-                  it. The result of a run is announced; the buttons beside it are not.
-                */}
-                <div>
-                  <div
-                    className={`mb-3 p-4 rounded-2xl border ${
-                      docCardState === 'conflict'
-                        ? 'bg-amber-50 border-amber-200'
-                        : docCardState === 'updated'
-                          ? 'bg-green-50 border-green-200'
-                          : 'bg-gray-50 border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      {docCardState === 'conflict' ? (
-                        <AlertTriangle
-                          className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
-                          aria-hidden="true"
-                        />
-                      ) : docCardState === 'updated' ? (
-                        <CheckCircle
-                          className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
-                          aria-hidden="true"
-                        />
-                      ) : null}
-
-                      <div className="min-w-0 flex-1">
-                        {/*
-                          Only the words are live.
-
-                          This used to sit on the card itself, which meant every button label
-                          inside it was re-read whenever any of them changed — "Saving…", "Link
-                          copied", the hint under the buttons — so the one sentence that matters
-                          arrived buried in a recital of the whole card. Interactive controls do
-                          not belong in a live region; the rest of this file already knows that.
-                        */}
-                        <div role="status" aria-live="polite">
-                          {/* The run first, where there has been one: it is why the rest matters. */}
-                          {changeSummary && !isApplyingChanges && (
-                            <p
-                              className={`text-sm font-bold ${
-                                docCardState === 'conflict' ? 'text-amber-900' : 'text-green-900'
-                              }`}
-                            >
-                              {changeSummary}
-                            </p>
-                          )}
-
-                          {docCardState === 'conflict' ? (
-                            <p className="text-sm text-amber-900 mt-1">
-                              {docConflict === 'shrink'
-                                ? `This document holds ${state.savedDoc?.heldRubrics} rubrics, and the app has the ${currentRubrics().length} you chose to work on. Saving writes those and removes the other ${docRubricsDropped}, because the app never read them and cannot put them back. Google Docs keeps the previous version under File → Version history.`
-                                : docConflict === 'edited'
-                                  ? 'Somebody has changed your Google Doc since the app last wrote to it, so the changes on screen were not written over it. If that edit was yours, tick "ready to proceed" further down and it comes in by itself — nothing here needs pressing. If it was not, open the document and see what is in it before you deploy; Google Docs keeps every earlier version under File → Version history.'
-                                  : docConflict === 'trashed'
-                                    ? 'That document is in your Google Drive bin, so nothing can be written back to it. The rubrics need a new document.'
-                                    : 'That document is no longer in your Google Drive, so nothing can be written back to it. The rubrics need a new document.'}
-                            </p>
-                          ) : changeSummary && !isApplyingChanges ? (
-                            /* The run writes the document too, so the ordinary reading is the
-                               first one. The other two are for a run with nowhere to write —
-                               nothing saved yet, or a save that did not go through — which is the
-                               gap this line was added for. */
-                            /*
-                              Nothing at all after a read back in. The line here said "the rubrics
-                              on screen came from your Google Doc, so the two now hold the same
-                              thing" — the same claim the sentence above it now makes, with the
-                              document named and the time it changed, and weaker for being vaguer.
-                              Two goes at one idea is what made the card hard to read: a second
-                              sentence invites you to look for a second meaning in it.
-                            */
-                            state.savedDoc && docIsCurrent && lastSync === 'in' ? null : (
-                              <p className="text-sm text-green-800 mt-1">
-                                {state.savedDoc && docIsCurrent
-                                  ? 'Your Google Doc has been updated to match. Same document, same link.'
-                                  : state.savedDoc
-                                    ? 'The rubrics on screen are the new versions. Your Google Doc still holds the previous ones — the button below sends them.'
-                                    : 'The rubrics on screen are the new versions. Anything you have already saved still holds the previous ones.'}
-                              </p>
-                            )
-                          ) : (
-                            <p className="text-sm font-bold text-gray-900">
-                              {state.savedDoc ? 'Google Doc' : 'Not saved yet'}
-                            </p>
-                          )}
-                        </div>
-
-                        {/*
-                          The document's own name, on screen rather than announced once and
-                          forgotten. Creating it used to return a file id and a link that were
-                          both thrown away, so the only record of where the rubrics went was a
-                          browser tab that may have opened behind the app or on another screen.
-                        */}
-                        {state.savedDoc && (
-                          <>
-                            <p
-                              className="text-sm text-gray-700 truncate mt-2"
-                              title={state.savedDoc.name}
-                            >
-                              {state.savedDoc.name}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-4 mt-1">
-                              {/* A plain link: the window's navigation guard sends it to the
-                                  system browser, and Google Docs is already on the external-link
-                                  allowlist. */}
-                              <a
-                                href={state.savedDoc.webViewLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-bold text-brand hover:text-brand-dark underline"
-                              >
-                                Open
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => state.savedDoc && copy(state.savedDoc.webViewLink)}
-                                className="text-sm font-bold text-brand hover:text-brand-dark underline"
-                              >
-                                {copyState === 'copied'
-                                  ? 'Link copied'
-                                  : copyState === 'failed'
-                                    ? 'Could not copy'
-                                    : 'Copy link'}
-                              </button>
-                            </div>
-                          </>
-                        )}
-
-                        {/*
-                          The buttons the state calls for, and never two that contradict.
-
-                          A gone document offers the one move left. There is nothing to weigh:
-                          the file cannot be written to by anybody, so Overwrite and Leave it
-                          alone would both be buttons that do nothing.
-                        */}
-                        <div className="flex flex-wrap items-center gap-3 mt-3">
-                          {docGone ? (
-                            <button
-                              type="button"
-                              onClick={handleExportToDrive}
-                              disabled={savingToDrive}
-                              className="px-3 py-2 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
-                            >
-                              Create a new document
-                            </button>
-                          ) : docConflict === 'shrink' ? (
-                            /*
-                              Two answers, and neither of them is a refusal. Keeping the whole
-                              document means a new file, because the rubrics that would be lost
-                              are not in the app to be written into it; keeping this document
-                              means accepting what it holds afterwards. Both are reasonable, so
-                              the app asks once and then stays out of the way.
-                            */
-                            <>
-                              <button
-                                type="button"
-                                onClick={handleSaveSmallerAnyway}
-                                disabled={savingToDrive}
-                                className="px-4 py-2 rounded-xl text-sm font-bold bg-brand text-white hover:bg-brand-dark disabled:bg-gray-200 disabled:text-gray-700 flex items-center gap-2"
-                              >
-                                {savingToDrive && (
-                                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                                )}
-                                {currentRubrics().length === 1
-                                  ? 'Save just this rubric to it'
-                                  : `Save just these ${currentRubrics().length} to it`}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleExportToDrive}
-                                disabled={savingToDrive}
-                                className="px-3 py-2 rounded-xl text-sm font-bold bg-white border-2 border-amber-500 text-amber-900 hover:bg-amber-100 disabled:opacity-60"
-                              >
-                                Put them in a new document instead
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              {/*
-                                "I updated the Rubrics manually in the Google Doc" stood here.
-
-                                It read as the thing that made a hand edit count, and it was
-                                never that. Ticking "ready to proceed" has read this document
-                                since the document became the source of truth, so an edit made
-                                in Google Docs reaches Canvas whether or not anything here is
-                                pressed — confirmed by a tester who deployed a hand edit and an
-                                AI change together without once touching this button.
-
-                                A second control doing what the deploy gate already does is not
-                                a convenience. It implies the gate does not do it, which leaves
-                                anyone who misses the button assuming their edits were dropped,
-                                and anyone who finds it believing editing in Google Docs needs
-                                the app's permission first. Both were observed.
-
-                                What it did that nothing else does is force a read regardless of
-                                Drive's version counter. That counter is what the tick relies on,
-                                and it moves whenever a document's contents do, so the only case
-                                left uncovered is a counter that lies — at which point a button
-                                labelled as a statement about your own editing is the wrong
-                                remedy anyway.
-                              */}
-
-                              {/*
-                                Only the half of this button that had a job left.
-
-                                It used to be two: create the document when there was none, and
-                                save over it when there was. The second is now done by the deploy
-                                gate, at the one moment the document and Canvas have to agree, so
-                                keeping a button for it meant keeping a button that was greyed
-                                out whenever it was not needed and redundant whenever it was.
-
-                                Creating is different and stays, because it asks which folder,
-                                and a question is not something a tick box can answer on
-                                somebody's behalf.
-
-                                aria-disabled, not disabled — the house rule, stated in full in
-                                CsvSaveOptions and kept by the deploy button further down this
-                                file. A `disabled` button leaves the tab order, so a keyboard
-                                user never reaches it, never learns why it is off, and cannot
-                                trigger the tooltip that was carrying the reason. The handler
-                                returns early instead, and the reason is a real paragraph tied
-                                on with aria-describedby.
-                              */}
-                              {!state.savedDoc && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (savingToDrive || !state.isGoogleAuthenticated) return;
-                                    void handleExportToDrive();
-                                  }}
-                                  aria-disabled={savingToDrive || !state.isGoogleAuthenticated}
-                                  aria-describedby={
-                                    !state.isGoogleAuthenticated ? 'doc-signin-hint' : undefined
-                                  }
-                                  className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 aria-disabled:bg-gray-200 aria-disabled:text-gray-700 aria-disabled:cursor-not-allowed aria-disabled:hover:bg-gray-200 flex items-center gap-2 bg-brand text-white hover:bg-brand-dark"
-                                >
-                                  {savingToDrive && <Loader2 className="w-4 h-4 animate-spin" />}
-                                  {savingToDrive ? 'Creating…' : 'Open in Google Docs'}
-                                </button>
-                              )}
-
-                              {/*
-                                Available whether or not the user is signed in. Google sign-in is
-                                the part of this app most likely to be broken for someone, and a
-                                rubric they cannot get out of the app is worse than one in a
-                                slightly less convenient format.
-                              */}
-                              <button
-                                type="button"
-                                onClick={handleSaveLocal}
-                                disabled={savingLocal}
-                                className="px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                              >
-                                {savingLocal ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Download className="w-4 h-4" />
-                                )}
-                                {savingLocal ? 'Saving…' : 'Save to this computer'}
-                              </button>
-
-                              {state.savedDoc && (
-                                <button
-                                  type="button"
-                                  onClick={handleExportToDrive}
-                                  disabled={savingToDrive}
-                                  className="text-sm text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
-                                >
-                                  Create a new one instead
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-
-                        {/*
-                          The whole arrangement, in two sentences, because none of it is visible.
-
-                          There is no longer a button on this card that writes to the document —
-                          the deploy gate does it — so nothing on screen suggests the two are
-                          kept together at all. These two lines are the only place that says so,
-                          which is why they say it in both directions: what you type in Google
-                          Docs comes in, what you change here goes out, and the moment both
-                          happen is the tick further down.
-
-                          The "saving replaces what is in the document" warning that used to sit
-                          here belonged to a button someone pressed. It is folded into the second
-                          sentence, where it describes something the app will do rather than
-                          something the reader is about to.
-                        */}
-                        {state.savedDoc && (
-                          <p id="doc-save-hint" className="text-xs text-gray-600 mt-3">
-                            You can edit the rubrics in Google Docs whenever you like, and you do
-                            not need to tell the app: when you tick "ready to proceed", it reads
-                            the document and takes what it finds.
-                          </p>
-                        )}
-                        {state.savedDoc && (
-                          <p className="text-xs text-gray-600 mt-2">
-                            That same tick saves anything you changed here into the document
-                            first, so the two always agree before a rubric reaches Canvas. It
-                            replaces what the document held; Google Docs keeps every earlier
-                            version under File → Version history.
-                          </p>
-                        )}
-
-                        {/*
-                          After the first time, a line rather than a question. The answer has
-                          been given for this document; what is left is making sure the next
-                          save is never a surprise.
-                        */}
-                        {docWouldShrink && docConflict !== 'shrink' && (
-                          <p className="text-xs text-amber-900 mt-3">
-                            This document holds {state.savedDoc?.heldRubrics} rubrics. Saving
-                            writes the {currentRubrics().length} on screen and removes the other{' '}
-                            {docRubricsDropped}.
-                          </p>
-                        )}
-
-                        {driveSaveSuccess && (
-                          <p className="text-xs text-green-800 font-bold mt-3">
-                            ✓ {driveSaveSuccess}
-                          </p>
-                        )}
-                        {!state.isGoogleAuthenticated && (
-                          <p id="doc-signin-hint" className="text-xs text-gray-600 mt-3">
-                            You need to go to Initial Setup and sign into Google first to use the
-                            Google Docs route. Saving to this computer works either way.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </>

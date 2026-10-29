@@ -1,4 +1,4 @@
-## What's new in v1.0.3-rc.1
+## What's new in v1.0.3-rc.2
 
 **This is a test version of 1.0.3, shared before everyone gets it.** It is marked as a pre-release,
 so it does not appear as the current version and the app does not offer it as an update. If you are
@@ -11,13 +11,15 @@ and the points for its ratings, and nothing else, so it looked like the whole ru
 The full rubric, with every description and the wording of every rating, is in your Google Doc or in
 the web page you can save.
 
-In its place is a short note with two buttons:
+In its place is a short note headed **Review your draft rubric(s) in a Google Doc or an HTML file**.
+It says you can ask Gemini for changes, or edit the Google Doc or the HTML file yourself, and it
+links to your Google Doc once you have one.
 
-- **Open your Google Doc** opens the document the app made for you.
-- **Save as HTML file** saves the rubrics as a web page on your computer. It does the same thing as
-  **Save to this computer** further down the screen, and works with or without a Google account.
-
-The note also says you can ask Gemini for changes, or edit the Google Doc or the HTML file yourself.
+The cards on this screen are in a new order: the green "Draft Rubric Created!" card, then the note,
+then the Google Doc card (**Open in Google Docs** and **Save to this computer as an .html file**),
+then the buttons that change the rubric. **Request Changes to Rubric** is now called **Ask Gemini to
+make changes to rubric(s)**. On the screenshot screen, **Save to this computer** is renamed the same
+way.
 
 Under the note, **How do I edit the HTML version of the rubric file?** opens step-by-step
 instructions: how to open the saved file in Notepad (or TextEdit on a Mac), what to change and what

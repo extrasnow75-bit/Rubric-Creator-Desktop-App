@@ -775,7 +775,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                   className="flex-1 px-4 py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 bg-gray-100 text-gray-900 hover:bg-gray-200"
                 >
                   <Download className="w-4 h-4" />
-                  Save to this computer
+                  Save to this computer as an .html file
                 </button>
                 <button
                   onClick={() => setShowRequestChangesCard(true)}
