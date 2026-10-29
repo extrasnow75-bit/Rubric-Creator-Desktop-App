@@ -1,8 +1,4 @@
-## What's new in v1.0.2-rc.1
-
-**This is a test version of 1.0.2, shared before everyone gets it.** It is marked as a pre-release,
-so it does not appear as the current version and the app does not offer it as an update. If you are
-trying it, please report what you find to the eCampus team.
+## What's new in v1.0.2
 
 ### Text you type into your Google Doc survives a change request
 
