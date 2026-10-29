@@ -221,8 +221,15 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
 
   // File picker feedback & recent docs
   const [pickedFileName, setPickedFileName] = useState<string | null>(null);
+  /** The button that brings the choices back, so focus has somewhere to land when they fold. */
+  const changeFileRef = React.useRef<HTMLButtonElement>(null);
   React.useEffect(() => {
-    if (pickedFileName) setSourceOpen(false);
+    if (pickedFileName) {
+      setSourceOpen(false);
+      /* The control that was just used is about to leave the page; without this focus would fall
+         to the top of the document. */
+      window.setTimeout(() => changeFileRef.current?.focus(), 0);
+    }
   }, [pickedFileName]);
   /** Whether the text read out of the chosen document is open for checking. */
   const [showPickedText, setShowPickedText] = useState(false);
@@ -2371,12 +2378,13 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                       */}
                       <button
                         type="button"
+                        ref={changeFileRef}
                         onClick={() => setSourceOpen((open) => !open)}
                         aria-expanded={sourceOpen}
                         aria-controls="description-source"
                         className="flex items-center gap-1 pl-3 pr-2 py-1.5 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-dark transition-colors flex-shrink-0"
                       >
-                        {sourceOpen ? 'Hide choices' : 'Change file'}
+                        Change file
                         <ChevronDown
                           className={`w-5 h-5 transition-transform ${sourceOpen ? 'rotate-180' : ''}`}
                           aria-hidden="true"
@@ -3909,7 +3917,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
               handleContinue();
             }
           }}
-          disabled={!!(onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas))}
+          disabled={!!(onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas)) || showDeployCard}
           aria-describedby={
             onAnalyzeDeploy && (!canAnalyzeDeploy || !readyForCanvas)
               ? 'deploy-blocked-reason'
@@ -3921,7 +3929,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             mouse only, so Enter still fired it. Dimming the background alone keeps white at
             4.56:1, and the card above it is what the user is answering anyway.
           */
-          className={`w-full py-4 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-700 disabled:shadow-none disabled:cursor-not-allowed ${showDeployCard ? 'bg-brand/60 pointer-events-none' : 'bg-brand hover:bg-brand-dark'}`}
+          className={`w-full py-4 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-700 disabled:shadow-none disabled:cursor-not-allowed ${showDeployCard ? '' : 'bg-brand hover:bg-brand-dark'}`}
         >
           <ArrowRight className="w-5 h-5" />
           {onAnalyzeDeploy

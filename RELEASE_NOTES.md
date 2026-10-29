@@ -1,8 +1,4 @@
-## What's new in v1.0.3-rc.4
-
-**This is a test version of 1.0.3, shared before everyone gets it.** It is marked as a pre-release,
-so it does not appear as the current version and the app does not offer it as an update. If you are
-trying it, please report what you find to the eCampus team.
+## What's new in v1.0.3
 
 ### The Create Draft Rubric card folds away once a description is loaded
 
@@ -19,6 +15,23 @@ as one from Drive.
 The button at the bottom of the review screen, and on the screenshot screen, now reads **I'm ready to
 deploy my rubric(s) to Canvas**, because clicking it opens the Canvas course step rather than
 starting the upload.
+
+### Deploying a second time now works
+
+If you deployed a rubric, then changed it (in your Google Doc or through Gemini) and clicked **Deploy
+Now** again, nothing happened: the first run's results stayed on screen and the new rubric was never
+sent. Each deploy now starts fresh from the rubrics as they are at that moment. **Deploy Now** waits
+while a deploy is still running, and cancelling a deploy during its last upload now ends it properly.
+
+The yellow note shown when the app finds a manual edit in your Google Doc is shorter:
+*Manual edit detected at (time). Time stamp in Google Doc title may have changed. Current Google Doc
+title: (title).*
+
+### Smaller fixes
+
+A very large or damaged .html file is refused sooner (over 2 MB) instead of risking a freeze. After a
+file loads, keyboard focus moves to **Change file**. The deploy button now turns grey, not faded blue,
+while the Canvas course card is open, so its text stays readable.
 
 ### The review screen points you to your Google Doc or a saved web page
 

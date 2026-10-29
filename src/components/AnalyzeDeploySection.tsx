@@ -370,6 +370,9 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
           setEstimatedMs(pct > 0 ? elapsed / pct : 0);
         }
 
+        /* Cancelled during the last request: say so, rather than reporting a finished run. */
+        if (signal.aborted) throw new Error('Cancelled');
+
         setResults([...finalResults]);
         const successCount = finalResults.filter((r) => r.status === 'success').length;
         const failCount = finalResults.filter((r) => r.status === 'failed').length;

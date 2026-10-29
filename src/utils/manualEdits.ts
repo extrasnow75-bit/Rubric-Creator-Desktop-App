@@ -94,6 +94,8 @@ export function addedPassages(before: string, after: string): string[] {
 
   const ka = a.map(wordKey);
   const kb = b.map(wordKey);
+  /* Most cells are untouched, and the table below costs n x m for nothing when they are. */
+  if (ka.length === kb.length && ka.every((k, i) => k === kb[i])) return [];
   const n = a.length;
   const m = b.length;
   const table: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));

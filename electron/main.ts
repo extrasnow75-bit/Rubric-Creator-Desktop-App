@@ -575,7 +575,7 @@ ipcMain.handle('rubric:parseHtml', (_e, args: { html: string }) => {
   if (typeof args?.html !== 'string' || args.html.trim().length === 0) {
     return { ok: false as const, message: 'That file is empty.' }
   }
-  if (args.html.length > 10_000_000) {
+  if (args.html.length > 2_000_000) {
     return { ok: false as const, message: 'That file is too large to be a rubric document.' }
   }
   try {
