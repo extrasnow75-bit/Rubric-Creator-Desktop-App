@@ -74,6 +74,11 @@ interface Props {
   onStartOver?: () => void;
   /** Open Initial Setup, for the failures a credential or the course URL would fix. */
   onOpenSetup?: () => void;
+  /**
+   * Told whenever a run starts or stops, so the screen that started it can refuse a second click
+   * while this one is under way. A run replaced mid-way is a run cancelled mid-way.
+   */
+  onRunningChange?: (running: boolean) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -95,6 +100,7 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
   uploadedFiles = [],
   courseUrl,
   onStartOver,
+  onRunningChange,
 }) => {
   const [runStatus, setRunStatus] = useState<RunStatus>('running');
   const [progress, setProgress] = useState(0);
@@ -137,6 +143,17 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
    */
   const followLogs = useRef(true);
   const hasStarted = useRef(false);
+  /**
+   * The abort that a leaving panel has scheduled but not yet made.
+   *
+   * In development React mounts, unmounts and remounts every component once, straight away. The
+   * cleanup below ran on that first pretend unmount, aborted the run that had just begun and
+   * stopped its timer, and the remount (hasStarted being set) did not start another — so the
+   * deploy went through while the panel showed a spinner and "Elapsed: 0s" for ever. Waiting a
+   * tick before aborting lets the remount cancel it; a real unmount has no remount, so it still
+   * aborts at once.
+   */
+  const pendingLeave = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const addLog = (message: string, type: LogEntry['type'] = 'info') => {
     setLogs((prev) => [...prev, { timestamp: now(), message, type }]);
@@ -179,6 +196,10 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
 
   // Main orchestration
   useEffect(() => {
+    if (pendingLeave.current) {
+      clearTimeout(pendingLeave.current);
+      pendingLeave.current = null;
+    }
     if (hasStarted.current) return;
     hasStarted.current = true;
 
@@ -398,10 +419,12 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
     run();
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      // Abort too, not just the timer. Without this, navigating away mid-run left the loop
-      // POSTing rubrics to Canvas and calling setState on an unmounted component.
-      abortRef.current?.abort();
+      pendingLeave.current = setTimeout(() => {
+        if (timerRef.current) clearInterval(timerRef.current);
+        // Abort too, not just the timer. Without this, navigating away mid-run left the loop
+        // POSTing rubrics to Canvas and calling setState on an unmounted component.
+        abortRef.current?.abort();
+      }, 0);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -465,6 +488,11 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
   const successCount = results.filter((r) => r.status === 'success').length;
   const failCount = results.filter((r) => r.status === 'failed').length;
   const isRunning = runStatus === 'running';
+
+  React.useEffect(() => {
+    onRunningChange?.(runStatus === 'running');
+    return () => onRunningChange?.(false);
+  }, [runStatus]);
 
   /**
    * What a screen reader is told when the run ends.

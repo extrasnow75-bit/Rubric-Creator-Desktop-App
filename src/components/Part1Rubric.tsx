@@ -114,6 +114,8 @@ import { getRecentDocs, saveRecentDoc, RecentDoc } from '../utils/recentDocs';
 interface Part1RubricProps {
   onAnalyzeDeploy?: () => void;
   canAnalyzeDeploy?: boolean;
+  /** True while a deploy is under way; Deploy Now waits, since a second run would cancel it. */
+  deployRunning?: boolean;
   /**
    * Where the rubrics come from: written from a description, or read out of a document.
    *
@@ -128,6 +130,7 @@ interface Part1RubricProps {
 export const Part1Rubric: React.FC<Part1RubricProps> = ({
   onAnalyzeDeploy,
   canAnalyzeDeploy,
+  deployRunning,
   mode = 'draft',
 }) => {
   const editing = mode === 'edit';
@@ -1539,12 +1542,16 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
             after ticking, so the notice is the only prompt to look — it stays on screen for
             that reason.
           */
-          const list = changed.map((t) => `"${t}"`).join(', ');
+          /*
+            Short on purpose: the longer wording explained the mechanism and left people unsure
+            what they were being asked. It says that an edit was found, when, and which title the
+            document now carries, since the timestamp in that title may have moved too.
+          */
+          const currentTitle = refreshedDoc?.name ?? state.savedDoc?.name;
           setImportNotice(
-            `${named} was changed${stamp ? ` ${stamp}` : ''}, so the app has taken in what it ` +
-              `says. ${changed.length === 1 ? 'This rubric differs' : 'These rubrics differ'} ` +
-              `from what was on screen: ${list}. Canvas will get exactly what the document ` +
-              `says.` +
+            `Manual edit detected${stamp ? ` at ${stamp}` : ''}. ` +
+              `Time stamp in Google Doc title may have changed.` +
+              (currentTitle ? ` Current Google Doc title: ${currentTitle}.` : '') +
               (hadUnsavedWork
                 ? ` Changes that were on screen but not yet saved to the document have been ` +
                   `replaced. Google Docs keeps every earlier version under File → Version history.`
@@ -4065,13 +4072,18 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                   }
                   handleContinue();
                 }}
-                disabled={!deployUrlValid}
+                disabled={!deployUrlValid || !!deployRunning}
                 className="flex-[2] py-3 px-6 bg-brand text-white rounded-2xl font-black uppercase tracking-widest hover:bg-brand-dark transition-all shadow-lg flex items-center justify-center gap-2 text-sm disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none disabled:cursor-not-allowed"
               >
                 <ArrowRight className="w-4 h-4" />
                 Deploy Now
               </button>
             </div>
+            {deployRunning && (
+              <p className="text-xs text-gray-700 mt-2 text-center" role="status">
+                A deploy is still running. You can deploy again once it finishes.
+              </p>
+            )}
           </div>
         )}
         </div>

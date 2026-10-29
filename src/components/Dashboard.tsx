@@ -629,7 +629,22 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  /**
+   * Counts the deploys started, and keys the panel that runs them.
+   *
+   * The panel does its work once, when it appears: a flag stops it starting again, and it takes
+   * its rubrics from the moment it started. So a second click on Deploy, after the rubrics had
+   * changed, found the first run's finished panel still on screen and changed nothing. A new key
+   * is a new panel: it starts afresh, from the rubrics as they now stand.
+   */
+  const [deployRun, setDeployRun] = useState(0);
+  /** True while a run is under way. A second click then would cancel it half way. */
+  const [deployRunning, setDeployRunning] = useState(false);
+
   const handleAnalyzeDeploy = (source: 'yes' | 'no') => {
+    if (deployRunning) return;
+    setDeployRun((n) => n + 1);
+    setDeployRunning(true);
     setAnalyzeRubricSource(source);
     setShowAnalyze(true);
     setTimeout(() => revealSection(analyzeRef.current), REVEAL_DELAY_MS);
@@ -1382,6 +1397,7 @@ export const Dashboard: React.FC = () => {
                 mode={phase1Mode === 'edit' ? 'edit' : 'draft'}
                 onAnalyzeDeploy={() => handleAnalyzeDeploy('no')}
                 canAnalyzeDeploy={geminiValid && canvasTokenValid}
+                deployRunning={deployRunning}
               />
             </div>
           )}
@@ -1396,6 +1412,7 @@ export const Dashboard: React.FC = () => {
               <ScreenshotConverter
                 onAnalyzeDeploy={() => handleAnalyzeDeploy('no')}
                 canAnalyzeDeploy={geminiValid && canvasTokenValid}
+                deployRunning={deployRunning}
               />
             </div>
           )}
@@ -1412,6 +1429,8 @@ export const Dashboard: React.FC = () => {
           className="focus:outline-none"
         >
           <AnalyzeDeploySection
+            key={deployRun}
+            onRunningChange={setDeployRunning}
             onOpenSetup={handleOpenSetup}
             phase1Rubrics={
               analyzeRubricSource === 'no'
@@ -1426,6 +1445,7 @@ export const Dashboard: React.FC = () => {
             uploadedFiles={analyzeRubricSource === 'yes' ? uploadedFiles : undefined}
             courseUrl={analyzeRubricSource === 'no' ? (state.courseUrl || courseUrlInput) : courseUrlInput}
             onStartOver={() => {
+              setDeployRunning(false);
               setShowAnalyze(false);
               setAnalyzeRubricSource(null);
               setHasDraftRubricLocal('');

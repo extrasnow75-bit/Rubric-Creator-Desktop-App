@@ -26,11 +26,14 @@ interface ScreenshotConverterProps {
   onAnalyzeDeploy?: () => void;
   /** False when the Gemini key or Canvas token is missing; conversion needs both. */
   canAnalyzeDeploy?: boolean;
+  /** True while a deploy is under way; the deploy button waits, since a second run would cancel it. */
+  deployRunning?: boolean;
 }
 
 export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
   onAnalyzeDeploy,
   canAnalyzeDeploy,
+  deployRunning,
 }) => {
   const {
     state,
@@ -941,7 +944,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
 
                   <button
                     onClick={handleDeployToCanvas}
-                    disabled={!canvasUrl.trim() || isDeploying || !canAnalyzeDeploy}
+                    disabled={!canvasUrl.trim() || isDeploying || !canAnalyzeDeploy || !!deployRunning}
                     aria-describedby="screenshot-deploy-hint"
                     className="w-full px-4 py-3 rounded-xl font-bold transition-all bg-brand text-white hover:bg-brand-dark disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
                   >
