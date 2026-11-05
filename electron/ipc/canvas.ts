@@ -14,6 +14,7 @@ import { getCanvasToken } from './credentials'
 import { fetchWithRetry, RequestTimeoutError } from './httpRetry'
 import { readSettings } from './settings'
 import { buildRubricPayload, parseCourseUrl, type CourseRef } from './canvasUtils'
+import { chooseCourses, nextPageUrl, type CourseChoice, type RawCourse } from './courseList'
 
 export interface CanvasResult {
   success: boolean
@@ -167,6 +168,59 @@ export async function getCourseName(args?: {
       ok: false,
       message: unreachableMessage(e),
     }
+  }
+}
+
+const COURSE_QUERY = 'include[]=term&state[]=available&state[]=unpublished'
+/** A person with thousands of courses would still fit; this only stops a server that never ends. */
+const MAX_COURSE_PAGES = 50
+
+/** Every page of one course listing, following Canvas's Link headers. */
+async function fetchCoursePages(origin: string, query: string, token: string): Promise<RawCourse[]> {
+  const all: RawCourse[] = []
+  let url: string | null = `${origin}/api/v1/courses?${query}&per_page=100`
+  for (let page = 0; url && page < MAX_COURSE_PAGES; page++) {
+    const response: Response = await fetchWithRetry(url, { headers: authHeaders(token) }, { idempotent: true })
+    if (response.status === 401) throw new CourseListError(EXPIRED_TOKEN_MESSAGE)
+    if (!response.ok) throw new CourseListError(`Canvas error (${response.status}): ${await readError(response)}`)
+    const data: unknown = JSON.parse(stripJsonGuard(await response.text()))
+    if (Array.isArray(data)) all.push(...(data as RawCourse[]))
+    url = nextPageUrl(response.headers.get('link'), origin)
+  }
+  return all
+}
+
+const EXPIRED_TOKEN_MESSAGE =
+  'Canvas rejected that token. It may have expired or been deleted — ' +
+  'generate a new one in Canvas under Account → Settings → Approved Integrations.'
+
+/** A failure whose text is already fit to show the user. */
+class CourseListError extends Error {}
+
+/**
+ * The courses the saved token's owner teaches, assists in or designs, on one Canvas site.
+ *
+ * `origin` must already have been checked by the caller (see the `canvas:listCourses` handler in
+ * main.ts): this function attaches the token to whatever origin it is handed.
+ */
+export async function listCourses(
+  origin: string,
+): Promise<{ ok: true; site: string; courses: CourseChoice[] } | { ok: false; message: string }> {
+  const token = getCanvasToken()
+  if (!token) return { ok: false, message: NO_TOKEN_MESSAGE }
+
+  try {
+    const current = await fetchCoursePages(origin, COURSE_QUERY, token)
+    let past: RawCourse[] = []
+    try {
+      past = await fetchCoursePages(origin, `${COURSE_QUERY}&state[]=completed&enrollment_state=completed`, token)
+    } catch {
+      // The current list is still useful if the past one fails.
+    }
+    return { ok: true, site: origin, courses: chooseCourses([...current, ...past]) }
+  } catch (e) {
+    if (e instanceof CourseListError) return { ok: false, message: e.message }
+    return { ok: false, message: unreachableMessage(e) }
   }
 }
 
