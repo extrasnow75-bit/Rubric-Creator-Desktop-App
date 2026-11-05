@@ -3,11 +3,12 @@ import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import type { CourseChoice } from '../types'
 import { countCourses, NO_TERM_GROUP, siteHost, visibleGroups } from './courseFilter'
 
-const ROLE_LABEL = { teacher: 'Teacher', ta: 'TA', designer: 'Designer' } as const
+const ROLE_LABEL = { teacher: 'Teacher', ta: 'TA', designer: 'Designer', admin: 'Admin' } as const
 const ROLE_STYLE = {
   teacher: 'bg-indigo-100 text-indigo-900',
   ta: 'bg-amber-100 text-amber-900',
   designer: 'bg-green-100 text-green-900',
+  admin: 'bg-purple-100 text-purple-900',
 } as const
 
 interface Props {
@@ -27,6 +28,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
   const [editingSite, setEditingSite] = useState(false)
   const [siteInput, setSiteInput] = useState('')
   const [courses, setCourses] = useState<CourseChoice[] | null>(null)
+  const [truncated, setTruncated] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -44,6 +46,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
       if (res.ok) {
         setSite(res.site)
         setCourses(res.courses)
+        setTruncated(res.truncated === true)
       } else setError(res.message)
     } catch (err) {
       if (mine === latest.current) setError(err instanceof Error ? err.message : 'Could not load your courses.')
@@ -188,7 +191,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
       )}
       <p className="text-xs text-gray-600 mt-2.5" role="status" aria-live="polite">
         {open && courses
-          ? `Showing ${shown} course${shown === 1 ? '' : 's'} where you are a teacher, TA or designer. Student courses are not listed.`
+          ? `Showing ${shown} course${shown === 1 ? '' : 's'} where you are a teacher, TA, designer or account admin. Student courses are not listed.${truncated ? ' You administer more courses than fit here, so search is limited to the first part of the list; paste a course address for any that are missing.' : ''}`
           : ''}
       </p>
     </div>

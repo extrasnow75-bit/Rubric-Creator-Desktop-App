@@ -286,7 +286,7 @@ contextBridge.exposeInMainWorld('api', {
     listCourses: (args: {
       site: string
     }): Promise<
-      | { ok: true; site: string; courses: CourseChoice[] }
+      | { ok: true; site: string; courses: CourseChoice[]; truncated?: boolean }
       | { ok: false; message: string }
     > => ipcRenderer.invoke('canvas:listCourses', args),
     /** Takes no token: main loads it from the keychain when it builds the request. */

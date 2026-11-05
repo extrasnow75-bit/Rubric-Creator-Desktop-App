@@ -92,3 +92,19 @@ describe('nextPageUrl', () => {
     expect(nextPageUrl(link('https://evil.example.com/api/v1/courses?page=2'), origin)).toBeNull()
   })
 })
+
+describe('chooseCourses with account-admin courses', () => {
+  const adminCourse = (id: number, over: Record<string, unknown> = {}) => course(id, { enrollments: undefined, ...over })
+  it('adds courses the person only administers, with the admin role', () => {
+    const list = chooseCourses([course(1)], NOW, [adminCourse(2), adminCourse(3)])
+    expect(Object.fromEntries(list.map((c) => [c.id, c.role]))).toEqual({ '1': 'teacher', '2': 'admin', '3': 'admin' })
+  })
+  it('keeps the enrollment role when the person is also enrolled', () => {
+    const list = chooseCourses([course(1, { enrollments: [{ type: 'ta' }] })], NOW, [adminCourse(1)])
+    expect(list).toHaveLength(1)
+    expect(list[0].role).toBe('ta')
+  })
+  it('still hides student-only courses when there are no admin courses', () => {
+    expect(chooseCourses([course(1, { enrollments: [{ type: 'student' }] })], NOW, [])).toHaveLength(0)
+  })
+})

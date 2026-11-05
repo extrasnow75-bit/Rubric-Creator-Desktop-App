@@ -418,7 +418,7 @@ export interface CourseChoice {
   id: string
   name: string
   code: string
-  role: 'teacher' | 'ta' | 'designer'
+  role: 'teacher' | 'ta' | 'designer' | 'admin'
   term: string
   termStart: string | null
   ended: boolean
@@ -426,5 +426,5 @@ export interface CourseChoice {
 }
 
 export type ListCoursesResult =
-  | { ok: true; site: string; courses: CourseChoice[] }
+  | { ok: true; site: string; courses: CourseChoice[]; truncated?: boolean }
   | { ok: false; message: string }

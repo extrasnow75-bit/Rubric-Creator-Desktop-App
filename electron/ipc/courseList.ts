@@ -9,7 +9,8 @@
  */
 import { parseCourseUrl } from './canvasUtils'
 
-export type CourseRole = 'teacher' | 'ta' | 'designer'
+/** 'admin' is someone who administers the Canvas account the course sits in, with no enrollment in it. */
+export type CourseRole = 'teacher' | 'ta' | 'designer' | 'admin'
 
 export interface CourseChoice {
   id: string
@@ -55,14 +56,17 @@ export function roleOf(type: string | undefined): CourseRole | null {
 
 const PRIORITY: CourseRole[] = ['teacher', 'designer', 'ta']
 
-/** Reduces Canvas's course records to the ones to offer, newest term first, then by name. */
-export function chooseCourses(raw: RawCourse[], now = new Date()): CourseChoice[] {
+/**
+ * Reduces Canvas's course records to the ones to offer, newest term first, then by name.
+ *
+ * `adminRaw` is the courses of accounts the person administers. An account admin usually has no
+ * enrollment, so these never appear in their own course list; any not already listed there are
+ * added with the 'admin' role. A course the person is also enrolled in keeps the enrollment role.
+ */
+export function chooseCourses(raw: RawCourse[], now = new Date(), adminRaw: RawCourse[] = []): CourseChoice[] {
   const seen = new Set<number>()
   const out: CourseChoice[] = []
-  for (const c of raw) {
-    if (seen.has(c.id)) continue
-    const roles = (c.enrollments ?? []).map((e) => roleOf(e.type)).filter((r): r is CourseRole => r !== null)
-    if (roles.length === 0) continue
+  const add = (c: RawCourse, role: CourseRole) => {
     seen.add(c.id)
     const real = isRealTerm(c.term?.name)
     const endAt = real ? (c.term?.end_at ?? c.end_at ?? null) : null
@@ -70,13 +74,22 @@ export function chooseCourses(raw: RawCourse[], now = new Date()): CourseChoice[
       id: String(c.id),
       name: c.name?.trim() || `Course ${c.id}`,
       code: c.course_code?.trim() ?? '',
-      role: PRIORITY.find((p) => roles.includes(p)) as CourseRole,
+      role,
       term: real ? (c.term?.name as string).trim() : NO_TERM,
       termStart: real ? (c.term?.start_at ?? null) : null,
       // A course with no term is never "ended": masters stay in use, and the group is not labelled by it.
       ended: real && (c.workflow_state === 'completed' || (endAt !== null && Date.parse(endAt) < now.getTime())),
       blueprint: c.blueprint === true,
     })
+  }
+  for (const c of raw) {
+    if (seen.has(c.id)) continue
+    const roles = (c.enrollments ?? []).map((e) => roleOf(e.type)).filter((r): r is CourseRole => r !== null)
+    if (roles.length === 0) continue
+    add(c, PRIORITY.find((p) => roles.includes(p)) as CourseRole)
+  }
+  for (const c of adminRaw) {
+    if (!seen.has(c.id)) add(c, 'admin')
   }
   return out.sort((a, b) => {
     // Masters and templates first, by name: for a designer they are the courses opened most.
