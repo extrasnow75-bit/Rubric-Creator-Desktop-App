@@ -108,3 +108,23 @@ describe('chooseCourses with account-admin courses', () => {
     expect(chooseCourses([course(1, { enrollments: [{ type: 'student' }] })], NOW, [])).toHaveLength(0)
   })
 })
+
+describe('custom roles such as "Course Administrator"', () => {
+  it('offers a role named for administering, whatever base type it is built on', () => {
+    expect(roleOf('ObserverEnrollment', 'Course Administrator')).toBe('admin')
+    expect(roleOf('StudentEnrollment', 'Course Administrator')).toBe('admin')
+    expect(roleOf('TeacherEnrollment', 'Course Administrator')).toBe('admin')
+  })
+  it('still refuses student and observer enrollments with ordinary role names', () => {
+    expect(roleOf('StudentEnrollment', 'StudentEnrollment')).toBeNull()
+    expect(roleOf('ObserverEnrollment', 'Mentor')).toBeNull()
+  })
+  it('lists a course where the only enrollment is a Course Administrator role', () => {
+    const list = chooseCourses([course(1, { enrollments: [{ type: 'ObserverEnrollment', role: 'Course Administrator' }] })], NOW)
+    expect(list.map((c) => [c.id, c.role])).toEqual([['1', 'admin']])
+  })
+  it('prefers a real teacher enrollment over the custom role in the same course', () => {
+    const list = chooseCourses([course(1, { enrollments: [{ type: 'TeacherEnrollment', role: 'Course Administrator' }, { type: 'TeacherEnrollment', role: 'TeacherEnrollment' }] })], NOW)
+    expect(list[0].role).toBe('teacher')
+  })
+})

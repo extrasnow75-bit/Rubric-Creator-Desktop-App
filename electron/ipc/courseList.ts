@@ -34,7 +34,8 @@ export interface RawCourse {
   blueprint?: boolean
   end_at?: string | null
   term?: { name?: string; start_at?: string | null; end_at?: string | null } | null
-  enrollments?: Array<{ type?: string }>
+  /** `type` is Canvas's base type; `role` is the name shown in People, which a school can customise. */
+  enrollments?: Array<{ type?: string; role?: string }>
 }
 
 /** The group for masters and templates, which belong to no real term. */
@@ -45,8 +46,15 @@ export const NO_TERM = 'No term'
 const isRealTerm = (name: string | undefined): boolean =>
   Boolean(name?.trim()) && !/^default term$/i.test(name as string)
 
-/** Canvas writes the same role as "teacher" in some places and "TeacherEnrollment" in others. */
-export function roleOf(type: string | undefined): CourseRole | null {
+/**
+ * Canvas writes the same role as "teacher" in some places and "TeacherEnrollment" in others.
+ *
+ * Schools also make their own roles, such as "Course Administrator". Canvas reports the base
+ * type it was built on in `type` (which may be anything, even Observer) and the name people see
+ * in `role`. A role named for administering is offered as 'admin' whatever it is built on.
+ */
+export function roleOf(type: string | undefined, roleName?: string): CourseRole | null {
+  if (/admin/i.test(roleName ?? '')) return 'admin'
   const t = (type ?? '').toLowerCase().replace(/enrollment$/, '')
   if (t === 'teacher') return 'teacher'
   if (t === 'ta') return 'ta'
@@ -54,7 +62,7 @@ export function roleOf(type: string | undefined): CourseRole | null {
   return null
 }
 
-const PRIORITY: CourseRole[] = ['teacher', 'designer', 'ta']
+const PRIORITY: CourseRole[] = ['teacher', 'designer', 'ta', 'admin']
 
 /**
  * Reduces Canvas's course records to the ones to offer, newest term first, then by name.
@@ -84,7 +92,7 @@ export function chooseCourses(raw: RawCourse[], now = new Date(), adminRaw: RawC
   }
   for (const c of raw) {
     if (seen.has(c.id)) continue
-    const roles = (c.enrollments ?? []).map((e) => roleOf(e.type)).filter((r): r is CourseRole => r !== null)
+    const roles = (c.enrollments ?? []).map((e) => roleOf(e.type, e.role)).filter((r): r is CourseRole => r !== null)
     if (roles.length === 0) continue
     add(c, PRIORITY.find((p) => roles.includes(p)) as CourseRole)
   }

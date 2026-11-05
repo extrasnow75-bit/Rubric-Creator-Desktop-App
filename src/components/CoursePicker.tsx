@@ -191,7 +191,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
       )}
       <p className="text-xs text-gray-600 mt-2.5" role="status" aria-live="polite">
         {open && courses
-          ? `Showing ${shown} course${shown === 1 ? '' : 's'} where you are a teacher, TA, designer or account admin. Student courses are not listed.${truncated ? ' You administer more courses than fit here, so search is limited to the first part of the list; paste a course address for any that are missing.' : ''}`
+          ? `Showing ${shown} course${shown === 1 ? '' : 's'} where you are a teacher, TA, designer or administrator. Student courses are not listed.${truncated ? ' You administer more courses than fit here, so search is limited to the first part of the list; paste a course address for any that are missing.' : ''}`
           : ''}
       </p>
     </div>
