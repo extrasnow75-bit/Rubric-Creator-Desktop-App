@@ -108,7 +108,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
       {/* Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] transition-opacity"
+          className="titlebar-no-drag fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] transition-opacity"
           onClick={onClose}
         />
       )}
