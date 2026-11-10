@@ -1,4 +1,4 @@
-import { plainMessage, splitDetails } from '../utils/errorDetails';
+import { plainMessage, splitDetails, logMessage } from '../utils/errorDetails';
 import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle, XCircle, Loader2, Copy, Check, Trash2, ExternalLink } from 'lucide-react';
 import { RubricData, CanvasConfig } from '../types';
@@ -273,7 +273,7 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
                 onResult: ({ name, csv, error }) => {
                   converted += 1;
                   if (csv === undefined) {
-                    addLog(`Could not convert "${name}": ${error}`, 'error');
+                    addLog(`Could not convert "${name}": ${logMessage(error)}`, 'error');
                     return;
                   }
                   pending.push({ name, csvContent: csv });
@@ -283,7 +283,7 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
               });
             } catch (err: any) {
               if (signal.aborted) throw err;
-              addLog(`Failed to analyze "${file.name}": ${err.message}`, 'error');
+              addLog(`Failed to analyze "${file.name}": ${logMessage(err.message)}`, 'error');
             }
             setProgress(Math.round(((i + 1) / totalFiles) * 40));
             // Update ETA
@@ -409,7 +409,7 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
           addLog('Operation cancelled by user.', 'warning');
           setRunStatus('cancelled');
         } else {
-          addLog(`Unexpected error: ${err.message}`, 'error');
+          addLog(`Unexpected error: ${logMessage(err.message)}`, 'error');
           setRunStatus('complete');
         }
       } finally {

@@ -1,3 +1,5 @@
+import { withDetails } from './errorDetails';
+
 /**
  * Turning a Gemini failure into a sentence a course designer can act on.
  *
@@ -115,53 +117,67 @@ export function describeGeminiFailure(error: unknown): GeminiFailure | null {
     return {
       culprit: 'gemini-key',
       message:
-        "Your Gemini API key has used up its free requests for today. The key itself is fine and there is nothing wrong with your Google account, your Canvas token or the assignment description — replacing any of them will not give you more requests. The allowance resets tomorrow.",
+        "Your Gemini key has used up its free requests for today. Your Google account, Canvas token and description are fine. What to do: try again tomorrow. The limit resets overnight.",
     };
   }
   if (isModelOverloaded(error)) {
     return {
       culprit: 'google-service',
       message:
-        "Google's AI service is busy and turned the request away. This one is at Google's end: your Gemini key, your Google account, your Canvas token and your assignment description are all fine, and a new key — in this Google account or any other — will not help, because every key reaches the same busy service. It usually clears within a few minutes.",
+        "Google's AI service is busy right now. This is on Google's side. Your key and description are fine, a new key won't help, and it has nothing to do with how much you have used Gemini. What to do: wait a few minutes and try again.",
     };
   }
   if (isTemporaryRateLimit(error)) {
     return {
       culprit: 'gemini-key',
       message:
-        "Gemini is limiting how fast this key may send requests. Nothing is wrong with the key, your Google account or your Canvas token. Waiting a minute and trying again usually clears it.",
+        "Gemini needs you to slow down. Your key is fine. What to do: wait one minute and try again.",
     };
   }
   if (isKeyProblem(error)) {
     return {
       culprit: 'gemini-key',
       message:
-        "Gemini would not accept your API key. This is the key specifically — not your Google sign-in, not your Canvas token, and not Boise State's Canvas. Check it on the Dashboard, or paste a fresh one from Google AI Studio.",
+        "Gemini won't accept your API key. What to do: open Initial Setup, check the key, or paste a new one from Google AI Studio.",
     };
   }
   if (isModelMissing(error)) {
     return {
       culprit: 'app',
       message:
-        "Gemini no longer offers the AI model this app asks for. This one is the app's problem, not yours — a new key will not fix it. Report it so the app can be pointed at a current model.",
+        "The AI model this app uses is no longer available. This is the app's problem, not yours. What to do: tell the person who supports this app.",
     };
   }
   return null;
 }
 
 /**
- * The line to show the user: the plain sentence when we recognise the failure, Google's own text
- * when we do not, and a short fallback when there is no text at all.
+ * The line to show the user: a plain sentence with what to do, and Google's own text behind it as
+ * technical details, so a reported message can still be traced back to what actually happened.
  *
  * Nothing is invented. Where the failure is unrecognised the user gets Google's wording untouched
  * and no claim about whose fault it is, which is more honest than a confident guess and is what
  * lets a reported message be traced back to what actually happened.
  */
+/** An AI failure we do not recognise. Google's own text goes in the details. */
+export const AI_FAILED =
+  "The AI service had a problem and didn't finish. What to do: try again. If it fails again, send the technical details to the person who supports this app.";
+
+/** The AI answered, but with nothing the app can read. `step` names what was being done, for support. */
+export function aiUnusableAnswer(step: string): Error {
+  return withDetails(
+    "The AI gave an answer the app couldn't use. What to do: try again. If it fails again, send the technical details to the person who supports this app.",
+    `The AI returned an empty or unreadable response while ${step}.`,
+  );
+}
+
 export function geminiFailureMessage(error: unknown): string {
-  const described = describeGeminiFailure(error);
-  if (described) return described.message;
   const raw = textOf(error).trim();
-  return raw || 'The AI request failed without saying why.';
+  // Cancelling is the user's own choice, not a failure to explain.
+  if (raw === 'Request cancelled') return raw;
+  const technical = raw || 'The AI request failed without saying why.';
+  const described = describeGeminiFailure(error);
+  return withDetails(described ? described.message : AI_FAILED, technical).message;
 }
 
 /** Whose problem it is, for anywhere that wants to label a failure rather than narrate it. */

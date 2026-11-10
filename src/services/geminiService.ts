@@ -12,6 +12,7 @@
  * queue and retry back-off in gemini.ts have always used. The abort semantics the components
  * relied on still hold; only the transport is different.
  */
+import { plainMessage } from '../utils/errorDetails';
 import {
   GenerationSettings,
   RubricData,
@@ -476,7 +477,7 @@ export async function generateCsvsChunked(
       aligned = alignByTitle(group.map((g) => g.name), extracted);
     } catch (err: any) {
       cancelled();
-      onNote?.(`That group could not be converted together (${err.message}). Retrying one at a time.`);
+      onNote?.(`That group could not be converted together (${plainMessage(err.message)}). Retrying one at a time.`);
       aligned = group.map(() => null);
     }
 

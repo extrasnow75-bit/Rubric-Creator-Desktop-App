@@ -1,3 +1,4 @@
+import { splitDetails } from '../utils/errorDetails';
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { bytesToBase64 } from '../utils/driveFile';
@@ -64,7 +65,7 @@ const RubricErrorLine: React.FC<{ error: string }> = ({ error }) => {
       </button>
       {expanded && (
         <pre className="mt-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-all">
-          {error}
+          {splitDetails(error).details ?? error}
         </pre>
       )}
     </>

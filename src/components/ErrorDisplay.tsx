@@ -10,6 +10,8 @@ import { splitDetails } from '../utils/errorDetails';
  * explanation with actionable next steps.
  */
 export function friendlyError(raw: string, compact = false): string {
+  // Already written for a person by the main process: show it as it is.
+  if (splitDetails(raw).details) return splitDetails(raw).plain;
   const msg = raw.toLowerCase();
 
   if (msg.includes('no gemini api key') || msg.includes('please enter your api key')) {
@@ -85,9 +87,15 @@ export function friendlyError(raw: string, compact = false): string {
     return compact ? 'Cancelled.' : 'The operation was cancelled.';
   }
 
+  if (msg.includes('unexpected token') || msg.includes('in json') || msg.includes('json at position')) {
+    return compact
+      ? 'The AI gave an answer the app could not use — try again.'
+      : "The AI gave an answer the app couldn't use. What to do: try again. If it fails again, send the technical details to the person who supports this app.";
+  }
+
   return compact
     ? 'Request failed — try again.'
-    : 'Something went wrong. Please try again. If the problem continues, check your API key on the Dashboard.';
+    : 'Something went wrong. What to do: try again. If it keeps happening, send the technical details to the person who supports this app.';
 }
 
 interface ErrorDisplayProps {

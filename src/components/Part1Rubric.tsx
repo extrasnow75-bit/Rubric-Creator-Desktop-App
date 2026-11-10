@@ -1798,7 +1798,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       setShowDeployCard(false);
       return `Now ${chained.criteria.map((c) => leadingPoints(c.exemplary)).join(' / ')}, adding up to ${canvasTotal(chained)}. Every word is unchanged.`;
     } catch (err) {
-      return `Could not reach the AI: ${err instanceof Error ? err.message : String(err)}`;
+      return `Could not reach the AI: ${plainMessage(err instanceof Error ? err.message : String(err))}`;
     }
   };
 

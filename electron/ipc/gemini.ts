@@ -24,6 +24,7 @@ import { buildRubricCsv, ExtractedCriterion } from './rubricCsv'
 import { getGeminiApiKey } from './credentials'
 import {
   geminiFailureMessage,
+  aiUnusableAnswer,
   isHardQuotaLimit,
   isModelOverloaded,
   isTemporaryRateLimit,
@@ -667,7 +668,7 @@ export async function suggestPointSplit(
       },
     });
 
-    if (!response.text) throw new Error('The AI returned no point split.');
+    if (!response.text) throw aiUnusableAnswer('splitting the points');
     const parsed = JSON.parse(response.text.trim()) as { points?: unknown };
     return Array.isArray(parsed.points) ? parsed.points.map(Number) : [];
   }, signal);
@@ -998,7 +999,7 @@ export async function generateRubricFromDescription(
       },
     });
 
-    if (!response.text) throw new Error("Failed to generate rubric content.");
+    if (!response.text) throw aiUnusableAnswer('creating the rubric');
     return JSON.parse(response.text.trim()) as RubricData;
   }, signal);
 }
@@ -1092,7 +1093,7 @@ export async function generateRubricFromScreenshot(
       },
     });
 
-    if (!response.text) throw new Error("Failed to process rubric screenshot.");
+    if (!response.text) throw aiUnusableAnswer('reading the rubric screenshot');
     return JSON.parse(response.text.trim()) as RubricData;
   }, signal);
 }
@@ -1191,7 +1192,7 @@ export async function extractRubricFromDocument(
       config: { responseMimeType: "application/json", responseSchema: rubricSchema },
     });
 
-    if (!response.text) throw new Error("Failed to extract rubric from document.");
+    if (!response.text) throw aiUnusableAnswer('reading the rubric from the document');
     return JSON.parse(response.text.trim()) as RubricData;
   }, signal);
 }
@@ -1281,7 +1282,7 @@ export async function applyRubricChanges(
       config: { responseMimeType: "application/json", responseSchema: rubricSchema },
     });
 
-    if (!response.text) throw new Error("Failed to apply rubric changes.");
+    if (!response.text) throw aiUnusableAnswer('applying your changes');
     return JSON.parse(response.text.trim()) as RubricData;
   }, signal);
 }
@@ -1339,7 +1340,7 @@ ${csvContent.slice(0, 3000)}`,
       },
     });
 
-    if (!response.text) throw new Error('No analysis response from Gemini');
+    if (!response.text) throw aiUnusableAnswer('analysing the description');
     return JSON.parse(response.text.trim()) as CsvAnalysisResult;
   }, signal);
 }
@@ -1428,7 +1429,7 @@ ${csvContent}`;
       },
     });
 
-    if (!response.text) throw new Error('No repair response from Gemini');
+    if (!response.text) throw aiUnusableAnswer('repairing the rubric file');
     const parsed = JSON.parse(response.text.trim()) as CsvRepairProposal;
     // Models still fence occasionally despite the JSON schema, and a stray fence would fail the
     // parse gate for a reason that has nothing to do with the rubric.
@@ -1490,7 +1491,7 @@ export async function generateCsvForRubric(
       },
     });
 
-    if (!response.text) throw new Error('No response from Gemini');
+    if (!response.text) throw aiUnusableAnswer('reading the rubric criteria');
     const parsed = JSON.parse(response.text.trim()) as { criteria: ExtractedCriterion[] };
     if (!Array.isArray(parsed.criteria) || parsed.criteria.length === 0) {
       throw new Error(`No criteria found for the rubric named “${rubricName}”.`);
@@ -1565,7 +1566,7 @@ Do NOT generate CSV content — titles and scoring methods only.`;
       },
     });
 
-    if (!response.text) throw new Error('No response from rubric discovery call');
+    if (!response.text) throw aiUnusableAnswer('finding the rubrics in the document');
     const parsed = JSON.parse(response.text.trim()) as {
       rubrics: Array<{ name: string; scoringMethod: string }>;
     };
@@ -1665,7 +1666,7 @@ async function runBatchExtraction(
       },
     });
 
-    if (!response.text) throw new Error('No response from Gemini batch call');
+    if (!response.text) throw aiUnusableAnswer('reading the rubrics in the document');
     const parsed = JSON.parse(response.text.trim()) as {
       rubrics: Array<{ title: string; usesRanges: boolean; criteria: ExtractedCriterion[] }>;
     };

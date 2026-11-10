@@ -1,3 +1,4 @@
+import { splitDetails } from '../src/utils/errorDetails';
 import { describe, it, expect } from 'vitest';
 import {
   describeGeminiFailure,
@@ -8,7 +9,7 @@ import {
   isModelMissing,
   isModelOverloaded,
   isTemporaryRateLimit,
-} from './geminiErrors';
+} from '../electron/ipc/geminiErrors';
 
 /**
  * The strings here are the real ones, copied from the app's own deployment timeline and from
@@ -73,10 +74,12 @@ describe('describeGeminiFailure names whose problem it is', () => {
   it('puts a busy service on Google, and rules out the key swap by name', () => {
     const { culprit, message } = describeGeminiFailure(OVERLOADED)!;
     expect(culprit).toBe('google-service');
-    expect(message).toMatch(/at Google's end/i);
-    // The wasted fix this exists to prevent: a new key, then a new key in another account.
-    expect(message).toMatch(/new key/i);
-    expect(message).toMatch(/any other/i);
+    expect(message).toMatch(/on Google's side/i);
+    // The wasted fix this exists to prevent: replacing the key. And the other wrong guess: that
+    // the person's own use of Gemini caused it.
+    expect(message).toMatch(/new key won't help/i);
+    expect(message).toMatch(/nothing to do with how much you have used Gemini/i);
+    expect(message).toMatch(/What to do:/);
     // And the advice the old message gave, which was never right for this.
     expect(message).not.toMatch(/shorten/i);
   });
@@ -84,23 +87,22 @@ describe('describeGeminiFailure names whose problem it is', () => {
   it('puts a spent allowance on the key without blaming the key', () => {
     const { culprit, message } = describeGeminiFailure(DAILY_CAP)!;
     expect(culprit).toBe('gemini-key');
-    expect(message).toMatch(/resets tomorrow/i);
-    expect(message).toMatch(/key itself is fine/i);
+    expect(message).toMatch(/try again tomorrow/i);
+    expect(message).toMatch(/Google account, Canvas token and description are fine/i);
   });
 
   it('puts a rejected key on the key, and says so against the alternatives', () => {
     const { culprit, message } = describeGeminiFailure(BAD_KEY)!;
     expect(culprit).toBe('gemini-key');
-    expect(message).toMatch(/Dashboard/);
-    expect(message).toMatch(/not your Google sign-in/i);
-    expect(message).toMatch(/not your Canvas token/i);
+    expect(message).toMatch(/Initial Setup/);
+    expect(message).toMatch(/Google AI Studio/);
   });
 
   it('puts a withdrawn model on the app rather than the user', () => {
     const { culprit, message } = describeGeminiFailure(GONE)!;
     expect(culprit).toBe('app');
     expect(message).toMatch(/app's problem/i);
-    expect(message).toMatch(/new key will not fix it/i);
+    expect(message).toMatch(/tell the person who supports this app/i);
   });
 
   it('prefers the daily cap over the rate limit when both could match', () => {
@@ -108,11 +110,9 @@ describe('describeGeminiFailure names whose problem it is', () => {
     expect(describeGeminiFailure(DAILY_CAP)!.message).toMatch(/today/i);
   });
 
-  it('clears the user\'s other credentials in every message it owns', () => {
-    // Whatever the cause, the user should never be left wondering whether to go and replace
-    // their Canvas token or their Google sign-in over an AI failure.
-    for (const error of [OVERLOADED, DAILY_CAP, RATE_LIMITED, BAD_KEY]) {
-      expect(describeGeminiFailure(error)!.message).toMatch(/Canvas token/i);
+  it('tells the user what to do in every message it owns', () => {
+    for (const error of [OVERLOADED, DAILY_CAP, RATE_LIMITED, BAD_KEY, GONE]) {
+      expect(describeGeminiFailure(error)!.message).toMatch(/What to do:/);
     }
   });
 });
@@ -127,14 +127,27 @@ describe('geminiFailureCulprit', () => {
 });
 
 describe('geminiFailureMessage', () => {
-  it('passes an unrecognised failure through untouched', () => {
-    expect(geminiFailureMessage(new Error('Could not extract text from the Word document'))).toBe(
-      'Could not extract text from the Word document',
+  it('gives an unrecognised failure a plain sentence, with the original text as details', () => {
+    const { plain, details } = splitDetails(
+      geminiFailureMessage(new Error('Could not extract text from the Word document')),
     );
+    expect(plain).toMatch(/What to do:/);
+    expect(details).toBe('Could not extract text from the Word document');
+  });
+
+  it('keeps Google\'s own text as details for a recognised failure', () => {
+    const { plain, details } = splitDetails(geminiFailureMessage(OVERLOADED));
+    expect(plain).toMatch(/Google's AI service is busy/);
+    expect(details).toContain('503');
   });
 
   it('says something rather than nothing when the error has no text', () => {
-    expect(geminiFailureMessage(new Error(''))).toBe('The AI request failed without saying why.');
-    expect(geminiFailureMessage(undefined)).toBe('The AI request failed without saying why.');
+    expect(splitDetails(geminiFailureMessage(new Error(''))).details).toBe(
+      'The AI request failed without saying why.',
+    );
+  });
+
+  it('leaves a cancellation alone', () => {
+    expect(geminiFailureMessage(new Error('Request cancelled'))).toBe('Request cancelled');
   });
 });
