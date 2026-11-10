@@ -1,3 +1,4 @@
+import { withDetails, SUPPORT_CONTACT } from './errorDetails'
 import { app, shell, safeStorage, BrowserWindow } from 'electron'
 import { createServer } from 'http'
 import { createHash, randomBytes } from 'crypto'
@@ -180,7 +181,23 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
         server.close()
         focusAppWindow()
 
-        if (error) return finish(() => reject(new Error('Google sign-in was cancelled.')))
+        if (error) {
+          return finish(() => {
+            const description = url.searchParams.get('error_description')
+            // Declining on the consent screen is a decision, not a fault, so it keeps its own
+            // short message (the renderer shows nothing for it). Anything else is a real refusal.
+            if (error === 'access_denied' && !description) {
+              reject(new Error('Google sign-in was cancelled.'))
+            } else {
+              reject(
+                withDetails(
+                  `Google would not complete the sign-in. Please try again. If it keeps happening, ask ${SUPPORT_CONTACT} to check that your Google account has been added to the approved list.`,
+                  `Google returned error=${error}${description ? `; error_description=${description}` : ''}`,
+                ),
+              )
+            }
+          })
+        }
         if (returnedState !== state) {
           return finish(() => reject(new Error('Google sign-in could not be verified, so it was stopped for your safety. Please try signing in again.')))
         }
@@ -244,7 +261,12 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
             } catch {
               /* already closed */
             }
-            reject(new Error('Google sign-in timed out. Please try signing in again.'))
+            reject(
+              withDetails(
+                `Google sign-in did not finish in time. Close the Google browser tab and try again. If Google showed a message such as "app not verified" or "access blocked", your account has not been added to the approved list yet: ask ${SUPPORT_CONTACT} to add you. Google sign-in also has to be repeated about once a week.`,
+                'No response from Google within 3 minutes (the browser sign-in was never completed).',
+              ),
+            )
           }),
         180_000,
       )
@@ -267,12 +289,18 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
   if (!tokenRes.ok) {
     const detail = await tokenRes.text().catch(() => '')
     console.warn(`Google token exchange failed (${tokenRes.status}). ${detail.slice(0, 300)}`)
-    throw new Error('Google sign-in did not finish. Please try signing in again.')
+    throw withDetails(
+      `Google accepted your sign-in but the app could not finish it. Please try again. If it keeps happening, contact ${SUPPORT_CONTACT}.`,
+      `Token exchange failed: HTTP ${tokenRes.status}. ${detail.slice(0, 300)}`,
+    )
   }
 
   const data = (await tokenRes.json()) as TokenResponse
   if (!data.refresh_token) {
-    throw new Error('Google did not return a refresh token. Try removing the app under your Google account permissions, then sign in again.')
+    throw withDetails(
+      'Google signed you in but did not give the app lasting access. Remove the app under your Google account permissions (myaccount.google.com/permissions), then sign in again.',
+      'The token response had no refresh_token.',
+    )
   }
   const profile = decodeIdToken(data.id_token)
   const tokens: StoredTokens = {

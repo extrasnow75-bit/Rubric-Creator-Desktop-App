@@ -11,6 +11,7 @@
  *      the in-app browser built on it is better in the ways that were annoying anyway: no
  *      separate Picker API key, no 403 overlay, no ten-second timeout.
  */
+import { withDetails } from './errorDetails'
 import { randomBytes } from 'crypto'
 import { getAccessToken } from './googleAuth'
 import { fetchWithRetry, RequestTimeoutError } from './httpRetry'
@@ -77,34 +78,40 @@ async function parseGoogleError(response: Response): Promise<string> {
  * user — ask a colleague to share the file, versus sign in again and tick the Drive box.
  */
 async function driveError(response: Response, noun: string): Promise<Error> {
+  const technical = `Google Drive returned HTTP ${response.status} for a ${noun} request.`
   if (response.status === 404) {
-    return new Error(`That ${noun} was not found. Check the link and try again.`)
+    return withDetails(`That ${noun} was not found. Check the link and try again.`, technical)
   }
   if (response.status === 401) {
-    return new Error('Your Google sign-in has expired. Sign in again under Initial Setup.')
+    return withDetails(
+      'Your Google sign-in has expired. Sign in again under Initial Setup.',
+      technical,
+    )
   }
   if (response.status === 403) {
-    const detail = (await parseGoogleError(response)).toLowerCase()
+    const detail = await parseGoogleError(response)
+    const lower = detail.toLowerCase()
     const scopeProblem =
-      detail.includes('insufficientpermissions') ||
-      detail.includes('insufficient permissions') ||
-      detail.includes('insufficient authentication scopes')
+      lower.includes('insufficientpermissions') ||
+      lower.includes('insufficient permissions') ||
+      lower.includes('insufficient authentication scopes')
     if (scopeProblem) {
-      return new Error(
-        'This app was not granted access to your Google Drive. Sign out and sign in again, ' +
-          'and allow Drive access on the Google consent screen.',
+      return withDetails(
+        'Google signed you in, but you did not allow this app to use your Google Drive. Sign out, sign in again, and tick the Drive box on the Google screen that asks what to allow.',
+        `${technical} ${detail}`,
       )
     }
-    return new Error(
-      `You do not have access to that ${noun}. Ask whoever owns it to share it with your ` +
-        'Google account.',
+    return withDetails(
+      `You do not have access to that ${noun}. Ask whoever owns it to share it with your Google account.`,
+      `${technical} ${detail}`,
     )
   }
   const detail = await parseGoogleError(response)
-  // The status code and Google's reason string stay out of the sentence: they mean nothing to
-  // the person reading it. The detail is logged so it is not lost.
   console.warn(`Google Drive request failed (${response.status})${detail ? `: ${detail}` : ''}`)
-  return new Error('Google Drive could not complete that request. Please try again in a moment.')
+  return withDetails(
+    'Google Drive could not complete that request. Please try again in a moment.',
+    `${technical} ${detail}`,
+  )
 }
 
 /**

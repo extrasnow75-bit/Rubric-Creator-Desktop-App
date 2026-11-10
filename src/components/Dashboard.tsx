@@ -20,6 +20,7 @@ import { validateGeminiApiKey } from '../services/geminiService';
 import { AnalyzeDeploySection, UploadedDocFile } from './AnalyzeDeploySection';
 import { Part1Rubric } from './Part1Rubric';
 import { ScreenshotConverter } from './ScreenshotConverter';
+import ErrorDisplay from './ErrorDisplay';
 import { isHtmlFileName } from '../utils/htmlRubricFile';
 
 // ─── Google Icon ──────────────────────────────────────────────────────────────
@@ -900,9 +901,7 @@ export const Dashboard: React.FC = () => {
                       {state.isAuthenticating ? <><Loader2 className="w-5 h-5 animate-spin" /> Signing in...</> : <><GoogleIcon /> Sign In with Google</>}
                     </button>
                     {state.googleAuthError && (
-                      <p className="text-xs text-red-600 mt-2 flex items-start gap-1">
-                        <X className="w-3 h-3 mt-0.5 flex-shrink-0" /> {state.googleAuthError}
-                      </p>
+                      <ErrorDisplay error={state.googleAuthError} asWritten className="mt-3" />
                     )}
                   </div>
                 ) : (

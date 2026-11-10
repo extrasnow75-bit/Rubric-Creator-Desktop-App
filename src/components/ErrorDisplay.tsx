@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { splitDetails } from '../utils/errorDetails';
 
 /**
  * Convert a raw error message into a user-friendly description.
@@ -92,17 +93,24 @@ export function friendlyError(raw: string, compact = false): string {
 interface ErrorDisplayProps {
   error: string;
   className?: string;
+  /** The message is already written for a person (not a raw Gemini error): show it as it is. */
+  asWritten?: boolean;
 }
 
 /**
  * Shows a friendly plain-English error message with an optional expandable
  * "Show technical details" section containing the original raw error.
  */
-const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '' }) => {
+const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '', asWritten = false }) => {
   const [showDetails, setShowDetails] = useState(false);
-  const friendly = friendlyError(error);
-  // Only show the details toggle when the raw message adds something beyond the friendly text
-  const hasDetails = error.length > 80 || error.includes('{') || error.includes('code":');
+  // A message the main process already wrote for a person carries its own technical details.
+  // It is shown as written: the keyword matching in friendlyError is for raw Gemini errors, and
+  // would turn a Google sign-in problem into advice about an API key.
+  const split = splitDetails(error);
+  const friendly = split.details || asWritten ? split.plain : friendlyError(error);
+  const technical = split.details ?? error;
+  // Only show the details toggle when there is something beyond the friendly text
+  const hasDetails = split.details !== undefined || error.length > 80 || error.includes('{') || error.includes('code":');
 
   return (
     // role="alert": a failed generation or upload was previously silent to assistive tech
@@ -116,6 +124,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '' }) =>
           {hasDetails && (
             <button
               onClick={() => setShowDetails(prev => !prev)}
+              aria-expanded={showDetails}
               className="mt-2 flex items-center gap-1 text-xs text-red-700 hover:text-red-900 transition-colors"
             >
               {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -125,7 +134,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '' }) =>
 
           {showDetails && (
             <pre className="mt-2 text-xs text-red-600 bg-red-100 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">
-              {error}
+              {technical}
             </pre>
           )}
         </div>
