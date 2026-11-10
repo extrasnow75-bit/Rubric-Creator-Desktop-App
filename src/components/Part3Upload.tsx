@@ -1,3 +1,4 @@
+import { plainMessage, logMessage } from '../utils/errorDetails';
 import React, { useState, useEffect } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { useDrivePicker } from '../contexts/DrivePickerContext';
@@ -295,9 +296,9 @@ export const Part3Upload: React.FC = () => {
                 canvasUploadStatus: 'success',
               });
             } else {
-              setPhase2UploadStatuses(prev => ({ ...prev, [item.id]: { status: 'error', message: result.message } }));
+              setPhase2UploadStatuses(prev => ({ ...prev, [item.id]: { status: 'error', message: plainMessage(result.message) } }));
               errorCount++;
-              addLog(`✗ ${fileName} failed: ${result.message}`);
+              addLog(`✗ ${fileName} failed: ${logMessage(result.message)}`);
             }
           } catch (err: any) {
             setPhase2UploadStatuses(prev => ({ ...prev, [item.id]: { status: 'error', message: err.message } }));
@@ -346,7 +347,7 @@ export const Part3Upload: React.FC = () => {
             }, 500);
           } else {
             // Full error detail goes to the log; status box shows a short summary
-            addLog(`✗ Upload failed: ${result.message}`);
+            addLog(`✗ Upload failed: ${logMessage(result.message)}`);
             setUploadStatus({ success: false, message: 'Upload failed — see the deployment log above for details.' });
             stopProgress();
           }
@@ -421,10 +422,10 @@ export const Part3Upload: React.FC = () => {
               updatedFiles[i] = {
                 ...file,
                 status: 'error',
-                message: result.message,
+                message: plainMessage(result.message),
               };
               errorCount++;
-              addLog(`✗ ${file.name} failed: ${result.message}`);
+              addLog(`✗ ${file.name} failed: ${logMessage(result.message)}`);
             }
           } catch (err: any) {
             updatedFiles[i] = {
@@ -559,7 +560,7 @@ export const Part3Upload: React.FC = () => {
       const result = await window.api.canvas.getCourseName({ courseUrl: courseUrl.trim() });
       const msg = result.ok
         ? `\u2713 Connected \u2014 ${result.name || 'Course found'}`
-        : `\u2717 ${result.message || 'Could not reach that course.'}`;
+        : `\u2717 ${plainMessage(result.message) || 'Could not reach that course.'}`;
       setValidationResult({ ok: result.ok, message: msg });
       addLog(msg);
     } catch (e) {

@@ -103,6 +103,7 @@ interface ErrorDisplayProps {
  */
 const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '', asWritten = false }) => {
   const [showDetails, setShowDetails] = useState(false);
+  const [copied, setCopied] = useState(false);
   // A message the main process already wrote for a person carries its own technical details.
   // It is shown as written: the keyword matching in friendlyError is for raw Gemini errors, and
   // would turn a Google sign-in problem into advice about an API key.
@@ -136,6 +137,20 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '', asWr
             <pre className="mt-2 text-xs text-red-600 bg-red-100 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">
               {technical}
             </pre>
+          )}
+
+          {showDetails && (
+            <button
+              onClick={() => {
+                void navigator.clipboard?.writeText(technical).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                });
+              }}
+              className="mt-1 text-xs text-red-700 underline hover:text-red-900 transition-colors"
+            >
+              {copied ? 'Copied' : 'Copy details'}
+            </button>
           )}
         </div>
       </div>

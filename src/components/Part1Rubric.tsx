@@ -1,3 +1,4 @@
+import { plainMessage } from '../utils/errorDetails';
 import React, { useState, useRef } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { useCopyAction } from '../hooks/useCopyAction';
@@ -405,7 +406,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
         });
         if (cancelled) return;
         if (result.ok && result.name) setDeployCourseName(result.name);
-        else setDeployNameError(result.message ?? 'Could not load this course.');
+        else setDeployNameError(plainMessage(result.message) || 'Could not load this course.');
       } catch (e) {
         if (!cancelled) {
           setDeployNameError(e instanceof Error ? e.message : 'Could not load this course.');

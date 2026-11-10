@@ -12,3 +12,14 @@ export function splitDetails(message: string): { plain: string; details?: string
   const details = message.slice(at + DETAILS_MARKER.length).trim()
   return { plain: message.slice(0, at).trim(), details: details || undefined }
 }
+
+/** Just the sentence written for a person. For places with no room for a details dropdown. */
+export function plainMessage(message: string | undefined | null): string {
+  return splitDetails(message ?? '').plain
+}
+
+/** The sentence followed by its technical cause, for the activity log that gets sent to support. */
+export function logMessage(message: string | undefined | null): string {
+  const { plain, details } = splitDetails(message ?? '')
+  return details ? `${plain} (Technical details: ${details})` : plain
+}

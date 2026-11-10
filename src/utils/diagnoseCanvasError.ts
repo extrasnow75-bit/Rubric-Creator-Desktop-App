@@ -138,6 +138,66 @@ export function diagnoseCanvasError(rawMessage: string | undefined | null): Canv
     };
   }
 
+  // ── The app's own wording for Canvas failures (electron/ipc/canvasMessages.ts) ──
+  // Matched on the plain sentence, ahead of the loose rules below, which would otherwise read
+  // words in the technical details that follow it. A rubric Canvas rejected on its contents has
+  // no rule here on purpose: it carries Canvas's own text, which the contents rule further down
+  // needs in order to offer the repair.
+  if (has(message, 'no longer accepts your saved access code')) {
+    return {
+      cause: 'Canvas rejected your access token. Tokens expire, and can be revoked.',
+      fix: 'Generate a fresh token in Canvas under Account → Settings, and save it in Initial Setup.',
+      transient: false,
+      repairable: false,
+      action: { kind: 'open-setup', label: 'Update my Canvas token' },
+    };
+  }
+  if (has(message, 'isn’t allowed to do this in this course')) {
+    return {
+      cause: 'Your Canvas account is not allowed to add rubrics to that course.',
+      fix: 'Check you are a teacher, designer or course administrator in the course, and that it is the right course.',
+      transient: false,
+      repairable: false,
+      action: { kind: 'none' },
+    };
+  }
+  if (has(message, 'can’t find this course')) {
+    return {
+      cause: 'Canvas has no course with that ID, or your account cannot see it.',
+      fix: 'Check the number at the end of the course URL matches the course you want.',
+      transient: false,
+      repairable: false,
+      action: { kind: 'open-setup', label: 'Check the course URL' },
+    };
+  }
+  if (has(message, 'needs the app to slow down')) {
+    return {
+      cause: 'Canvas is rate-limiting the app for sending too many requests at once.',
+      fix: 'Wait a few minutes and deploy again. Deploying fewer rubrics at a time also helps.',
+      transient: true,
+      repairable: false,
+      action: { kind: 'retry', label: 'Try again' },
+    };
+  }
+  if (has(message, 'is having trouble right now')) {
+    return {
+      cause: 'Canvas had a server error. This is a problem at their end, not with your rubric.',
+      fix: 'Wait a few minutes and try again.',
+      transient: true,
+      repairable: false,
+      action: { kind: 'retry', label: 'Try again' },
+    };
+  }
+  if (has(message, 'can’t reach canvas')) {
+    return {
+      cause: 'The app could not reach Canvas.',
+      fix: 'Check your internet connection and whether Canvas is up, then try again.',
+      transient: true,
+      repairable: false,
+      action: { kind: 'retry', label: 'Try again' },
+    };
+  }
+
   // ── Canvas's own responses ────────────────────────────────────────────────
 
   // 401. Canvas says "Invalid access token", which sounds like the app sent something

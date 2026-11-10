@@ -1,3 +1,4 @@
+import { plainMessage, logMessage } from '../utils/errorDetails';
 import React, { useRef, useState } from 'react';
 import { AlertTriangle, Check, Download, Loader2, Sparkles, X } from 'lucide-react';
 import { repairRubricCsv, CsvRepairDiff } from '../services/geminiService';
@@ -111,11 +112,11 @@ export const CsvRepairPanel: React.FC<Props> = ({
         return;
       }
       setStage({ name: 'failed', repairedCsv, notes, diff, message: res.message });
-      onLog(`✗ Repaired "${rubricName}" still failed: ${res.message}`, 'error');
+      onLog(`✗ Repaired "${rubricName}" still failed: ${logMessage(res.message)}`, 'error');
     } catch (err: any) {
       const message = err?.message ?? 'The deployment failed.';
       setStage({ name: 'failed', repairedCsv, notes, diff, message });
-      onLog(`✗ Repaired "${rubricName}" still failed: ${message}`, 'error');
+      onLog(`✗ Repaired "${rubricName}" still failed: ${logMessage(message)}`, 'error');
     }
   };
 
@@ -269,7 +270,7 @@ export const CsvRepairPanel: React.FC<Props> = ({
 
       {stage.name === 'failed' && (
         <p className="text-xs font-bold text-red-800" role="status">
-          Canvas rejected the repaired file too: {stage.message} —{' '}
+          Canvas rejected the repaired file too: {plainMessage(stage.message)} —{' '}
           {diagnoseCanvasError(stage.message).fix}
         </p>
       )}

@@ -10,6 +10,7 @@
  * The token never travels through the renderer. Handlers here take the CSV and the course URL,
  * and load the token from the keychain themselves at the moment they build the request.
  */
+import { canvasApiMessage, canvasUnreachableMessage } from './canvasMessages'
 import { getCanvasToken } from './credentials'
 import { fetchWithRetry, RequestTimeoutError } from './httpRetry'
 import { readSettings } from './settings'
@@ -121,16 +122,8 @@ export async function verifyToken(args?: {
       { headers: authHeaders(token) },
       { idempotent: true },
     )
-    if (response.status === 401) {
-      return {
-        ok: false,
-        message:
-          'Canvas rejected that token. It may have expired or been deleted — ' +
-          'generate a new one in Canvas under Account → Settings → Approved Integrations.',
-      }
-    }
     if (!response.ok) {
-      return { ok: false, message: `Canvas responded with ${response.status}.` }
+      return { ok: false, message: canvasApiMessage(response.status, await readError(response)) }
     }
     const profile = JSON.parse(stripJsonGuard(await response.text())) as { name?: string }
     return { ok: true, name: profile.name }
@@ -159,7 +152,9 @@ export async function getCourseName(args?: {
       { headers: authHeaders(token) },
       { idempotent: true },
     )
-    if (!response.ok) return { ok: false, message: await readError(response) }
+    if (!response.ok) {
+      return { ok: false, message: canvasApiMessage(response.status, await readError(response)) }
+    }
     const course = JSON.parse(stripJsonGuard(await response.text())) as { name?: string }
     return { ok: true, name: course.name }
   } catch (e) {
@@ -183,7 +178,7 @@ function unreachableMessage(e: unknown, creating = false): string {
       ? 'Canvas did not answer in time. The rubric may or may not have been created, so check the Rubrics page in your course before trying again.'
       : 'Canvas did not answer in time. Please try again.'
   }
-  return `Could not reach Canvas: ${e instanceof Error ? e.message : String(e)}`
+  return canvasUnreachableMessage(e instanceof Error ? e.message : String(e))
 }
 
 /** Push one rubric CSV to a course's Rubrics list. */
@@ -211,31 +206,10 @@ export async function pushRubric(args: {
       { idempotent: false, signal: args.signal },
     )
 
-    if (response.status === 401) {
+    if (!response.ok) {
       return {
         success: false,
-        message:
-          'Canvas rejected your token. It may have expired — generate a new one under ' +
-          'Account → Settings → Approved Integrations, then save it in Initial Setup.',
-      }
-    }
-    if (response.status === 403) {
-      return {
-        success: false,
-        message:
-          'Canvas refused the upload. Your account may not have permission to add rubrics to ' +
-          'this course — check that you are a teacher or designer there, not a student or observer.',
-      }
-    }
-    if (response.status === 429) {
-      return {
-        success: false,
-        message: 'Canvas is busy and asked the app to slow down. Wait a minute, then try again.',
-      }
-    }    if (!response.ok) {
-      return {
-        success: false,
-        message: `Canvas error (${response.status}): ${await readError(response)}`,
+        message: canvasApiMessage(response.status, await readError(response)),
       }
     }
 

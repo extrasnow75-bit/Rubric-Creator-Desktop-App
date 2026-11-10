@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { splitDetails } from './errorDetails'
-import { withDetails } from '../../electron/ipc/errorDetails'
+import { splitDetails } from '../src/utils/errorDetails'
+import { withDetails } from '../electron/ipc/errorDetails'
 
 describe('splitDetails', () => {
   it('returns a plain message untouched', () => {

@@ -1,3 +1,4 @@
+import { plainMessage, splitDetails } from '../utils/errorDetails';
 import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle, XCircle, Loader2, Copy, Check, Trash2, ExternalLink } from 'lucide-react';
 import { RubricData, CanvasConfig } from '../types';
@@ -347,7 +348,8 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
               continue;
             }
 
-            addLog(`✗ "${item.name}" failed: ${message}`, 'error');
+            addLog(`✗ "${item.name}" failed: ${plainMessage(message)}`, 'error');
+            if (splitDetails(message ?? '').details) addLog(`   Technical details: ${splitDetails(message ?? '').details}`, 'info');
             // The cause is logged separately from Canvas's own words so the timeline says what
             // to do, while still showing exactly what Canvas reported.
             addLog(`   ${diagnosis.cause} ${diagnosis.fix}`, 'warning');

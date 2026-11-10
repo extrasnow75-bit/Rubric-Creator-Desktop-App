@@ -52,7 +52,7 @@ describe('pushRubric', () => {
   it('explains a 403 as a permissions problem', async () => {
     fetchMock.mockResolvedValueOnce(json(403, {}))
     const result = await pushRubric({ csvContent: CSV })
-    expect(result.message).toMatch(/permission/i)
+    expect(result.message).toMatch(/isn’t allowed/)
   })
 
   it('shows Canvas\'s own sentence for another failure, after stripping the JSON guard', async () => {
@@ -80,7 +80,7 @@ describe('pushRubric', () => {
     fetchMock.mockResolvedValue(json(429, {}))
     const result = await pushRubric({ csvContent: CSV })
     expect(result.success).toBe(false)
-    expect(result.message).toMatch(/busy/i)
+    expect(result.message.split('[[technical details]]')[0]).not.toMatch(/\b429\b/)
     expect(result.message).not.toMatch(/\b429\b/)
   })
 
@@ -95,7 +95,7 @@ describe('pushRubric', () => {
   it('reports a network failure plainly', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'))
     const result = await pushRubric({ csvContent: CSV })
-    expect(result.message).toMatch(/could not reach canvas/i)
+    expect(result.message).toMatch(/can’t reach canvas/i)
   })
 })
 
@@ -115,7 +115,7 @@ describe('verifyToken and getCourseName', () => {
     fetchMock.mockResolvedValueOnce(json(401, {}))
     const result = await verifyToken()
     expect(result.ok).toBe(false)
-    expect(result.message).toMatch(/rejected that token/i)
+    expect(result.message).toMatch(/no longer accepts your saved access code/i)
   })
 
   it('getCourseName returns the course name', async () => {
