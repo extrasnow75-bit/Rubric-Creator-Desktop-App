@@ -191,7 +191,7 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
             } else {
               reject(
                 withDetails(
-                  `Google would not complete the sign-in. Please try again. If it keeps happening, ask ${SUPPORT_CONTACT} to check that your Google account has been added to the approved list.`,
+                  `Google would not complete the sign-in. Please try again. If Google showed a warning that the app isn't verified, click Advanced, then choose to continue to the app. If it keeps happening, contact ${SUPPORT_CONTACT}.`,
                   `Google returned error=${error}${description ? `; error_description=${description}` : ''}`,
                 ),
               )
@@ -263,7 +263,7 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
             }
             reject(
               withDetails(
-                `Google sign-in did not finish in time. Close the Google browser tab and try again. If Google showed a message such as "app not verified" or "access blocked", your account has not been added to the approved list yet: ask ${SUPPORT_CONTACT} to add you. Google sign-in also has to be repeated about once a week.`,
+                `Google sign-in did not finish in time. Close the Google browser tab and try again. If Google showed a warning that the app isn't verified, click Advanced, then choose to continue to the app. If it keeps happening, contact ${SUPPORT_CONTACT}.`,
                 'No response from Google within 3 minutes (the browser sign-in was never completed).',
               ),
             )
