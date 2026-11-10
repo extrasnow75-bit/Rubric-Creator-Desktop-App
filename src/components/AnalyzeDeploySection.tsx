@@ -472,7 +472,7 @@ export const AnalyzeDeploySection: React.FC<Props> = ({
    */
   const handleCopyLogs = async () => {
     const header = [
-      `Canvas Rubric Creator v${await window.api.app.version()} — deployment log`,
+      `The Rubric Creator Desktop App v${await window.api.app.version()} — deployment log`,
       `Copied ${new Date().toLocaleString()}`,
       courseUrl ? `Course: ${courseUrl}` : 'Course: (none set)',
       `${results.length} rubric(s): ${successCount} deployed, ${failCount} failed`,

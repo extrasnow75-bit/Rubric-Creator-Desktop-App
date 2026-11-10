@@ -296,7 +296,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
                   className="flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all group"
                 >
                   <span className="text-sm font-bold text-blue-900">
-                    Canvas Rubric Creator App — KB Article
+                    The Rubric Creator Desktop App — KB Article
                   </span>
                   <span className="text-blue-700 ml-3"><ExternalLinkIcon /></span>
                 </a>
@@ -319,7 +319,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
                 className="flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl transition-all group"
               >
                 <span className="text-sm font-bold text-blue-900">
-                  Canvas Rubric Creator App — Watch the Walkthrough Video
+                  The Rubric Creator Desktop App — Watch the Walkthrough Video
                 </span>
                 <span className="text-blue-700 ml-3"><ExternalLinkIcon /></span>
               </a>

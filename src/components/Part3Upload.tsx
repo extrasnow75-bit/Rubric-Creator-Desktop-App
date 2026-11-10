@@ -103,7 +103,7 @@ export const Part3Upload: React.FC = () => {
   /** Same header as the Part 1 / screenshot timeline, so a pasted log reads the same either way. */
   const handleCopyLogs = async () => {
     const header = [
-      `Canvas Rubric Creator v${await window.api.app.version()} — deployment log`,
+      `The Rubric Creator Desktop App v${await window.api.app.version()} — deployment log`,
       `Copied ${new Date().toLocaleString()}`,
       '',
     ].join('\n');

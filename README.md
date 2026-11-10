@@ -1,4 +1,4 @@
-# Canvas Rubric Creator
+# The Rubric Creator Desktop App
 
 A desktop app for Windows and macOS that turns an assignment description into a Canvas rubric,
 converts existing rubric documents into Canvas CSV, and pushes them straight into a Canvas course.

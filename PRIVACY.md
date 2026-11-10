@@ -1,8 +1,8 @@
-# Privacy Policy: Canvas Rubric Creator
+# Privacy Policy: The Rubric Creator Desktop App
 
-_Last updated: November 6, 2026_
+_Last updated: November 10, 2026_
 
-Canvas Rubric Creator is a desktop app. It runs on your own computer and helps you draft rubrics from an assignment description, convert them to files, and add them to a Canvas course you choose. This page explains what information the app uses and where it goes.
+The Rubric Creator Desktop App runs on your own computer and helps you draft rubrics from an assignment description, convert them to files, and add them to a Canvas course you choose. This page explains what information the app uses and where it goes.
 
 ## The short version
 

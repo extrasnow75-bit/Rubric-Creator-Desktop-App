@@ -1,5 +1,5 @@
 /**
- * Google OAuth configuration for the Canvas Rubric Creator desktop app.
+ * Google OAuth configuration for The Rubric Creator Desktop App.
  *
  * Setting this up (one-time, in the Google Cloud Console):
  *   1. APIs & Services → enable the **Google Drive API**.

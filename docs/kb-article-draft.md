@@ -1,4 +1,4 @@
-# **Canvas Rubric Creator**
+# **The Rubric Creator Desktop App**
 
 ## Draft KB Article
 
@@ -10,7 +10,7 @@
 
 The purpose of this tool is to save the IDC the work of building a rubric from scratch, reformatting one by hand into the shape Canvas will import, and then copying it into a course a row at a time.
 
-Canvas Rubric Creator does three things, and you can start at whichever one matches what you already have:
+The Rubric Creator Desktop App does three things, and you can start at whichever one matches what you already have:
 
 * **Draft a rubric** from an assignment description, using the eCampus Center rubric template.
 * **Rebuild a rubric from a screenshot** of one that already exists in Canvas.
@@ -26,7 +26,7 @@ The app **adds** rubrics to a course. It never edits, replaces or deletes a rubr
 
 The Rubric App used to be a website. **This one is a desktop app that you install on your computer.** It does not require any coding tools or know-how to use.
 
-**Download:** [Canvas Rubric Creator releases page](https://github.com/extrasnow75-bit/Rubric-Creator-Desktop-App/releases/latest)
+**Download:** [The Rubric Creator Desktop App releases page](https://github.com/extrasnow75-bit/Rubric-Creator-Desktop-App/releases/latest)
 
 The release page offers three files, and its own **Download** section at the top names them and links them directly. Take the one for your computer:
 
@@ -62,7 +62,7 @@ The app checks the key as soon as you paste it, and tells you there and then whe
 
 **2\. A Canvas access token — required to deploy to Canvas.** A token is a long string of characters that acts as an ID and a password in one. You create your own:
 
-> In Canvas, go to **Account → Settings**, scroll to **Approved Integrations**, click **\+ New Access Token**, give it a purpose such as "Canvas Rubric Creator," **set an expiry date**, and click **Generate Token**. **Copy the token immediately** — Canvas will not show it to you again.
+> In Canvas, go to **Account → Settings**, scroll to **Approved Integrations**, click **\+ New Access Token**, give it a purpose such as "The Rubric Creator Desktop App," **set an expiry date**, and click **Generate Token**. **Copy the token immediately** — Canvas will not show it to you again.
 
 The token gives the app exactly the Canvas access you already have — no more. It is stored encrypted on your own computer and is never sent anywhere except Canvas.
 
@@ -161,8 +161,8 @@ The app also has a straight-through route: **Part 1** creates the rubric, **Part
 | A rubric deployed but the points are wrong | Check whether the results said **"Deployed from an AI repair."** If so, the AI supplied a value the document did not have. Correct it in Canvas. |
 | Two copies of the same rubric in Canvas | Every deploy adds a new rubric. Delete the one you do not want, in Canvas. |
 | Google sign-in stops working, or asks again after about a week | Expected. Google expires sign-in weekly for apps still in testing. Sign in again from Initial Setup. |
-| Google shows a warning screen the first time you sign in | Click **Advanced**, then **Go to Canvas Rubric Creator**. The app has not been through Google's public review, which is not required for internal use. |
-| Google sign-in fails saying the app is not verified, and there is no **Advanced** link | Your Google account has not been added to the approved list. Contact the eCampus Center. |
+| Google shows "Google hasn't verified this app" the first time you sign in | Click **Continue**, not the big blue **Back to safety** button. The app has not been through Google's public review, which is not required while it is limited to approved testers. |
+| Google shows "Access blocked" | Your Google account is not on the approved list. Contact Greg Snow (gregsnow@boisestate.edu or extrasnow75@gmail.com) with the Google account you use. |
 | A Word document will not convert | Make sure you are on the current version — this was broken in versions before 0.9.2 for every Word document. |
 | The Gemini key is rejected | Check for a stray space at either end. If it still fails, generate a new key in AI Studio. |
 | Text is too small to read | Use the **Text size** buttons at the top of the window — **−**, the percentage, and **+**. Clicking the percentage returns it to 100%. **Ctrl** and **+** or **−** (**Cmd** on a Mac) do the same, and **Ctrl/Cmd 0** resets. The setting is remembered. |
@@ -352,7 +352,7 @@ The source of truth is `docs/kb-article-draft.md`. The `.html` beside it is gene
 
 ```
 python3 docs/md2doc.py docs/kb-article-draft.md docs/kb-article-draft.html \
-  "Canvas Rubric Creator — Draft KB Article"
+  "The Rubric Creator Desktop App — Draft KB Article"
 ```
 
 To get it into Google Docs: **Drive → New → File upload**, upload the `.html`, then right-click it and choose **Open with → Google Docs**. Docs converts it on open, tables and all.

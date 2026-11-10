@@ -29,8 +29,9 @@ you (Greg Snow, gregsnow@boisestate.edu or extrasnow75@gmail.com).
 
 ### Smaller changes
 
-Dialog buttons can be clicked where a dialog overlaps the title bar. The privacy policy and terms of
-service are in the app's repository.
+The app is now called **The Rubric Creator Desktop App** on Google's sign-in screens, in the window
+title, in the Help Center and in the privacy policy and terms. Dialog buttons can be clicked where a
+dialog overlaps the title bar. The privacy policy and terms of service are in the app's repository.
 
 ## What's new in v1.0.3
 

@@ -107,9 +107,9 @@ export function getStatus(): GoogleStatus {
  * app pulls itself back to the front rather than waiting behind the browser.
  */
 const COMPLETION_PAGE =
-  '<!doctype html><meta charset="utf-8"><title>Canvas Rubric Creator</title>' +
+  '<!doctype html><meta charset="utf-8"><title>The Rubric Creator Desktop App</title>' +
   '<body style="font-family:sans-serif;text-align:center;padding-top:60px">' +
-  '<h2>Canvas Rubric Creator</h2>' +
+  '<h2>The Rubric Creator Desktop App</h2>' +
   '<p id="msg">Sign-in complete — returning you to the app…</p>' +
   '<script>' +
   'function bye(){try{window.close()}catch(e){}}' +
