@@ -1,4 +1,5 @@
 import React, { useId, useRef, useState } from 'react'
+import ErrorDisplay from './ErrorDisplay'
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import type { CourseChoice } from '../types'
 import { countCourses, NO_TERM_GROUP, siteHost, visibleGroups } from './courseFilter'
@@ -147,7 +148,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
                 <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Loading your courses…
               </p>
             )}
-            {error && <p className="p-3.5 text-[13px] text-red-700">{error}</p>}
+            {error && <div className="p-3.5"><ErrorDisplay error={error} asWritten /></div>}
             {courses && shown === 0 && (
               <p className="p-3.5 text-[13px] text-gray-700">
                 No courses match. Try fewer words.

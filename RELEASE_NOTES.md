@@ -1,3 +1,37 @@
+## What's new in v1.1.0
+
+### Choose your Canvas course from a list
+
+The Canvas course step now has a **Choose from my courses** button. It shows a searchable list of the
+courses where you are a teacher, TA or designer, so you no longer have to find and paste the course
+address. It also lists courses in Canvas accounts you administer, and it recognises roles your school
+has made itself, such as **Course Administrator**. Pasting a course address still works.
+
+### Error messages you can act on
+
+Errors now say, in plain words, what happened and what to do. Each one has a **Show technical details**
+link with a **Copy details** button, so you can send the exact cause to whoever supports the app.
+
+- **Google sign-in.** If sign-in does not finish, the message explains the two screens Google may show:
+  a warning that the app is not verified (click **Continue**, not **Back to safety**) and an
+  **Access blocked** page (ask to be added). It also says that Google asks for a new sign-in about once
+  a week. If Google signs you in but you did not tick the Drive box, the message says to sign out, sign
+  in again and tick it.
+- **Canvas.** An access code that no longer works, an account that is not allowed in the course (you
+  need to be a teacher, designer or course administrator), a course Canvas cannot find, Canvas asking
+  the app to slow down, Canvas having trouble on its end, and no connection each have their own message.
+- **The AI.** A busy Google service, a used-up daily allowance, too many requests in a minute, a
+  rejected key and an answer the app cannot use each have their own message. The error card no longer
+  tells you to check your API key when the key is fine.
+
+The **Sign In with Google** button now has a short note under it saying who to contact if Google blocks
+you (Greg Snow, gregsnow@boisestate.edu or extrasnow75@gmail.com).
+
+### Smaller changes
+
+Dialog buttons can be clicked where a dialog overlaps the title bar. The privacy policy and terms of
+service are in the app's repository.
+
 ## What's new in v1.0.3
 
 ### The Create Draft Rubric card folds away once a description is loaded

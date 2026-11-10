@@ -184,18 +184,13 @@ async function fetchPages<T>(
   let page = 0
   for (; url && page < maxPages; page++) {
     const response: Response = await fetchWithRetry(url, { headers: authHeaders(token) }, { idempotent: true })
-    if (response.status === 401) throw new CourseListError(EXPIRED_TOKEN_MESSAGE)
-    if (!response.ok) throw new CourseListError(`Canvas error (${response.status}): ${await readError(response)}`)
+    if (!response.ok) throw new CourseListError(canvasApiMessage(response.status, await readError(response)))
     const data: unknown = JSON.parse(stripJsonGuard(await response.text()))
     if (Array.isArray(data)) all.push(...(data as T[]))
     url = nextPageUrl(response.headers.get('link'), origin)
   }
   return { items: all, truncated: url !== null }
 }
-
-const EXPIRED_TOKEN_MESSAGE =
-  'Canvas rejected that token. It may have expired or been deleted — ' +
-  'generate a new one in Canvas under Account → Settings → Approved Integrations.'
 
 /** A failure whose text is already fit to show the user. */
 class CourseListError extends Error {}
