@@ -651,7 +651,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
         ...prev,
         isGoogleAuthenticated: false,
         googleUser: null,
-        googleAuthError: 'Your Google sign-in expired. Sign in again to use Drive.',
+        googleAuthError: 'Your Google sign-in expired. Google asks for this about once a week. Sign in again to use Drive.',
       }));
     });
 

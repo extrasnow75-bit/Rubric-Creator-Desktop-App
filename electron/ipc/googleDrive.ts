@@ -84,7 +84,7 @@ async function driveError(response: Response, noun: string): Promise<Error> {
   }
   if (response.status === 401) {
     return withDetails(
-      'Your Google sign-in has expired. Sign in again under Initial Setup.',
+      'Your Google sign-in has expired. Google asks for this about once a week. Sign in again under Initial Setup.',
       technical,
     )
   }
