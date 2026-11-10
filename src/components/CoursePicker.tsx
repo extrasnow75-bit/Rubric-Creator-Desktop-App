@@ -1,4 +1,4 @@
-import React, { useId, useRef, useState } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 import ErrorDisplay from './ErrorDisplay'
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import type { CourseChoice } from '../types'
@@ -35,6 +35,17 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
   const [query, setQuery] = useState('')
   const latest = useRef(0)
   const id = useId()
+  // Focus has to be put somewhere deliberate whenever the control the person was on goes away,
+  // or it falls back to the top of the window and a keyboard or screen-reader user must start over.
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const siteInputRef = useRef<HTMLInputElement>(null)
+  const changeRef = useRef<HTMLButtonElement>(null)
+  const wasEditingSite = useRef(false)
+  useEffect(() => {
+    if (editingSite) siteInputRef.current?.focus()
+    else if (wasEditingSite.current) changeRef.current?.focus()
+    wasEditingSite.current = editingSite
+  }, [editingSite])
 
   const load = async (target: string) => {
     const mine = ++latest.current
@@ -72,6 +83,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
   return (
     <div>
       <button
+        ref={toggleRef}
         onClick={toggle}
         aria-expanded={open}
         aria-controls={`${id}-list`}
@@ -91,7 +103,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
               placeholder="Search by course name or code"
               aria-label="Search your courses"
               spellCheck={false}
-              className="flex-1 min-w-[10rem] border-2 border-gray-500 rounded-lg px-2.5 py-1.5 text-[13px] focus:outline-none focus:border-brand"
+              className="flex-1 min-w-[10rem] border-2 border-gray-500 rounded-lg px-2.5 py-1.5 text-[13px] focus:outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand"
             />
           </div>
 
@@ -100,6 +112,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
               <>
                 <label htmlFor={`${id}-site`}>Canvas site</label>
                 <input
+                  ref={siteInputRef}
                   id={`${id}-site`}
                   type="text"
                   value={siteInput}
@@ -108,11 +121,13 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
                     if (e.key === 'Enter') {
                       setEditingSite(false)
                       void load(siteInput)
+                    } else if (e.key === 'Escape') {
+                      setEditingSite(false)
                     }
                   }}
                   placeholder="yourschool.instructure.com"
                   spellCheck={false}
-                  className="flex-1 min-w-[10rem] border-2 border-gray-500 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-brand"
+                  className="flex-1 min-w-[10rem] border-2 border-gray-500 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand"
                 />
                 <button
                   onClick={() => {
@@ -130,6 +145,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
                   Canvas site: <b>{siteHost(site)}</b>
                 </span>
                 <button
+                  ref={changeRef}
                   onClick={() => {
                     setSiteInput(siteHost(site))
                     setEditingSite(true)
@@ -142,7 +158,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
             )}
           </div>
 
-          <div className="max-h-[290px] overflow-auto" role="region" aria-label="Your courses">
+          <div className="max-h-[290px] overflow-auto" role="region" aria-label="Your courses" tabIndex={groups.length === 0 ? 0 : undefined}>
             {loading && (
               <p className="p-3.5 text-[13px] text-gray-700 flex items-center gap-2">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Loading your courses…
@@ -170,6 +186,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
                     onClick={() => {
                       setOpen(false)
                       onChoose(`${site}/courses/${c.id}`)
+                      toggleRef.current?.focus()
                     }}
                     className="w-full flex items-center gap-2.5 text-left border-t border-gray-100 px-3 py-2 hover:bg-blue-50 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
                   >

@@ -906,13 +906,11 @@ export const Dashboard: React.FC = () => {
                     >
                       {state.isAuthenticating ? <><Loader2 className="w-5 h-5 animate-spin" /> Signing in...</> : <><GoogleIcon /> Sign In with Google</>}
                     </button>
-                    {!state.googleAuthError && (
-                      <p className="text-xs text-gray-600 mt-2">
-                        Google only lets approved accounts sign in. If Google says &ldquo;Access blocked&rdquo;,
-                        contact {SUPPORT_CONTACT} to be added. If Google warns the app isn&rsquo;t verified, click
-                        Continue, not Back to safety.
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-600 mt-2">
+                      Google only lets approved accounts sign in. If Google says &ldquo;Access blocked&rdquo;,
+                      contact {SUPPORT_CONTACT} to be added. If Google warns the app isn&rsquo;t verified, click
+                      Continue, not Back to safety.
+                    </p>
                     {state.googleAuthError && (
                       <ErrorDisplay error={state.googleAuthError} asWritten className="mt-3" />
                     )}

@@ -111,7 +111,7 @@ interface ErrorDisplayProps {
  */
 const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '', asWritten = false }) => {
   const [showDetails, setShowDetails] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   // A message the main process already wrote for a person carries its own technical details.
   // It is shown as written: the keyword matching in friendlyError is for raw Gemini errors, and
   // would turn a Google sign-in problem into advice about an API key.
@@ -121,44 +121,59 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '', asWr
   // Only show the details toggle when there is something beyond the friendly text
   const hasDetails = split.details !== undefined || error.length > 80 || error.includes('{') || error.includes('code":');
 
+  const copy = () => {
+    const done = (state: 'copied' | 'failed') => {
+      setCopyState(state);
+      setTimeout(() => setCopyState('idle'), 3000);
+    };
+    if (!navigator.clipboard?.writeText) return done('failed');
+    navigator.clipboard.writeText(technical).then(() => done('copied'), () => done('failed'));
+  };
+
   return (
-    // role="alert": a failed generation or upload was previously silent to assistive tech
-    // unless the user happened to be focused nearby.
-    <div role="alert" className={`p-4 bg-red-50 border border-red-200 rounded-2xl ${className}`}>
+    <div className={`p-4 bg-red-50 border border-red-200 rounded-2xl ${className}`}>
       <div className="flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+        <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-red-800 font-semibold leading-snug">{friendly}</p>
+          {/* role="alert" is on the sentence only. Putting it on the whole card made a screen reader
+              read the technical text again whenever the details were opened or copied. */}
+          <p role="alert" className="text-sm text-red-800 font-semibold leading-snug">{friendly}</p>
 
           {hasDetails && (
             <button
               onClick={() => setShowDetails(prev => !prev)}
               aria-expanded={showDetails}
-              className="mt-2 flex items-center gap-1 text-xs text-red-700 hover:text-red-900 transition-colors"
+              className="mt-1 py-1.5 flex items-center gap-1 text-xs text-red-700 hover:text-red-900 transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700"
             >
-              {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {showDetails ? <ChevronUp className="w-3 h-3" aria-hidden="true" /> : <ChevronDown className="w-3 h-3" aria-hidden="true" />}
               {showDetails ? 'Hide technical details' : 'Show technical details'}
             </button>
           )}
 
           {showDetails && (
-            <pre className="mt-2 text-xs text-red-600 bg-red-100 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">
-              {technical}
-            </pre>
+            <>
+              <pre className="mt-1 text-xs text-red-900 bg-red-100 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">
+                {technical}
+              </pre>
+              <button
+                onClick={copy}
+                className="mt-1 py-1.5 text-xs text-red-700 underline hover:text-red-900 transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700"
+              >
+                {copyState === 'copied' ? 'Copied' : 'Copy details'}
+              </button>
+            </>
           )}
 
-          {showDetails && (
-            <button
-              onClick={() => {
-                void navigator.clipboard?.writeText(technical).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                });
-              }}
-              className="mt-1 text-xs text-red-700 underline hover:text-red-900 transition-colors"
-            >
-              {copied ? 'Copied' : 'Copy details'}
-            </button>
+          {/* Always mounted, so a screen reader announces the change. */}
+          <span role="status" className="sr-only">
+            {copyState === 'copied'
+              ? 'Details copied to the clipboard.'
+              : copyState === 'failed'
+                ? 'Could not copy. Select the technical details and copy them by hand.'
+                : ''}
+          </span>
+          {copyState === 'failed' && (
+            <p className="mt-1 text-xs text-red-800" aria-hidden="true">Could not copy. Select the text above and copy it by hand.</p>
           )}
         </div>
       </div>
