@@ -126,8 +126,17 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, className = '', asWr
       setCopyState(state);
       setTimeout(() => setCopyState('idle'), 3000);
     };
-    if (!navigator.clipboard?.writeText) return done('failed');
-    navigator.clipboard.writeText(technical).then(() => done('copied'), () => done('failed'));
+    // The app's own clipboard bridge first: the browser clipboard is not always available in the window.
+    const write = async (): Promise<boolean> => {
+      try {
+        if (window.api?.app?.copyText) return await window.api.app.copyText(technical);
+        await navigator.clipboard.writeText(technical);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    void write().then((ok) => done(ok ? 'copied' : 'failed'));
   };
 
   return (

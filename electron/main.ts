@@ -286,6 +286,7 @@ ipcMain.handle('canvas:setCourseUrl', async (e, url: string | null) => {
   if (!url) {
     updateSettings({ canvasCourseUrl: undefined })
     setAllowedCanvasHost(null)
+    approvedHosts.clear()
     return { ok: true as const }
   }
 
@@ -310,6 +311,9 @@ ipcMain.handle('canvas:setCourseUrl', async (e, url: string | null) => {
 
   updateSettings({ canvasCourseUrl: url.trim() })
   setAllowedCanvasHost(url.trim())
+  // An approval covers listing courses on a site and then saving one of them. Once a course is
+  // saved the saved host is the authority, so a later switch back to an earlier site asks again.
+  approvedHosts.clear()
   return { ok: true as const }
 })
 

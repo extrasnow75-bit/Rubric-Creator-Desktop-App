@@ -181,9 +181,14 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
         server.close()
         focusAppWindow()
 
+        // The state check comes first: a request that cannot prove it belongs to this sign-in must
+        // not be able to put its own error text in front of the person.
+        if (returnedState !== state) {
+          return finish(() => reject(new Error('Google sign-in could not be verified, so it was stopped for your safety. Please try signing in again.')))
+        }
         if (error) {
           return finish(() => {
-            const description = url.searchParams.get('error_description')
+            const description = (url.searchParams.get('error_description') ?? '').replace(/[\r\n\t]+/g, ' ').slice(0, 200)
             // Declining on the consent screen is a decision, not a fault, so it keeps its own
             // short message (the renderer shows nothing for it). Anything else is a real refusal.
             if (error === 'access_denied' && !description) {
@@ -197,9 +202,6 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
               )
             }
           })
-        }
-        if (returnedState !== state) {
-          return finish(() => reject(new Error('Google sign-in could not be verified, so it was stopped for your safety. Please try signing in again.')))
         }
         finish(() => resolve({ code: returnedCode!, redirectUri }))
       })

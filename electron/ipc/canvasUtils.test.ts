@@ -52,6 +52,11 @@ describe('parseCSV', () => {
 })
 
 describe('parseCourseUrl', () => {
+  it.each(['https://[::1]/courses/1', 'https://[fd00::1]/courses/1', 'https://[fe80::1]/courses/1', 'https://[::ffff:10.0.0.1]/courses/1'])(
+    'refuses the IPv6 address %s',
+    (url) => expect(parseCourseUrl(url)).toBeNull(),
+  )
+
   it('extracts origin and course id', () => {
     expect(parseCourseUrl('https://boisestate.instructure.com/courses/12345')).toEqual({
       origin: 'https://boisestate.instructure.com',

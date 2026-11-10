@@ -1,3 +1,5 @@
+import { redact } from './redact'
+
 /**
  * An error written for a person, with the technical facts attached behind it.
  *
@@ -12,6 +14,6 @@ export const DETAILS_MARKER = '\n\n[[technical details]]\n'
 export const SUPPORT_CONTACT = 'Greg Snow (gregsnow@boisestate.edu or extrasnow75@gmail.com)'
 
 export function withDetails(plain: string, technical: string | undefined): Error {
-  const details = (technical ?? '').trim().slice(0, 1500)
+  const details = redact(technical ?? '').trim().slice(0, 1500)
   return new Error(details ? `${plain}${DETAILS_MARKER}${details}` : plain)
 }
