@@ -896,9 +896,8 @@ export const Dashboard: React.FC = () => {
                       <span className="ml-auto text-xs text-gray-600 font-bold uppercase tracking-wide">Optional</span>
                     </div>
                     <p className="text-sm text-gray-700 mb-4">
-                      <strong>Google sign-in is optional.</strong> Without it, you can still write your rubric,
-                      save it to your computer, and upload it to Canvas. Sign in only if you want to pick files
-                      from Google Drive or keep a copy of your rubric as a Google Doc.
+                      <strong>Google sign-in is optional.</strong> You can write, save and upload your rubric
+                      without it. Sign in only to use Google Drive files or Google Docs.
                     </p>
                     <button
                       onClick={() => startGoogleAuth()}
