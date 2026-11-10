@@ -1340,7 +1340,7 @@ ${csvContent.slice(0, 3000)}`,
       },
     });
 
-    if (!response.text) throw aiUnusableAnswer('analysing the description');
+    if (!response.text) throw aiUnusableAnswer('analyzing the description');
     return JSON.parse(response.text.trim()) as CsvAnalysisResult;
   }, signal);
 }

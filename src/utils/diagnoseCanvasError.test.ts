@@ -13,9 +13,10 @@ describe('diagnoseCanvasError', () => {
   describe('the app’s own messages', () => {
     it('sends a missing course to setup, and does not retry it', () => {
       const d = diagnoseCanvasError(
-        'No Canvas course is saved yet. Add your course URL in Initial Setup first.',
+        'No Canvas course is chosen yet. Choose one under Target Canvas Course, or paste its address there.',
       );
-      expect(d.action).toEqual({ kind: 'open-setup', label: 'Open Initial Setup' });
+      expect(d.action.kind).toBe('none'); // the course field is not in Initial Setup
+      expect(d.fix).toMatch(/Target Canvas Course/);
       expect(d.transient).toBe(false);
     });
 
@@ -29,10 +30,10 @@ describe('diagnoseCanvasError', () => {
 
     it('explains a host mismatch as an institution switch', () => {
       const d = diagnoseCanvasError(
-        'That course is on a different Canvas site than the one saved in Initial Setup. ' +
-          'Change the saved course URL first if you meant to switch institutions.',
+        'That course is on a different Canvas site than the one you set up. ' +
+          'Change the address under Target Canvas Course first if you meant to switch institutions.',
       );
-      expect(d.action.kind).toBe('open-setup');
+      expect(d.action.kind).toBe('none');
       expect(d.transient).toBe(false);
     });
 
@@ -123,7 +124,7 @@ describe('diagnoseCanvasError', () => {
       'user not authorized to perform that action',
       'Could not reach Canvas: fetch failed',
       'Internal Server Error',
-      'No Canvas course is saved yet. Add your course URL in Initial Setup first.',
+      'No Canvas course is chosen yet. Choose one under Target Canvas Course, or paste its address there.',
       'Your operating system keychain is not available, so credentials cannot be stored securely.',
       'Something nobody has seen before',
     ])('does not offer to repair the CSV for %p', (message) => {

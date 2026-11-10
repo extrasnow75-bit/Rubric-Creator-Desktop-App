@@ -1,4 +1,4 @@
-import { withDetails } from './errorDetails';
+import { withDetails, SUPPORT_CONTACT } from './errorDetails';
 
 /**
  * Turning a Gemini failure into a sentence a course designer can act on.
@@ -145,7 +145,7 @@ export function describeGeminiFailure(error: unknown): GeminiFailure | null {
     return {
       culprit: 'app',
       message:
-        "The AI model this app uses is no longer available. This is the app's problem, not yours. What to do: tell the person who supports this app.",
+        "The AI model this app uses is no longer available. This is the app's problem, not yours. What to do: tell " + SUPPORT_CONTACT + ".",
     };
   }
   return null;
@@ -161,12 +161,12 @@ export function describeGeminiFailure(error: unknown): GeminiFailure | null {
  */
 /** An AI failure we do not recognise. Google's own text goes in the details. */
 export const AI_FAILED =
-  "The AI service had a problem and didn't finish. What to do: try again. If it fails again, send the technical details to the person who supports this app.";
+  `The AI service had a problem and didn't finish. What to do: try again. If it fails again, send the technical details to ${SUPPORT_CONTACT}.`;
 
 /** The AI answered, but with nothing the app can read. `step` names what was being done, for support. */
 export function aiUnusableAnswer(step: string): Error {
   return withDetails(
-    "The AI gave an answer the app couldn't use. What to do: try again. If it fails again, send the technical details to the person who supports this app.",
+    `The AI gave an answer the app couldn't use. What to do: try again. If it fails again, send the technical details to ${SUPPORT_CONTACT}.`,
     `The AI returned an empty or unreadable response while ${step}.`,
   );
 }

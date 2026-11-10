@@ -88,13 +88,13 @@ export function diagnoseCanvasError(rawMessage: string | undefined | null): Canv
     };
   }
 
-  if (has(message, 'No Canvas course is saved')) {
+  if (has(message, 'No Canvas course is chosen')) {
     return {
-      cause: 'The app had not recorded which Canvas course to deploy to.',
-      fix: 'Enter the course URL in Initial Setup, then deploy again.',
+      cause: 'No Canvas course has been chosen to deploy to.',
+      fix: 'Choose a course under Target Canvas Course, then deploy again.',
       transient: false,
       repairable: false,
-      action: { kind: 'open-setup', label: 'Open Initial Setup' },
+      action: { kind: 'none' },
     };
   }
 
@@ -110,21 +110,21 @@ export function diagnoseCanvasError(rawMessage: string | undefined | null): Canv
 
   if (has(message, 'different Canvas site')) {
     return {
-      cause: 'That course is on a different Canvas site than the one saved in Initial Setup.',
-      fix: 'Change the saved course URL if you meant to switch institutions.',
+      cause: 'That course is on a different Canvas site than the one you set up.',
+      fix: 'Change the address under Target Canvas Course if you meant to switch institutions.',
       transient: false,
       repairable: false,
-      action: { kind: 'open-setup', label: 'Open Initial Setup' },
+      action: { kind: 'none' },
     };
   }
 
-  if (has(message, 'not a recognised Canvas course URL')) {
+  if (has(message, 'not a recognized Canvas course URL')) {
     return {
-      cause: 'The course URL is not in a form Canvas recognises.',
+      cause: 'The course URL is not in a form Canvas recognizes.',
       fix: 'Paste a link copied from inside your course — it should contain /courses/ and a number.',
       transient: false,
       repairable: false,
-      action: { kind: 'open-setup', label: 'Open Initial Setup' },
+      action: { kind: 'none' },
     };
   }
 
@@ -143,7 +143,7 @@ export function diagnoseCanvasError(rawMessage: string | undefined | null): Canv
   // words in the technical details that follow it. A rubric Canvas rejected on its contents has
   // no rule here on purpose: it carries Canvas's own text, which the contents rule further down
   // needs in order to offer the repair.
-  if (has(message, 'no longer accepts your saved access code')) {
+  if (has(message, 'no longer accepts your saved access token')) {
     return {
       cause: 'Canvas rejected your access token. Tokens expire, and can be revoked.',
       fix: 'Generate a fresh token in Canvas under Account → Settings, and save it in Initial Setup.',
@@ -167,7 +167,7 @@ export function diagnoseCanvasError(rawMessage: string | undefined | null): Canv
       fix: 'Check the number at the end of the course URL matches the course you want.',
       transient: false,
       repairable: false,
-      action: { kind: 'open-setup', label: 'Check the course URL' },
+      action: { kind: 'none' },
     };
   }
   if (has(message, 'needs the app to slow down')) {
@@ -198,6 +198,15 @@ export function diagnoseCanvasError(rawMessage: string | undefined | null): Canv
     };
   }
 
+  if (has(message, 'rejected this rubric')) {
+    return {
+      cause: 'Canvas rejected the rubric’s contents.',
+      fix: 'Let the AI repair the file, or check the criteria and point values and upload it again.',
+      transient: false,
+      repairable: true,
+      action: { kind: 'none' },
+    };
+  }
   // ── Canvas's own responses ────────────────────────────────────────────────
 
   // 401. Canvas says "Invalid access token", which sounds like the app sent something
@@ -248,7 +257,7 @@ export function diagnoseCanvasError(rawMessage: string | undefined | null): Canv
       fix: 'Check the number at the end of the course URL matches the course you want.',
       transient: false,
       repairable: false,
-      action: { kind: 'open-setup', label: 'Check the course URL' },
+      action: { kind: 'none' },
     };
   }
 

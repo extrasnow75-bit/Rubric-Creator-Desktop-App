@@ -10,7 +10,7 @@
  * The token never travels through the renderer. Handlers here take the CSV and the course URL,
  * and load the token from the keychain themselves at the moment they build the request.
  */
-import { canvasApiMessage, canvasUnreachableMessage } from './canvasMessages'
+import { canvasApiMessage, canvasRubricRejectedMessage, canvasUnreachableMessage } from './canvasMessages'
 import { getCanvasToken } from './credentials'
 import { fetchWithRetry, RequestTimeoutError } from './httpRetry'
 import { readSettings } from './settings'
@@ -23,18 +23,18 @@ export interface CanvasResult {
 }
 
 const BAD_URL_MESSAGE =
-  'That is not a recognised Canvas course URL. It should look like ' +
+  'That is not a recognized Canvas course URL. It should look like ' +
   'https://yourschool.instructure.com/courses/12345 — paste a link from inside your course.'
 
 const NO_TOKEN_MESSAGE =
   'No Canvas token is saved. Add one in Initial Setup so rubrics can be sent to your course.'
 
 const NO_COURSE_MESSAGE =
-  'No Canvas course is saved yet. Add your course URL in Initial Setup first.'
+  'No Canvas course is chosen yet. Choose one under Target Canvas Course, or paste its address there.'
 
 const HOST_MISMATCH_MESSAGE =
-  'That course is on a different Canvas site than the one saved in Initial Setup. ' +
-  'Change the saved course URL first if you meant to switch institutions.'
+  'That course is on a different Canvas site than the one you set up. ' +
+  'Change the address under Target Canvas Course first if you meant to switch institutions.'
 
 /**
  * Resolve the course this request is for, refusing any host but the saved one.
@@ -184,7 +184,7 @@ async function fetchPages<T>(
   let page = 0
   for (; url && page < maxPages; page++) {
     const response: Response = await fetchWithRetry(url, { headers: authHeaders(token) }, { idempotent: true })
-    if (!response.ok) throw new CourseListError(canvasApiMessage(response.status, await readError(response)))
+    if (!response.ok) throw new CourseListError(canvasApiMessage(response.status, await readError(response), 'your list of courses'))
     const data: unknown = JSON.parse(stripJsonGuard(await response.text()))
     if (Array.isArray(data)) all.push(...(data as T[]))
     url = nextPageUrl(response.headers.get('link'), origin)
@@ -285,9 +285,13 @@ export async function pushRubric(args: {
     )
 
     if (!response.ok) {
+      const body = await readError(response)
       return {
         success: false,
-        message: canvasApiMessage(response.status, await readError(response)),
+        message:
+          response.status === 400 || response.status === 422
+            ? canvasRubricRejectedMessage(response.status, body)
+            : canvasApiMessage(response.status, body),
       }
     }
 

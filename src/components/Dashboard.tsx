@@ -1,3 +1,4 @@
+import { plainMessage } from '../utils/errorDetails';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SUPPORT_CONTACT } from '../utils/supportContact';
 import { useSession } from '../contexts/SessionContext';
@@ -826,7 +827,7 @@ export const Dashboard: React.FC = () => {
                     </p>
                     {tokenCheck.state === 'failed' && (
                       <p role="alert" className="text-sm font-bold text-red-700 mb-3">
-                        {tokenCheck.message}
+                        {plainMessage(tokenCheck.message)}
                       </p>
                     )}
                     {tokenCheck.state === 'unchecked' && (
@@ -906,6 +907,12 @@ export const Dashboard: React.FC = () => {
                     >
                       {state.isAuthenticating ? <><Loader2 className="w-5 h-5 animate-spin" /> Signing in...</> : <><GoogleIcon /> Sign In with Google</>}
                     </button>
+                    {state.isAuthenticating && (
+                      <p role="status" className="text-xs text-gray-700 mt-2 font-bold">
+                        Waiting for Google in your browser. If Google shows &ldquo;Access blocked&rdquo;, close that tab
+                        and contact {SUPPORT_CONTACT}. The app stops waiting after 3 minutes.
+                      </p>
+                    )}
                     <p className="text-xs text-gray-600 mt-2">
                       Google only lets approved accounts sign in. If Google says &ldquo;Access blocked&rdquo;,
                       contact {SUPPORT_CONTACT} to be added. If Google warns the app isn&rsquo;t verified, click
@@ -1199,7 +1206,7 @@ export const Dashboard: React.FC = () => {
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-brand focus:outline-none transition-all"
                       />
                       {driveUrlError && (
-                        <p className="text-xs text-red-600 mt-1">{driveUrlError}</p>
+                        <p className="text-xs text-red-600 mt-1">{plainMessage(driveUrlError)}</p>
                       )}
                       <p className="text-xs text-blue-700 mt-1.5">
                         Supports Google Docs, Word (.docx), and PDF files stored in Drive.{' '}
@@ -1343,7 +1350,7 @@ export const Dashboard: React.FC = () => {
                   </span>
                 </>
               ) : courseNameError ? (
-                <span className="text-xs text-red-700">{courseNameError}</span>
+                <span className="text-xs text-red-700">{plainMessage(courseNameError)}</span>
               ) : null}
             </div>
           </SetupCard>

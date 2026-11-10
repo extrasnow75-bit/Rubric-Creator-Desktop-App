@@ -17,3 +17,17 @@ describe('splitDetails', () => {
     expect(withDetails('Hello.', '  ').message).toBe('Hello.')
   })
 })
+
+import { appendToPlain } from '../src/utils/errorDetails'
+describe('appendToPlain', () => {
+  it('keeps the added sentence in the visible part', () => {
+    const err = withDetails('Google is busy.', 'status 503').message
+    expect(splitDetails(appendToPlain(err, 'Wrote 3 of 8.'))).toEqual({
+      plain: 'Google is busy. Wrote 3 of 8.',
+      details: 'status 503',
+    })
+  })
+  it('works when there are no details', () => {
+    expect(appendToPlain('Google is busy.', 'Wrote 3 of 8.')).toBe('Google is busy. Wrote 3 of 8.')
+  })
+})

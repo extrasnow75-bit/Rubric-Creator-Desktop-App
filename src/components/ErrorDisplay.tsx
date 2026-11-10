@@ -1,3 +1,4 @@
+import { SUPPORT_CONTACT } from '../utils/supportContact';
 import React, { useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { splitDetails } from '../utils/errorDetails';
@@ -16,8 +17,8 @@ export function friendlyError(raw: string, compact = false): string {
 
   if (msg.includes('no gemini api key') || msg.includes('please enter your api key')) {
     return compact
-      ? 'No API key — add one on the Dashboard.'
-      : 'No Gemini API key is saved. Go to the Dashboard and enter your API key to continue.';
+      ? 'No API key — add one in Initial Setup.'
+      : 'No Gemini API key is saved. Open Initial Setup and enter your API key to continue.';
   }
   if (
     msg.includes('all available gemini models') ||
@@ -25,7 +26,7 @@ export function friendlyError(raw: string, compact = false): string {
   ) {
     return compact
       ? 'All AI models unavailable — quota likely exhausted.'
-      : 'All AI models are currently unavailable for your API key. Your free-tier quota is likely exhausted. Go to the Dashboard, remove your key, then create a brand-new key at aistudio.google.com — choose "Create project" to get a fresh quota.';
+      : 'All AI models are currently unavailable for your API key. Your free-tier quota is likely exhausted. Open Initial Setup, remove your key, then create a brand-new key at aistudio.google.com — choose "Create project" to get a fresh quota.';
   }
   if (
     (msg.includes('429') || msg.includes('resource_exhausted')) &&
@@ -33,7 +34,7 @@ export function friendlyError(raw: string, compact = false): string {
   ) {
     return compact
       ? 'Daily quota exhausted — add a new API key to continue.'
-      : 'Your daily AI quota is fully exhausted (limit: 0). Retrying won\'t help until the quota resets at midnight Pacific Time. To continue now, go to the Dashboard, remove your key, and create a brand-new key at aistudio.google.com using "+ Create project" for a fresh quota.';
+      : 'Your daily AI quota is fully exhausted (limit: 0). Retrying won\'t help until the quota resets at midnight Pacific Time. To continue now, open Initial Setup, remove your key, and create a brand-new key at aistudio.google.com using "+ Create project" for a fresh quota.';
   }
   if (
     msg.includes('429') ||
@@ -44,7 +45,7 @@ export function friendlyError(raw: string, compact = false): string {
   ) {
     return compact
       ? 'Gemini rate limit hit — wait a moment and retry.'
-      : 'Rate limit reached. The app is automatically retrying with delays. If it keeps failing after a minute, go to the Dashboard and replace your API key with a fresh one from Google AI Studio.';
+      : 'Rate limit reached. The app is automatically retrying with delays. If it keeps failing after a minute, open Initial Setup and replace your API key with a fresh one from Google AI Studio.';
   }
   if (
     msg.includes('401') ||
@@ -55,8 +56,8 @@ export function friendlyError(raw: string, compact = false): string {
     msg.includes('api key not valid')
   ) {
     return compact
-      ? 'API key rejected — check your key on the Dashboard.'
-      : 'Your Gemini API key was rejected. Go to the Dashboard and double-check your key, or replace it with a new one from Google AI Studio.';
+      ? 'API key rejected — check your key in Initial Setup.'
+      : 'Your Gemini API key was rejected. Open Initial Setup and double-check your key, or replace it with a new one from Google AI Studio.';
   }
   if (msg.includes('404')) {
     return compact
@@ -90,12 +91,12 @@ export function friendlyError(raw: string, compact = false): string {
   if (msg.includes('unexpected token') || msg.includes('in json') || msg.includes('json at position')) {
     return compact
       ? 'The AI gave an answer the app could not use — try again.'
-      : "The AI gave an answer the app couldn't use. What to do: try again. If it fails again, send the technical details to the person who supports this app.";
+      : `The AI gave an answer the app couldn't use. What to do: try again. If it fails again, send the technical details to ${SUPPORT_CONTACT}.`;
   }
 
   return compact
     ? 'Request failed — try again.'
-    : 'Something went wrong. What to do: try again. If it keeps happening, send the technical details to the person who supports this app.';
+    : `Something went wrong. What to do: try again. If it keeps happening, send the technical details to ${SUPPORT_CONTACT}.`;
 }
 
 interface ErrorDisplayProps {

@@ -1,3 +1,4 @@
+import { plainMessage } from '../utils/errorDetails';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import {
@@ -342,7 +343,7 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-full py-16 px-8 text-center">
               <AlertCircle className="w-8 h-8 text-red-500 mb-3" />
-              <p className="text-sm text-gray-700 max-w-md">{error}</p>
+              <p className="text-sm text-gray-700 max-w-md">{plainMessage(error)}</p>
               <button
                 onClick={() => void load()}
                 className="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-lg font-bold text-sm"

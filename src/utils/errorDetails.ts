@@ -23,3 +23,9 @@ export function logMessage(message: string | undefined | null): string {
   const { plain, details } = splitDetails(message ?? '')
   return details ? `${plain} (Technical details: ${details})` : plain
 }
+
+/** Add a sentence after the plain part of a message, keeping its technical details at the end. */
+export function appendToPlain(message: string, extra: string): string {
+  const { plain, details } = splitDetails(message)
+  return `${plain} ${extra}${details ? `${DETAILS_MARKER}${details}` : ''}`
+}

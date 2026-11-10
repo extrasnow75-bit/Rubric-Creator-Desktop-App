@@ -1012,9 +1012,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
           />
 
           {state.error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-2xl mb-4">
-              <p className="text-sm text-red-700 font-bold">{state.error}</p>
-            </div>
+            <ErrorDisplay error={state.error} asWritten className="mb-4" />
           )}
 
           <button

@@ -248,17 +248,16 @@ const approvedHosts = new Set<string>()
  */
 async function confirmCanvasHost(win: BrowserWindow | null, host: string): Promise<boolean> {
   const detail =
-    `The app will send your Canvas access token to ${host} to read and create rubrics ` +
-    'there.\n\nThat token can read your courses, enrolments and student records, so only ' +
-    'continue if this is your institution\u2019s Canvas address and you typed or pasted it ' +
-    'yourself.'
+    `The app will send your Canvas access token to ${host}.\n\nThat token can read your ` +
+    'courses, enrollments and student records, so only continue if this is your school\u2019s ' +
+    'Canvas site.'
   const { response } = win
     ? await dialog.showMessageBox(win, {
         type: 'warning',
         buttons: ['Cancel', `Use ${host}`],
         defaultId: 0,
         cancelId: 0,
-        title: 'Use a different Canvas site?',
+        title: 'Send your Canvas token to this site?',
         message: `Send your Canvas token to ${host}?`,
         detail,
       })
@@ -295,7 +294,7 @@ ipcMain.handle('canvas:setCourseUrl', async (e, url: string | null) => {
     return {
       ok: false as const,
       message:
-        'That is not a recognised Canvas course URL. It should look like ' +
+        'That is not a recognized Canvas course URL. It should look like ' +
         'https://yourschool.instructure.com/courses/12345 — paste a link from inside your course.',
     }
   }

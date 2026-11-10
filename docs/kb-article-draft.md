@@ -28,6 +28,8 @@ The Rubric App used to be a website. **This one is a desktop app that you instal
 
 **Download:** [The Rubric Creator Desktop App releases page](https://github.com/extrasnow75-bit/Rubric-Creator-Desktop-App/releases/latest)
 
+**Note:** the installer and the installed program still use the earlier name, **Canvas Rubric Creator**. You will see that name in the Start menu, on the downloaded file and in the Applications folder. It is the same app.
+
 The release page offers three files, and its own **Download** section at the top names them and links them directly. Take the one for your computer:
 
 * **Windows:** `Canvas-Rubric-Creator-WINDOWS-<version>.exe`

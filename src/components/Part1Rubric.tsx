@@ -1,4 +1,4 @@
-import { plainMessage } from '../utils/errorDetails';
+import { plainMessage, appendToPlain } from '../utils/errorDetails';
 import React, { useState, useRef } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { useCopyAction } from '../hooks/useCopyAction';
@@ -1030,7 +1030,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
           made.length === 0
             ? `None of the rubrics could be written (${failed.join(', ')}).`
             : `Wrote ${made.length} of ${entries.length}. Could not write ${failed.join(', ')}.`;
-        setError(firstFailure ? `${firstFailure} ${scope}` : scope);
+        setError(firstFailure ? appendToPlain(firstFailure, scope) : scope);
       } else if (made.length === 0 && !signal.aborted) {
         setError('Nothing was generated. Try again, or shorten the description.');
       }
@@ -1278,7 +1278,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
     } catch (err) {
       return {
         written: false,
-        message: `Could not reach Google Drive: ${err instanceof Error ? err.message : String(err)}`,
+        message: plainMessage(err instanceof Error ? err.message : String(err)),
       };
     } finally {
       setSavingToDrive(false);
@@ -1798,7 +1798,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
       setShowDeployCard(false);
       return `Now ${chained.criteria.map((c) => leadingPoints(c.exemplary)).join(' / ')}, adding up to ${canvasTotal(chained)}. Every word is unchanged.`;
     } catch (err) {
-      return `Could not reach the AI: ${plainMessage(err instanceof Error ? err.message : String(err))}`;
+      return plainMessage(err instanceof Error ? err.message : String(err));
     }
   };
 

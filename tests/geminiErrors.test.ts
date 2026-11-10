@@ -102,7 +102,7 @@ describe('describeGeminiFailure names whose problem it is', () => {
     const { culprit, message } = describeGeminiFailure(GONE)!;
     expect(culprit).toBe('app');
     expect(message).toMatch(/app's problem/i);
-    expect(message).toMatch(/tell the person who supports this app/i);
+    expect(message).toMatch(/tell Greg Snow/i);
   });
 
   it('prefers the daily cap over the rate limit when both could match', () => {

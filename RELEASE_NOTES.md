@@ -4,13 +4,19 @@
 
 The Canvas course step now has a **Choose from my courses** button. It shows a searchable list of the
 courses where you are a teacher, TA or designer, so you no longer have to find and paste the course
-address. It also lists courses in Canvas accounts you administer, and it recognises roles your school
+address. It also lists courses in Canvas accounts you administer, and it recognizes roles your school
 has made itself, such as **Course Administrator**. Pasting a course address still works.
+
+The list groups courses by term, marks past terms as ended, and tags Blueprint and master courses. The
+button is also on the screenshot step and on the step that uploads an existing rubric. The first time
+you list courses on a Canvas site, the app asks in a pop-up window whether your Canvas token may be
+sent to that site.
 
 ### Error messages you can act on
 
-Errors now say, in plain words, what happened and what to do. Each one has a **Show technical details**
-link with a **Copy details** button, so you can send the exact cause to whoever supports the app.
+Errors now say, in plain words, what happened and what to do. Most have a **Show technical details**
+link with a **Copy details** button, so you can send the exact cause to whoever supports the app. In
+the activity log, the technical details appear on their own line instead.
 
 - **Google sign-in.** If sign-in does not finish, the message explains the two screens Google may show:
   a warning that the app is not verified (click **Continue**, not **Back to safety**) and an

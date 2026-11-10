@@ -115,7 +115,7 @@ describe('verifyToken and getCourseName', () => {
     fetchMock.mockResolvedValueOnce(json(401, {}))
     const result = await verifyToken()
     expect(result.ok).toBe(false)
-    expect(result.message).toMatch(/no longer accepts your saved access code/i)
+    expect(result.message).toMatch(/no longer accepts your saved access token/i)
   })
 
   it('getCourseName returns the course name', async () => {

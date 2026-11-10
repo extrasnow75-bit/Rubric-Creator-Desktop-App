@@ -686,7 +686,7 @@ export const Part3Upload: React.FC = () => {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold text-gray-900 truncate">{item.name}</p>
                           {st?.message && (
-                            <p className="text-xs text-gray-600 truncate">{st.message}</p>
+                            <p className="text-xs text-gray-600 break-words">{st.message}</p>
                           )}
                         </div>
                       </div>
@@ -850,7 +850,7 @@ export const Part3Upload: React.FC = () => {
                               {file.name}
                             </p>
                             {file.message && (
-                              <p className="text-xs text-gray-600 truncate">
+                              <p className="text-xs text-gray-600 break-words">
                                 {file.message}
                               </p>
                             )}

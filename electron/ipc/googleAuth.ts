@@ -131,21 +131,27 @@ function focusAppWindow(): void {
   win.focus()
 }
 
+/** What a person should do when Google sign-in does not finish. One set of steps, in the order to try them. */
+const GOOGLE_NOT_FINISHED =
+  'Google sign-in didn’t finish. 1) Close the Google tab in your browser. ' +
+  '2) If Google warned that the app isn’t verified, click Continue, not Back to safety. ' +
+  `3) If Google said “Access blocked”, send ${SUPPORT_CONTACT} the Google address you use, so you can be added to the list of approved testers.`
+
 /**
  * Interactive sign-in via the system browser + PKCE + a short-lived loopback listener.
  * The listener runs only for the duration of the auth window, then shuts down.
  */
 export async function signIn(options?: { useAnotherAccount?: boolean }): Promise<GoogleStatus> {
   if (!isGoogleConfigured()) {
-    throw new Error(
-      'Google sign-in is not set up in this build yet. Add a Desktop-app OAuth client ID in ' +
-        'electron/ipc/googleConfig.ts. Saving to this computer works without it.',
+    throw withDetails(
+      `Google sign-in isn’t set up in this copy of the app. You can still write, save and upload your rubric without it. If you expected it to work, contact ${SUPPORT_CONTACT}.`,
+      'This build has no Google client ID.',
     )
   }
   if (!isGoogleSecretConfigured()) {
-    throw new Error(
-      'Google client secret is missing. Create a .env.local file in the project root containing ' +
-        'MAIN_VITE_GOOGLE_CLIENT_SECRET=<your secret from the Cloud Console>, then restart the app.',
+    throw withDetails(
+      `Google sign-in isn’t set up in this copy of the app. You can still write, save and upload your rubric without it. If you expected it to work, contact ${SUPPORT_CONTACT}.`,
+      'This build has no Google client secret.',
     )
   }
 
@@ -196,7 +202,7 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
             } else {
               reject(
                 withDetails(
-                  `Google would not complete the sign-in. Please try again. If Google showed a warning that the app isn't verified, click Continue (not Back to safety). If Google said you don't have access, ask ${SUPPORT_CONTACT} to add your Google account to the approved list.`,
+                  GOOGLE_NOT_FINISHED,
                   `Google returned error=${error}${description ? `; error_description=${description}` : ''}`,
                 ),
               )
@@ -265,7 +271,7 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
             }
             reject(
               withDetails(
-                `Google sign-in did not finish in time. Close the Google browser tab and try again. If Google showed a warning that the app isn't verified, click Continue (not Back to safety). If Google said you don't have access, ask ${SUPPORT_CONTACT} to add your Google account to the approved list.`,
+                GOOGLE_NOT_FINISHED,
                 'No response from Google within 3 minutes (the browser sign-in was never completed).',
               ),
             )

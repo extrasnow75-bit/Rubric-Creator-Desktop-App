@@ -196,7 +196,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         }`}
       >
         <div className="text-center">
-          <h1 className="text-xl font-black">The Rubric Creator Desktop App <span className="font-normal opacity-75">V.3</span></h1>
+          <h1 className="text-xl font-black">The Rubric Creator Desktop App{appVersion && <span className="font-normal opacity-75"> v{appVersion}</span>}</h1>
           <p className="text-xs text-blue-100">Streamlined rubric workflow</p>
         </div>
         {/*

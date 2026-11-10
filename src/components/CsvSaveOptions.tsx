@@ -1,3 +1,4 @@
+import { plainMessage } from '../utils/errorDetails';
 import React, { useId, useRef, useState } from 'react';
 import { CheckCircle, Download, Loader2 } from 'lucide-react';
 import JSZip from 'jszip';
@@ -248,7 +249,7 @@ export const CsvSaveOptions: React.FC<Props> = ({
             className={driveSaveError || savingToDrive || savedSomething ? 'mt-2 space-y-1' : 'sr-only'}
           >
             {driveSaveError && (
-              <p className="text-xs text-red-700 font-bold">{driveSaveError}</p>
+              <p className="text-xs text-red-700 font-bold">{plainMessage(driveSaveError)}</p>
             )}
             {savingToDrive && (
               <p className="text-sm text-gray-700 font-bold">
