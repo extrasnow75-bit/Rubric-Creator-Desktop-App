@@ -80,8 +80,8 @@ describe('pushRubric', () => {
     fetchMock.mockResolvedValue(json(429, {}))
     const result = await pushRubric({ csvContent: CSV })
     expect(result.success).toBe(false)
+    expect(result.message).toMatch(/slow down/i)
     expect(result.message.split('[[technical details]]')[0]).not.toMatch(/\b429\b/)
-    expect(result.message).not.toMatch(/\b429\b/)
   })
 
   it('says to check the course before retrying after a timeout', async () => {
