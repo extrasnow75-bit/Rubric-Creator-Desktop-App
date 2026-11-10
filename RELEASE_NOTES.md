@@ -34,8 +34,11 @@ the activity log, the technical details appear on their own line instead.
   rejected key and an answer the app cannot use each have their own message. The error card no longer
   tells you to check your API key when the key is fine.
 
-The **Sign In with Google** button now has a short note under it saying who to contact if Google blocks
-you (Greg Snow, gregsnow@boisestate.edu or extrasnow75@gmail.com).
+Every **Sign in with Google** button now shows what is happening: a note while the app waits for
+Google in your browser, a **Cancel sign-in** button, and the reason if sign-in fails. The button in
+Initial Setup also has a short note saying who to contact if Google blocks you (Greg Snow,
+gregsnow@boisestate.edu or extrasnow75@gmail.com). If Google is unavailable when the app renews your
+sign-in, it now says so instead of telling you to sign in again.
 
 ### Smaller changes
 
