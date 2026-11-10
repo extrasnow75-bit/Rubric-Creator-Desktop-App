@@ -9,7 +9,7 @@
 export const DETAILS_MARKER = '\n\n[[technical details]]\n'
 
 /** Who someone stuck on a sign-in problem should ask. Change this one line to change every message. */
-export const SUPPORT_CONTACT = 'the eCampus Center'
+export const SUPPORT_CONTACT = 'Greg Snow (gregsnow@boisestate.edu or extrasnow75@gmail.com)'
 
 export function withDetails(plain: string, technical: string | undefined): Error {
   const details = (technical ?? '').trim().slice(0, 1500)
