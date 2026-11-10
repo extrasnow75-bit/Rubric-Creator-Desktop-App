@@ -9,7 +9,7 @@ const PATTERNS: RegExp[] = [
   /ya29\.[0-9A-Za-z_.-]+/g, // Google access tokens
   /GOCSPX-[0-9A-Za-z_-]+/g, // Google client secrets
   /\b\d{2,6}~[A-Za-z0-9]{30,}/g, // Canvas access tokens
-  /Bearer\s+[A-Za-z0-9._~+/=-]{10,}/gi, // any bearer credential
+  /Bearer\s+(?=[A-Za-z0-9._~+/=-]*[0-9._~+/=-])[A-Za-z0-9._~+/=-]{10,}/gi, // a bearer credential, not the word
 ]
 
 export function redact(text: string): string {

@@ -1,3 +1,4 @@
+import { splitDetails } from '../utils/errorDetails';
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode, useRef, useEffect } from 'react';
 import { ipcErrorMessage } from '../utils/ipcErrorMessage';
 import {
@@ -540,7 +541,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       const message = err instanceof Error ? err.message : 'Sign-in failed';
       // Closing the browser tab or declining consent is a decision, not a fault. Reporting it as
       // an error would put a red message on screen for someone who simply changed their mind.
-      const cancelled = /cancelled|timed out/i.test(message);
+      const cancelled = /^Google sign-in was cancelled\.$/.test(splitDetails(message).plain);
       setState((prev) => ({
         ...prev,
         isAuthenticating: false,

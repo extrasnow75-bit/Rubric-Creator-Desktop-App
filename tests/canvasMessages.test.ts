@@ -35,3 +35,15 @@ describe('diagnoseCanvasError reads the new wording', () => {
   })
   it('no connection → retry', () => expect(diagnoseCanvasError(canvasUnreachableMessage('fetch failed')).transient).toBe(true))
 })
+
+import { canvasRubricRejectedMessage } from '../electron/ipc/canvasMessages'
+describe('the repair offer', () => {
+  it('is made when Canvas names the rubric contents', () => {
+    expect(diagnoseCanvasError(canvasRubricRejectedMessage(422, 'Criterion 3 has no ratings')).repairable).toBe(true)
+  })
+  it('is not made when Canvas gives another reason', () => {
+    const d = diagnoseCanvasError(canvasRubricRejectedMessage(422, 'This course has been concluded'))
+    expect(d.repairable).toBe(false)
+    expect(d.fix).toMatch(/still open/)
+  })
+})

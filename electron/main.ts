@@ -285,7 +285,6 @@ ipcMain.handle('canvas:setCourseUrl', async (e, url: string | null) => {
   if (!url) {
     updateSettings({ canvasCourseUrl: undefined })
     setAllowedCanvasHost(null)
-    approvedHosts.clear()
     return { ok: true as const }
   }
 

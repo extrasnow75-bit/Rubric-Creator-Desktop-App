@@ -139,10 +139,20 @@ const GOOGLE_NOT_FINISHED =
 
 /** Stops the sign-in that is waiting for the browser, if there is one. */
 let cancelActiveSignIn: (() => void) | null = null
+let activeExchange: AbortController | null = null
+let exchangeCancelled = false
 export function cancelSignIn(): boolean {
-  if (!cancelActiveSignIn) return false
-  cancelActiveSignIn()
-  return true
+  if (cancelActiveSignIn) {
+    cancelActiveSignIn()
+    return true
+  }
+  // Google has already replied and the app is exchanging the code: stop that instead.
+  if (activeExchange) {
+    exchangeCancelled = true
+    activeExchange.abort()
+    return true
+  }
+  return false
 }
 
 /**
@@ -202,16 +212,20 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
           return
         }
 
+        // The state check comes first. A request that cannot prove it belongs to this sign-in is
+        // ignored, and the listener stays open for the real redirect: another program on this
+        // computer must not be able to end the sign-in or put its own text in front of the person.
+        if (returnedState !== state) {
+          res.writeHead(400)
+          res.end()
+          return
+        }
+
         res.writeHead(200, { 'Content-Type': 'text/html' })
         res.end(COMPLETION_PAGE)
         server.close()
         focusAppWindow()
 
-        // The state check comes first: a request that cannot prove it belongs to this sign-in must
-        // not be able to put its own error text in front of the person.
-        if (returnedState !== state) {
-          return finish(() => reject(new Error('Google sign-in could not be verified, so it was stopped for your safety. Please try signing in again.')))
-        }
         if (error) {
           return finish(() => {
             const description = (url.searchParams.get('error_description') ?? '').replace(/[\r\n\t]+/g, ' ').slice(0, 200)
@@ -301,29 +315,56 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
     },
   )
 
-  // Exchange the authorization code for tokens (PKCE — no client secret).
-  const tokenRes = await fetch(TOKEN_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      code,
-      code_verifier: verifier,
-      grant_type: 'authorization_code',
-      redirect_uri: redirectUri,
-    }).toString(),
-  })
+  // Exchange the authorization code for tokens (PKCE — no client secret). It can be cancelled and it
+  // times out, so a stalled connection cannot leave the person on "Signing in…" with a dead button.
+  const exchange = new AbortController()
+  activeExchange = exchange
+  exchangeCancelled = false
+  const exchangeTimer = setTimeout(() => exchange.abort(), 30_000)
+  let tokenRes: Response
+  let bodyText: string
+  try {
+    tokenRes = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        code,
+        code_verifier: verifier,
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri,
+      }).toString(),
+      signal: exchange.signal,
+    })
+    bodyText = await tokenRes.text()
+  } catch (e) {
+    if (exchangeCancelled) throw new Error('Google sign-in was cancelled.')
+    throw withDetails(
+      'The app could not reach Google to finish signing you in. Check your internet connection and try again.',
+      e instanceof Error ? e.message : String(e),
+    )
+  } finally {
+    clearTimeout(exchangeTimer)
+    activeExchange = null
+  }
   if (!tokenRes.ok) {
-    const detail = await tokenRes.text().catch(() => '')
-    console.warn(`Google token exchange failed (${tokenRes.status}). ${detail.slice(0, 300)}`)
+    console.warn(`Google token exchange failed (${tokenRes.status}). ${bodyText.slice(0, 300)}`)
     throw withDetails(
       `Google accepted your sign-in but the app could not finish it. Please try again. If it keeps happening, contact ${SUPPORT_CONTACT}.`,
-      `Token exchange failed: HTTP ${tokenRes.status}. ${detail.slice(0, 300)}`,
+      `Token exchange failed: HTTP ${tokenRes.status}. ${bodyText.slice(0, 300)}`,
     )
   }
 
-  const data = (await tokenRes.json()) as TokenResponse
+  let data: TokenResponse
+  try {
+    data = JSON.parse(bodyText) as TokenResponse
+  } catch {
+    throw withDetails(
+      `Google accepted your sign-in but the app could not finish it. Please try again. If it keeps happening, contact ${SUPPORT_CONTACT}.`,
+      'The response from Google could not be read.',
+    )
+  }
   if (!data.refresh_token) {
     throw withDetails(
       'Google signed you in but did not give the app lasting access. Remove the app under your Google account permissions (myaccount.google.com/permissions), then sign in again.',

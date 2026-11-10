@@ -16,3 +16,9 @@ describe('redact', () => {
     )
   })
 })
+
+describe('redact and the word Bearer', () => {
+  it('leaves an ordinary phrase alone', () => {
+    expect(redact('Bearer authentication failed')).toBe('Bearer authentication failed')
+  })
+})

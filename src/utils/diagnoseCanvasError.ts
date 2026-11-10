@@ -199,11 +199,23 @@ export function diagnoseCanvasError(rawMessage: string | undefined | null): Canv
   }
 
   if (has(message, 'rejected this rubric')) {
+    // A 422 can also mean the course itself will not take a rubric (it has ended, or is locked).
+    // The AI can only repair the file, so the offer is made only when Canvas's own reason is about
+    // the rubric's contents.
+    if (/criteri|rating|point|description|blank|invalid|malformed|title/i.test(message.split('Canvas replied')[1] ?? '')) {
+      return {
+        cause: 'Canvas rejected the rubric’s contents.',
+        fix: 'Let the AI repair the file, or check the criteria and point values and upload it again.',
+        transient: false,
+        repairable: true,
+        action: { kind: 'none' },
+      };
+    }
     return {
-      cause: 'Canvas rejected the rubric’s contents.',
-      fix: 'Let the AI repair the file, or check the criteria and point values and upload it again.',
+      cause: 'Canvas would not accept a rubric in that course.',
+      fix: 'Check that the course is still open and that you are allowed to add rubrics to it, then try again.',
       transient: false,
-      repairable: true,
+      repairable: false,
       action: { kind: 'none' },
     };
   }
