@@ -233,7 +233,7 @@ export const DriveBrowser: React.FC<DriveBrowserProps> = ({
       shrinking, so it is held back to the first breakpoint.
     */
     <div
-      className="fixed inset-0 z-[100] flex overflow-y-auto overscroll-contain bg-black/40 p-4"
+      className="titlebar-no-drag fixed inset-0 z-[100] flex overflow-y-auto overscroll-contain bg-black/40 p-4"
       onClick={onCancel}
       role="presentation"
     >

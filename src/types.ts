@@ -412,3 +412,19 @@ export interface RubricConfig {
   useProxy: boolean;
   proxyService: string;
 }
+
+/** One row of the "Choose from my courses" list. Mirrors electron/ipc/courseList.ts. */
+export interface CourseChoice {
+  id: string
+  name: string
+  code: string
+  role: 'teacher' | 'ta' | 'designer' | 'admin'
+  term: string
+  termStart: string | null
+  ended: boolean
+  blueprint: boolean
+}
+
+export type ListCoursesResult =
+  | { ok: true; site: string; courses: CourseChoice[]; truncated?: boolean }
+  | { ok: false; message: string }

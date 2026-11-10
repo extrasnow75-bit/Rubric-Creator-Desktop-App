@@ -15,6 +15,7 @@ import { getCanvasToken } from './credentials'
 import { fetchWithRetry, RequestTimeoutError } from './httpRetry'
 import { readSettings } from './settings'
 import { buildRubricPayload, parseCourseUrl, type CourseRef } from './canvasUtils'
+import { chooseCourses, nextPageUrl, type CourseChoice, type RawCourse } from './courseList'
 
 export interface CanvasResult {
   success: boolean
@@ -162,6 +163,88 @@ export async function getCourseName(args?: {
       ok: false,
       message: unreachableMessage(e),
     }
+  }
+}
+
+const COURSE_QUERY = 'include[]=term&state[]=available&state[]=unpublished'
+/** A person with thousands of courses would still fit; this only stops a server that never ends. */
+const MAX_COURSE_PAGES = 50
+/** Pages (100 courses each) read across all the accounts a person administers. */
+const ADMIN_COURSE_PAGES = 30
+
+/** Every page of one listing, following Canvas's Link headers. Stops early at `maxPages`. */
+async function fetchPages<T>(
+  origin: string,
+  path: string,
+  token: string,
+  maxPages = MAX_COURSE_PAGES,
+): Promise<{ items: T[]; truncated: boolean }> {
+  const all: T[] = []
+  let url: string | null = `${origin}/api/v1${path}${path.includes('?') ? '&' : '?'}per_page=100`
+  let page = 0
+  for (; url && page < maxPages; page++) {
+    const response: Response = await fetchWithRetry(url, { headers: authHeaders(token) }, { idempotent: true })
+    if (response.status === 401) throw new CourseListError(EXPIRED_TOKEN_MESSAGE)
+    if (!response.ok) throw new CourseListError(`Canvas error (${response.status}): ${await readError(response)}`)
+    const data: unknown = JSON.parse(stripJsonGuard(await response.text()))
+    if (Array.isArray(data)) all.push(...(data as T[]))
+    url = nextPageUrl(response.headers.get('link'), origin)
+  }
+  return { items: all, truncated: url !== null }
+}
+
+const EXPIRED_TOKEN_MESSAGE =
+  'Canvas rejected that token. It may have expired or been deleted — ' +
+  'generate a new one in Canvas under Account → Settings → Approved Integrations.'
+
+/** A failure whose text is already fit to show the user. */
+class CourseListError extends Error {}
+
+/**
+ * The courses the saved token's owner teaches, assists in or designs, on one Canvas site.
+ *
+ * `origin` must already have been checked by the caller (see the `canvas:listCourses` handler in
+ * main.ts): this function attaches the token to whatever origin it is handed.
+ */
+export async function listCourses(
+  origin: string,
+): Promise<{ ok: true; site: string; courses: CourseChoice[]; truncated: boolean } | { ok: false; message: string }> {
+  const token = getCanvasToken()
+  if (!token) return { ok: false, message: NO_TOKEN_MESSAGE }
+
+  try {
+    const current = (await fetchPages<RawCourse>(origin, `/courses?${COURSE_QUERY}`, token)).items
+    let past: RawCourse[] = []
+    try {
+      past = (await fetchPages<RawCourse>(origin, `/courses?${COURSE_QUERY}&state[]=completed&enrollment_state=completed`, token)).items
+    } catch {
+      // The current list is still useful if the past one fails.
+    }
+
+    // Account admins have no enrollment in the courses they manage, so those never show up above.
+    // Canvas lists accounts only for people who can manage them; for everyone else this is empty.
+    // A failure here leaves the enrolled courses in place rather than failing the whole list.
+    let adminCourses: RawCourse[] = []
+    let truncated = false
+    try {
+      const accounts = (await fetchPages<{ id: number }>(origin, '/accounts', token, 5)).items
+      for (const account of accounts) {
+        const room = ADMIN_COURSE_PAGES - Math.floor(adminCourses.length / 100)
+        if (room <= 0) {
+          truncated = true
+          break
+        }
+        const res = await fetchPages<RawCourse>(origin, `/accounts/${account.id}/courses?${COURSE_QUERY}`, token, room)
+        adminCourses.push(...res.items)
+        if (res.truncated) truncated = true
+      }
+    } catch {
+      adminCourses = []
+    }
+    return { ok: true, site: origin, courses: chooseCourses([...current, ...past], new Date(), adminCourses), truncated }
+  } catch (e) {
+    if (e instanceof CourseListError) return { ok: false, message: e.message }
+    return { ok: false, message: unreachableMessage(e) }
   }
 }
 

@@ -5,6 +5,8 @@ import { useDrivePicker } from '../contexts/DrivePickerContext';
 import { AppMode, BatchItemStatus, CanvasConfig } from '../types';
 import { Eye, EyeOff, Loader2, Upload, CheckCircle, AlertCircle, X, Zap, FolderOpen, ChevronLeft } from 'lucide-react';
 import ErrorDisplay from './ErrorDisplay';
+import { CoursePicker } from './CoursePicker';
+import { siteOf } from './courseFilter';
 import { useCopyAction } from '../hooks/useCopyAction';
 import JSZip from 'jszip';
 
@@ -977,8 +979,17 @@ export const Part3Upload: React.FC = () => {
                     Canvas Course URL
                   </label>
                   <p className="text-xs text-gray-900 mb-2">
-                    Paste the URL of your Canvas course home page.
+                    Choose a course, or paste the URL of your Canvas course home page.
                   </p>
+                  <div className="mb-3">
+                    <CoursePicker
+                      defaultSite={siteOf(courseUrl)}
+                      onChoose={(url) => {
+                        setValidationResult(null);
+                        setCourseUrl(url);
+                      }}
+                    />
+                  </div>
                   <input
                     id="part3-course-url"
                     type="text"

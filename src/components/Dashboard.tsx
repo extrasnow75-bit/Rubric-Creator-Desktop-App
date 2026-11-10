@@ -19,6 +19,8 @@ import {
 import { AppMode } from '../types';
 import { validateGeminiApiKey } from '../services/geminiService';
 import { AnalyzeDeploySection, UploadedDocFile } from './AnalyzeDeploySection';
+import { CoursePicker } from './CoursePicker';
+import { siteOf } from './courseFilter';
 import { Part1Rubric } from './Part1Rubric';
 import { ScreenshotConverter } from './ScreenshotConverter';
 import ErrorDisplay from './ErrorDisplay';
@@ -1281,7 +1283,16 @@ export const Dashboard: React.FC = () => {
               <h3 className="font-black text-lg text-gray-900">Target Canvas Course</h3>
               {courseVerified && <><Check className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" /><span className="sr-only">(verified)</span></>}
             </div>
-            <p className="text-sm text-gray-600 mb-3">Enter the homepage URL of the Canvas course you want to deploy rubrics to.</p>
+            <p className="text-sm text-gray-600 mb-3">Choose the Canvas course you want to deploy rubrics to.</p>
+            <CoursePicker
+              defaultSite={siteOf(courseUrlInput)}
+              onChoose={handleCourseUrlChange}
+            />
+            <div className="flex items-center gap-3 my-3 text-xs text-gray-600" aria-hidden="true">
+              <span className="flex-1 border-t border-gray-200" />
+              or paste a course address
+              <span className="flex-1 border-t border-gray-200" />
+            </div>
             <input
               type="url"
               value={courseUrlInput}

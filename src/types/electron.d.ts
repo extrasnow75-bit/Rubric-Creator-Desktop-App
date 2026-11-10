@@ -8,7 +8,7 @@
  * access token. Credentials travel renderer → main only, and come back as status. If a method
  * that returns one ever appears here, that is a bug, not a feature.
  */
-import type { RubricData, RubricMeta, GenerationSettings, Attachment } from '../types'
+import type { RubricData, RubricMeta, GenerationSettings, Attachment, ListCoursesResult } from '../types'
 import type {
   CsvAnalysisResult,
   CsvRepairResult,
@@ -308,6 +308,8 @@ declare global {
         getCourseUrl(): Promise<string | null>
         verifyToken(args: { courseUrl: string }): Promise<CanvasLookup>
         getCourseName(args: { courseUrl: string }): Promise<CanvasLookup>
+        /** Takes no token: main loads it, and asks the user natively before using a new site. */
+        listCourses(args: { site: string }): Promise<ListCoursesResult>
         /** Takes no token: main loads it from the keychain when it builds the request. */
         pushRubric(args: {
           csvContent: string

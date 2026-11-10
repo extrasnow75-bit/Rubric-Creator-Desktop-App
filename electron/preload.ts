@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { CourseChoice } from './ipc/courseList'
 
 /** What a Gemini call is waiting for. Mirrors GeminiRetryNotice in electron/ipc/gemini.ts. */
 interface RetryNotice {
@@ -278,6 +279,16 @@ contextBridge.exposeInMainWorld('api', {
       courseUrl: string
     }): Promise<{ ok: boolean; name?: string; message?: string }> =>
       ipcRenderer.invoke('canvas:getCourseName', args),
+    /**
+     * The courses the saved token's owner teaches, assists in or designs. Takes no token: main
+     * loads it from the keychain, and asks the user natively before using a new Canvas site.
+     */
+    listCourses: (args: {
+      site: string
+    }): Promise<
+      | { ok: true; site: string; courses: CourseChoice[]; truncated?: boolean }
+      | { ok: false; message: string }
+    > => ipcRenderer.invoke('canvas:listCourses', args),
     /** Takes no token: main loads it from the keychain when it builds the request. */
     pushRubric: (args: {
       csvContent: string
