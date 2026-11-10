@@ -1,4 +1,8 @@
-## What's new in v1.1.0
+## What's new in v1.1.0-rc.1
+
+**This is a test version of 1.1.0, shared before everyone gets it.** It is marked as a pre-release,
+so it does not appear as the current version and the app does not offer it as an update. If you are
+trying it, please report what you find to Greg Snow (gregsnow@boisestate.edu or extrasnow75@gmail.com).
 
 ### Choose your Canvas course from a list
 
