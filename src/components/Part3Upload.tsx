@@ -1,3 +1,4 @@
+import { GoogleSignInFeedback } from './GoogleSignInFeedback';
 import { plainMessage, logMessage } from '../utils/errorDetails';
 import React, { useState, useEffect } from 'react';
 import { useSession } from '../contexts/SessionContext';
@@ -762,6 +763,7 @@ export const Part3Upload: React.FC = () => {
                           </svg>
                           Sign in with Google
                         </button>
+                        <GoogleSignInFeedback />
                       </div>
                     )}
 

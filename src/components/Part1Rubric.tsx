@@ -1,3 +1,4 @@
+import { GoogleSignInFeedback } from './GoogleSignInFeedback';
 import { plainMessage, appendToPlain } from '../utils/errorDetails';
 import React, { useState, useRef } from 'react';
 import { useSession } from '../contexts/SessionContext';
@@ -2616,6 +2617,7 @@ export const Part1Rubric: React.FC<Part1RubricProps> = ({
                       </svg>
                       Sign in with Google
                     </button>
+                    <GoogleSignInFeedback />
                   </div>
                 )}
 

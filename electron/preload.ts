@@ -152,6 +152,8 @@ contextBridge.exposeInMainWorld('api', {
       useAnotherAccount?: boolean
     }): Promise<{ signedIn: boolean; email?: string; name?: string; picture?: string }> =>
       invokeReadable('google:signIn', options),
+    /** Stops waiting for the browser. True if a sign-in was waiting. */
+    cancelSignIn: (): Promise<boolean> => invokeReadable('google:cancelSignIn'),
     signOut: (): Promise<void> => invokeReadable('google:signOut'),
     /** Identity only. There is no call that returns the Google access token. */
     status: (): Promise<{ signedIn: boolean; email?: string; name?: string; picture?: string }> =>

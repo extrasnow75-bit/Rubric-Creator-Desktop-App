@@ -14,7 +14,7 @@ import { pushRubric, verifyToken, getCourseName, listCourses } from './ipc/canva
 import { normalizeSite } from './ipc/courseList'
 import { parseCourseUrl } from './ipc/canvasUtils'
 import { checkRepair } from './ipc/csvRepair'
-import { signIn, getStatus, clearTokens } from './ipc/googleAuth'
+import { signIn, cancelSignIn, getStatus, clearTokens } from './ipc/googleAuth'
 import { withJob, cancelJob } from './ipc/jobs'
 import * as gemini from './ipc/gemini'
 import {
@@ -357,6 +357,7 @@ ipcMain.handle(
 // signed in — never the access token. Drive calls below fetch their own.
 
 ipcMain.handle('google:signIn', (_e, options?: { useAnotherAccount?: boolean }) => signIn(options))
+ipcMain.handle('google:cancelSignIn', () => cancelSignIn())
 ipcMain.handle('google:status', () => getStatus())
 ipcMain.handle('google:signOut', () => clearTokens())
 

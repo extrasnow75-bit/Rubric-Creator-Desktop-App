@@ -1,3 +1,4 @@
+import { GoogleSignInFeedback } from './GoogleSignInFeedback';
 import { plainMessage } from '../utils/errorDetails';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SUPPORT_CONTACT } from '../utils/supportContact';
@@ -907,20 +908,13 @@ export const Dashboard: React.FC = () => {
                     >
                       {state.isAuthenticating ? <><Loader2 className="w-5 h-5 animate-spin" /> Signing in...</> : <><GoogleIcon /> Sign In with Google</>}
                     </button>
-                    {state.isAuthenticating && (
-                      <p role="status" className="text-xs text-gray-700 mt-2 font-bold">
-                        Waiting for Google in your browser. If Google shows &ldquo;Access blocked&rdquo;, close that tab
-                        and contact {SUPPORT_CONTACT}. The app stops waiting after 3 minutes.
-                      </p>
-                    )}
+                    <GoogleSignInFeedback />
                     <p className="text-xs text-gray-600 mt-2">
                       Google only lets approved accounts sign in. If Google says &ldquo;Access blocked&rdquo;,
                       contact {SUPPORT_CONTACT} to be added. If Google warns the app isn&rsquo;t verified, click
                       Continue, not Back to safety.
                     </p>
-                    {state.googleAuthError && (
-                      <ErrorDisplay error={state.googleAuthError} asWritten className="mt-3" />
-                    )}
+
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
@@ -1151,6 +1145,7 @@ export const Dashboard: React.FC = () => {
                           </svg>
                           Sign in with Google
                         </button>
+                        <GoogleSignInFeedback />
                       </div>
                     )}
 

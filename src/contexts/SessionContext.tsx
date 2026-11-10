@@ -60,6 +60,7 @@ const SessionContext = createContext<{
   // Google Auth methods
   /** Opens the system browser. Pass true to force Google's account chooser. */
   startGoogleAuth: (useAnotherAccount?: boolean) => Promise<void>;
+  cancelGoogleAuth: () => void;
   signOutGoogle: () => Promise<void>;
   extractGoogleDocText: (docUrl: string) => Promise<string>;
   extractGoogleSheetCsv: (sheetUrl: string) => Promise<string>;
@@ -508,7 +509,16 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
   // every Drive call. Those calls now happen in main, which fetches its own token, so there is no
   // longer a Google credential anywhere in the renderer.
 
+  // A second click while a sign-in is already waiting would start a second one.
+  const signInInFlight = useRef(false);
+
+  const cancelGoogleAuth = useCallback(() => {
+    void window.api.google.cancelSignIn().catch(() => undefined);
+  }, []);
+
   const startGoogleAuth = useCallback(async (useAnotherAccount = false) => {
+    if (signInInFlight.current) return;
+    signInInFlight.current = true;
     setState((prev) => ({ ...prev, isAuthenticating: true, googleAuthError: null }));
     try {
       const status = await window.api.google.signIn({ useAnotherAccount });
@@ -536,6 +546,8 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
         isAuthenticating: false,
         googleAuthError: cancelled ? null : message,
       }));
+    } finally {
+      signInInFlight.current = false;
     }
   }, []);
 
@@ -737,6 +749,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     setUserCanvasApiToken,
     setCourseUrl,
     startGoogleAuth,
+    cancelGoogleAuth,
     signOutGoogle,
     extractGoogleDocText,
     extractGoogleSheetCsv,

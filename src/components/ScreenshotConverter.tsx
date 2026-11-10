@@ -1,3 +1,4 @@
+import { GoogleSignInFeedback } from './GoogleSignInFeedback';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from '../contexts/SessionContext';
 import { bytesToBase64 } from '../utils/driveFile';
@@ -569,6 +570,7 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                           </svg>
                           Sign in with Google
                         </button>
+                        <GoogleSignInFeedback />
                       </div>
                     )}
 

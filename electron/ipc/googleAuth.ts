@@ -137,6 +137,14 @@ const GOOGLE_NOT_FINISHED =
   '2) If Google warned that the app isn’t verified, click Continue, not Back to safety. ' +
   `3) If Google said “Access blocked”, send ${SUPPORT_CONTACT} the Google address you use, so you can be added to the list of approved testers.`
 
+/** Stops the sign-in that is waiting for the browser, if there is one. */
+let cancelActiveSignIn: (() => void) | null = null
+export function cancelSignIn(): boolean {
+  if (!cancelActiveSignIn) return false
+  cancelActiveSignIn()
+  return true
+}
+
 /**
  * Interactive sign-in via the system browser + PKCE + a short-lived loopback listener.
  * The listener runs only for the duration of the auth window, then shuts down.
@@ -166,9 +174,21 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
       const finish = (fn: () => void): void => {
         if (!settled) {
           settled = true
+          cancelActiveSignIn = null
           fn()
         }
       }
+      // So the person can stop waiting. Google's own "Access blocked" page never returns to the
+      // app, so without this the only way out was the three-minute timeout.
+      cancelActiveSignIn = () =>
+        finish(() => {
+          try {
+            server.close()
+          } catch {
+            /* never started, or already closed */
+          }
+          reject(new Error('Google sign-in was cancelled.'))
+        })
 
       const server = createServer((req, res) => {
         const url = new URL(req.url ?? '/', redirectUri || 'http://127.0.0.1')
@@ -360,17 +380,25 @@ export async function getAccessToken(): Promise<string> {
 }
 
 async function refreshAccessToken(t: StoredTokens): Promise<string> {
-
-  const res = await fetch(TOKEN_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      refresh_token: t.refreshToken,
-      grant_type: 'refresh_token',
-    }).toString(),
-  })
+  let res: Response
+  try {
+    res = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        refresh_token: t.refreshToken,
+        grant_type: 'refresh_token',
+      }).toString(),
+    })
+  } catch (e) {
+    // The sign-in itself is fine; the app just could not reach Google. Not a reason to sign out.
+    throw withDetails(
+      'The app could not reach Google. Check your internet connection and try again.',
+      e instanceof Error ? e.message : String(e),
+    )
+  }
   if (!res.ok) {
     // 400 invalid_grant means the refresh token is dead, not that the network hiccuped:
     // revoked, the password changed, or — most often here — the seven-day expiry that
@@ -382,8 +410,16 @@ async function refreshAccessToken(t: StoredTokens): Promise<string> {
     if (res.status === 400 || res.status === 401) {
       clearTokens()
       notifySignedOut()
+      throw withDetails(
+        'Your Google sign-in has expired. Google asks for this about once a week. Sign in again under Initial Setup.',
+        `Google refused to renew the sign-in: HTTP ${res.status}.`,
+      )
     }
-    throw new Error(SIGN_IN_REQUIRED)
+    // Anything else (Google down, throttling) says nothing about the sign-in, so it is kept.
+    throw withDetails(
+      'Google is having a problem right now. Wait a few minutes and try again.',
+      `Google could not renew the sign-in: HTTP ${res.status}.`,
+    )
   }
 
   const data = (await res.json()) as TokenResponse

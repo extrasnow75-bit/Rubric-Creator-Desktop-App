@@ -86,7 +86,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
         ref={toggleRef}
         onClick={toggle}
         aria-expanded={open}
-        aria-controls={`${id}-list`}
+        aria-controls={open ? `${id}-list` : undefined}
         className="w-full flex items-center justify-center gap-1.5 rounded-xl border-2 border-brand text-brand hover:bg-blue-50 font-black text-sm px-4 py-2.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         Choose from my courses
@@ -172,10 +172,10 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
                   : 'No courses match. Try fewer words.'}
               </p>
             )}
-            {groups.map((g) => (
-              <div key={g.term + g.ended}>
+            {groups.map((g, gi) => (
+              <div key={g.term + g.ended} role="group" aria-labelledby={`${id}-term-${gi}`}>
                 {/* Pale blue with navy text: 10.8 to 1 contrast, well over the 4.5 to 1 needed. */}
-                <div className="sticky top-0 z-10 bg-[#dbe7fb] text-[#0a2a6b] text-[12px] font-black uppercase tracking-wider px-3 py-1.5">
+                <div id={`${id}-term-${gi}`} className="sticky top-0 z-10 bg-[#dbe7fb] text-[#0a2a6b] text-[12px] font-black uppercase tracking-wider px-3 py-1.5">
                   {g.term}
                   <span className="ml-2 font-normal normal-case tracking-normal">
                     {g.term === NO_TERM_GROUP ? 'master and template courses · ' : g.ended ? 'ended · ' : ''}

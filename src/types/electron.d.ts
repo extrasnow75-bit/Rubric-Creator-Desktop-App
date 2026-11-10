@@ -156,6 +156,7 @@ declare global {
       }
       google: {
         signIn(options?: { useAnotherAccount?: boolean }): Promise<GoogleSignInStatus>
+        cancelSignIn(): Promise<boolean>
         signOut(): Promise<void>
         /** Identity only — there is no call that returns the Google access token. */
         status(): Promise<GoogleSignInStatus>

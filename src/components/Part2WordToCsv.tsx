@@ -1,3 +1,4 @@
+import { GoogleSignInFeedback } from './GoogleSignInFeedback';
 import { splitDetails } from '../utils/errorDetails';
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useSession } from '../contexts/SessionContext';
@@ -979,6 +980,7 @@ export const Part2WordToCsv: React.FC = () => {
                           </svg>
                           Sign in with Google
                         </button>
+                        <GoogleSignInFeedback />
                       </div>
                     )}
 
