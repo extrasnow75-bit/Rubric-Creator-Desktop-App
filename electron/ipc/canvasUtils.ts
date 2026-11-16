@@ -78,7 +78,12 @@ export function parseCourseUrl(courseUrl: string): CourseRef | null {
   if (parsed.protocol !== 'https:') return null
 
   const host = parsed.hostname
-  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return null
+  // `URL.hostname` keeps the brackets on an IPv6 literal, so "::1" alone never matched. No Canvas
+  // site is an IPv6 literal, and the private and mapped forms are many, so refuse them all.
+  if (host.startsWith('[')) return null
+  const lower = host.toLowerCase().replace(/\.$/, '')
+  if (lower === 'localhost' || lower.endsWith('.localhost') || lower.endsWith('.local') || lower.endsWith('.internal')) return null
+  if (host === '127.0.0.1') return null
   const oct = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
   if (oct) {
     const [, a, b] = oct.map(Number)

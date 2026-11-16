@@ -36,3 +36,10 @@ describe('siteOf', () => {
     expect(siteOf('not a url')).toBe(DEFAULT_SITE)
   })
 })
+
+describe('visibleGroups with live and ended courses in one term', () => {
+  it('never labels a live course as ended, or the other way round', () => {
+    const mixed = [c('1', 'Live', 'Fall 2026', false), c('2', 'Done', 'Fall 2026', true)]
+    expect(visibleGroups(mixed, '').map((g) => [g.term, g.ended, g.courses.length])).toEqual([['Fall 2026', false, 1], ['Fall 2026', true, 1]])
+  })
+})

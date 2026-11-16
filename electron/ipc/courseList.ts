@@ -110,7 +110,8 @@ export function chooseCourses(raw: RawCourse[], now = new Date()): CourseChoice[
     if ((a.term === NO_TERM) !== (b.term === NO_TERM)) return a.term === NO_TERM ? -1 : 1
     const sa = a.termStart ? Date.parse(a.termStart) : -Infinity
     const sb = b.termStart ? Date.parse(b.termStart) : -Infinity
-    return sb - sa || a.term.localeCompare(b.term) || a.name.localeCompare(b.name)
+    // A course that has ended goes after the live ones in its term, so each group has one label.
+    return sb - sa || a.term.localeCompare(b.term) || Number(a.ended) - Number(b.ended) || a.name.localeCompare(b.name)
   })
 }
 

@@ -118,3 +118,10 @@ describe('role names on the badge', () => {
     expect(list[0]).toMatchObject({ role: 'teacher', roleLabel: 'Course Administrator' })
   })
 })
+
+describe('a term with live and ended courses', () => {
+  it('lists the ended ones after the live ones', () => {
+    const list = chooseCourses([course(1, { name: 'A', workflow_state: 'completed' }), course(2, { name: 'B' }), course(3, { name: 'C', workflow_state: 'completed' })], NOW)
+    expect(list.map((c) => [c.id, c.ended])).toEqual([['2', false], ['1', true], ['3', true]])
+  })
+})

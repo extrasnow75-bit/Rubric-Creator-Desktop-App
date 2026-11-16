@@ -221,6 +221,8 @@ ipcMain.handle('app:resetZoom', (e) => {
 
 ipcMain.handle('credentials:setCanvasToken', (_e, token: string | null) => {
   setCanvasToken(token)
+  // An approval was for the person's previous token. A new one gets asked about again.
+  approvedHosts.clear()
 })
 
 ipcMain.handle('credentials:canvasTokenStatus', (): CredentialStatus => canvasTokenStatus())
@@ -242,30 +244,47 @@ ipcMain.handle('credentials:geminiKeyStatus', (): CredentialStatus => geminiKeyS
  */
 const approvedHosts = new Set<string>()
 
+/** True while a confirmation is on screen, so a misbehaving window cannot stack dialogs. */
+let confirmOpen = false
+
 /**
  * Ask, in a native dialog the renderer cannot click, whether the Canvas token may go to `host`.
- * True means the user agreed (and the host is remembered for this run).
+ * True means the user agreed (and the host is remembered for this run). `purpose` says what the
+ * token is for, so the dialog does not claim the person typed an address when they only opened
+ * the course list.
  */
-async function confirmCanvasHost(win: BrowserWindow | null, host: string): Promise<boolean> {
+async function confirmCanvasHost(
+  win: BrowserWindow | null,
+  host: string,
+  purpose: 'courses' | 'rubrics',
+): Promise<boolean> {
+  if (confirmOpen) return false
+  const what =
+    purpose === 'courses'
+      ? `The app will send your Canvas access token to ${host} to list the courses you can use there.`
+      : `The app will send your Canvas access token to ${host} to read and create rubrics there.`
   const detail =
-    `The app will send your Canvas access token to ${host} to read and create rubrics ` +
-    'there.\n\nThat token can read your courses, enrolments and student records, so only ' +
-    'continue if this is your institution\u2019s Canvas address and you typed or pasted it ' +
-    'yourself.'
-  const { response } = win
-    ? await dialog.showMessageBox(win, {
-        type: 'warning',
-        buttons: ['Cancel', `Use ${host}`],
-        defaultId: 0,
-        cancelId: 0,
-        title: 'Use a different Canvas site?',
-        message: `Send your Canvas token to ${host}?`,
-        detail,
-      })
-    : { response: 0 }
-  if (response !== 1) return false
-  approvedHosts.add(host)
-  return true
+    `${what}\n\nThat token can read your courses, enrolments and student records, so only ` +
+    'continue if this is your institution\u2019s Canvas address.'
+  confirmOpen = true
+  try {
+    const { response } = win
+      ? await dialog.showMessageBox(win, {
+          type: 'warning',
+          buttons: ['Cancel', `Use ${host}`],
+          defaultId: 0,
+          cancelId: 0,
+          title: 'Use a different Canvas site?',
+          message: `Send your Canvas token to ${host}?`,
+          detail,
+        })
+      : { response: 0 }
+    if (response !== 1) return false
+    approvedHosts.add(host)
+    return true
+  } finally {
+    confirmOpen = false
+  }
 }
 
 /**
@@ -303,7 +322,7 @@ ipcMain.handle('canvas:setCourseUrl', async (e, url: string | null) => {
   const currentHost = currentUrl ? parseCourseUrl(currentUrl)?.host : undefined
 
   if (ref.host !== currentHost && !approvedHosts.has(ref.host)) {
-    if (!(await confirmCanvasHost(BrowserWindow.fromWebContents(e.sender), ref.host))) {
+    if (!(await confirmCanvasHost(BrowserWindow.fromWebContents(e.sender), ref.host, 'rubrics'))) {
       return { ok: false as const, message: 'Cancelled — the saved Canvas course was not changed.' }
     }
   }
@@ -334,7 +353,7 @@ ipcMain.handle('canvas:listCourses', async (e, args: { site: string }) => {
   const currentUrl = readSettings().canvasCourseUrl
   const currentHost = currentUrl ? parseCourseUrl(currentUrl)?.host : undefined
   if (host !== currentHost && !approvedHosts.has(host)) {
-    if (!(await confirmCanvasHost(BrowserWindow.fromWebContents(e.sender), host))) {
+    if (!(await confirmCanvasHost(BrowserWindow.fromWebContents(e.sender), host, 'courses'))) {
       return { ok: false as const, message: 'Cancelled — no courses were loaded.' }
     }
   }

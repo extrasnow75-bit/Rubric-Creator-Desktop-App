@@ -31,6 +31,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const latest = useRef(0)
+  const lastDefault = useRef(defaultSite)
   const id = useId()
   // Focus has to be put somewhere deliberate whenever the control the person was on goes away,
   // or it falls back to the top of the window and a keyboard or screen-reader user must start over.
@@ -66,8 +67,12 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
   const toggle = () => {
     const next = !open
     setOpen(next)
-    // Loaded on first opening, and again if the course address now points at another site.
-    if (next && (courses === null || defaultSite !== site) && !loading) {
+    // Loaded on first opening, and again if the course address now points at another site. The
+    // comparison is with the last address seen, not with the site on screen: a site the person
+    // chose with "Change" must survive closing and reopening the list.
+    const addressMoved = defaultSite !== lastDefault.current
+    lastDefault.current = defaultSite
+    if (next && (courses === null || addressMoved) && !loading) {
       setSite(defaultSite)
       void load(defaultSite)
     }

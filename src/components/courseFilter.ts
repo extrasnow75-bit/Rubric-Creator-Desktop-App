@@ -20,7 +20,7 @@ export function visibleGroups(courses: CourseChoice[], query: string): CourseGro
     const hay = `${c.name} ${c.code}`.toLowerCase()
     if (!words.every((w) => hay.includes(w))) continue
     const last = groups[groups.length - 1]
-    if (last && last.term === c.term) last.courses.push(c)
+    if (last && last.term === c.term && last.ended === c.ended) last.courses.push(c)
     else groups.push({ term: c.term, ended: c.ended, courses: [c] })
   }
   return groups

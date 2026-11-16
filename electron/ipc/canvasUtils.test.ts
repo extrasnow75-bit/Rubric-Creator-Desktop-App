@@ -395,3 +395,19 @@ describe('buildRubricPayload', () => {
     )
   })
 })
+
+describe('parseCourseUrl refuses addresses that are not a public Canvas site', () => {
+  it.each([
+    'https://[::1]/courses/1',
+    'https://[fd00::1]/courses/1',
+    'https://[::ffff:7f00:1]/courses/1',
+    'https://localhost./courses/1',
+    'https://x.localhost/courses/1',
+    'https://printer.local/courses/1',
+  ])('%s', (url) => {
+    expect(parseCourseUrl(url)).toBeNull()
+  })
+  it('still accepts an ordinary Canvas address', () => {
+    expect(parseCourseUrl('https://school.instructure.com/courses/12')?.courseId).toBe('12')
+  })
+})
