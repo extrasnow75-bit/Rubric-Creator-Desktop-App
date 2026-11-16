@@ -3,7 +3,7 @@ import { visibleGroups, countCourses, siteOf, DEFAULT_SITE } from './courseFilte
 import type { CourseChoice } from '../types'
 
 const c = (id: string, name: string, term: string, ended = false, code = ''): CourseChoice => ({
-  id, name, code, role: 'teacher', term, termStart: null, ended, blueprint: false,
+  id, name, code, role: 'teacher', roleLabel: 'Teacher', term, termStart: null, ended, blueprint: false,
 })
 const all = [
   c('1', 'Intro to Health', 'Fall 2026', false, 'HLTH-101'),

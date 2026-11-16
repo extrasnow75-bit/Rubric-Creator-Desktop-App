@@ -3,20 +3,22 @@
  *
  * Ported from Canvas Extractor Tools, so both apps offer the same list in the same order.
  *
- * Only courses where the person is a teacher, TA or designer are offered: those are the ones a
- * rubric can be added to, and a student cannot create rubrics at all. Pure logic lives here so it
+ * Only courses where the person is a teacher, TA or designer (including a school's custom role built
+ * on one of those, such as Course Administrator) are offered: those are the ones a rubric can be
+ * added to, and a student cannot create rubrics at all. Pure logic lives here so it
  * can be tested without Canvas or Electron; the request itself is `listCourses` in canvas.ts.
  */
 import { parseCourseUrl } from './canvasUtils'
 
-/** 'admin' is someone who administers the Canvas account the course sits in, with no enrollment in it. */
-export type CourseRole = 'teacher' | 'ta' | 'designer' | 'admin'
+export type CourseRole = 'teacher' | 'ta' | 'designer'
 
 export interface CourseChoice {
   id: string
   name: string
   code: string
   role: CourseRole
+  /** What to show on the badge: the role's name in Canvas, which for a custom role such as "Course Administrator" is not "Teacher". */
+  roleLabel: string
   /** Term name, or NO_TERM for courses with none (and for Canvas's "Default Term"), such as masters. */
   term: string
   /** Start of the term, for ordering newest first. Null when Canvas has none. */
@@ -34,7 +36,6 @@ export interface RawCourse {
   blueprint?: boolean
   end_at?: string | null
   term?: { name?: string; start_at?: string | null; end_at?: string | null } | null
-  /** `type` is Canvas's base type; `role` is the name shown in People, which a school can customise. */
   enrollments?: Array<{ type?: string; role?: string }>
 }
 
@@ -46,15 +47,8 @@ export const NO_TERM = 'No term'
 const isRealTerm = (name: string | undefined): boolean =>
   Boolean(name?.trim()) && !/^default term$/i.test(name as string)
 
-/**
- * Canvas writes the same role as "teacher" in some places and "TeacherEnrollment" in others.
- *
- * Schools also make their own roles, such as "Course Administrator". Canvas reports the base
- * type it was built on in `type` (which may be anything, even Observer) and the name people see
- * in `role`. A role named for administering is offered as 'admin' whatever it is built on.
- */
-export function roleOf(type: string | undefined, roleName?: string): CourseRole | null {
-  if (/admin/i.test(roleName ?? '')) return 'admin'
+/** Canvas writes the same role as "teacher" in some places and "TeacherEnrollment" in others. */
+export function roleOf(type: string | undefined): CourseRole | null {
   const t = (type ?? '').toLowerCase().replace(/enrollment$/, '')
   if (t === 'teacher') return 'teacher'
   if (t === 'ta') return 'ta'
@@ -62,19 +56,38 @@ export function roleOf(type: string | undefined, roleName?: string): CourseRole 
   return null
 }
 
-const PRIORITY: CourseRole[] = ['teacher', 'designer', 'ta', 'admin']
+const BUILT_IN_LABEL: Record<CourseRole, string> = { teacher: 'Teacher', ta: 'TA', designer: 'Designer' }
 
 /**
- * Reduces Canvas's course records to the ones to offer, newest term first, then by name.
+ * The words for the badge. Canvas builds a custom role (Course Administrator, Lead Designer…) on
+ * top of one of the built-in types, so `type` says "TeacherEnrollment" for it too; the custom
+ * name is in `role`. A built-in role repeats the type there ("TeacherEnrollment"), which is not a
+ * name to show. Several enrollments in one course give several names, each once.
  *
- * `adminRaw` is the courses of accounts the person administers. An account admin usually has no
- * enrollment, so these never appear in their own course list; any not already listed there are
- * added with the 'admin' role. A course the person is also enrolled in keeps the enrollment role.
+ * Same function as in Canvas Extractor Tools, so both apps name a role the same way.
  */
-export function chooseCourses(raw: RawCourse[], now = new Date(), adminRaw: RawCourse[] = []): CourseChoice[] {
+export function roleLabelOf(enrollments: Array<{ type?: string; role?: string }>): string {
+  const labels: string[] = []
+  for (const e of enrollments) {
+    const base = roleOf(e.type)
+    if (base === null) continue
+    const custom = (e.role ?? '').trim()
+    const label = custom && roleOf(custom) === null ? custom : BUILT_IN_LABEL[base]
+    if (!labels.includes(label)) labels.push(label)
+  }
+  return labels.join(', ')
+}
+
+const PRIORITY: CourseRole[] = ['teacher', 'designer', 'ta']
+
+/** Reduces Canvas's course records to the ones to offer, newest term first, then by name. */
+export function chooseCourses(raw: RawCourse[], now = new Date()): CourseChoice[] {
   const seen = new Set<number>()
   const out: CourseChoice[] = []
-  const add = (c: RawCourse, role: CourseRole) => {
+  for (const c of raw) {
+    if (seen.has(c.id)) continue
+    const roles = (c.enrollments ?? []).map((e) => roleOf(e.type)).filter((r): r is CourseRole => r !== null)
+    if (roles.length === 0) continue
     seen.add(c.id)
     const real = isRealTerm(c.term?.name)
     const endAt = real ? (c.term?.end_at ?? c.end_at ?? null) : null
@@ -82,22 +95,14 @@ export function chooseCourses(raw: RawCourse[], now = new Date(), adminRaw: RawC
       id: String(c.id),
       name: c.name?.trim() || `Course ${c.id}`,
       code: c.course_code?.trim() ?? '',
-      role,
+      role: PRIORITY.find((p) => roles.includes(p)) as CourseRole,
+      roleLabel: roleLabelOf(c.enrollments ?? []),
       term: real ? (c.term?.name as string).trim() : NO_TERM,
       termStart: real ? (c.term?.start_at ?? null) : null,
       // A course with no term is never "ended": masters stay in use, and the group is not labelled by it.
       ended: real && (c.workflow_state === 'completed' || (endAt !== null && Date.parse(endAt) < now.getTime())),
       blueprint: c.blueprint === true,
     })
-  }
-  for (const c of raw) {
-    if (seen.has(c.id)) continue
-    const roles = (c.enrollments ?? []).map((e) => roleOf(e.type, e.role)).filter((r): r is CourseRole => r !== null)
-    if (roles.length === 0) continue
-    add(c, PRIORITY.find((p) => roles.includes(p)) as CourseRole)
-  }
-  for (const c of adminRaw) {
-    if (!seen.has(c.id)) add(c, 'admin')
   }
   return out.sort((a, b) => {
     // Masters and templates first, by name: for a designer they are the courses opened most.

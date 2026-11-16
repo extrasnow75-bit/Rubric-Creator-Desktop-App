@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { chooseCourses, nextPageUrl, normalizeSite, roleOf, NO_TERM } from './courseList'
+import { chooseCourses, nextPageUrl, normalizeSite, roleLabelOf, roleOf, NO_TERM } from './courseList'
 
 const NOW = new Date('2026-11-04T12:00:00Z')
 const course = (id: number, over: Record<string, unknown> = {}) => ({
@@ -93,38 +93,28 @@ describe('nextPageUrl', () => {
   })
 })
 
-describe('chooseCourses with account-admin courses', () => {
-  const adminCourse = (id: number, over: Record<string, unknown> = {}) => course(id, { enrollments: undefined, ...over })
-  it('adds courses the person only administers, with the admin role', () => {
-    const list = chooseCourses([course(1)], NOW, [adminCourse(2), adminCourse(3)])
-    expect(Object.fromEntries(list.map((c) => [c.id, c.role]))).toEqual({ '1': 'teacher', '2': 'admin', '3': 'admin' })
+describe('role names on the badge', () => {
+  it('names a custom role, which Canvas files under the Teacher type', () => {
+    expect(roleLabelOf([{ type: 'TeacherEnrollment', role: 'Course Administrator' }])).toBe('Course Administrator')
   })
-  it('keeps the enrollment role when the person is also enrolled', () => {
-    const list = chooseCourses([course(1, { enrollments: [{ type: 'ta' }] })], NOW, [adminCourse(1)])
-    expect(list).toHaveLength(1)
-    expect(list[0].role).toBe('ta')
+  it('keeps the plain names for the built-in roles', () => {
+    expect(roleLabelOf([{ type: 'TeacherEnrollment', role: 'TeacherEnrollment' }])).toBe('Teacher')
+    expect(roleLabelOf([{ type: 'teacher' }])).toBe('Teacher')
+    expect(roleLabelOf([{ type: 'TaEnrollment', role: 'TaEnrollment' }])).toBe('TA')
+    expect(roleLabelOf([{ type: 'DesignerEnrollment', role: 'DesignerEnrollment' }])).toBe('Designer')
   })
-  it('still hides student-only courses when there are no admin courses', () => {
-    expect(chooseCourses([course(1, { enrollments: [{ type: 'student' }] })], NOW, [])).toHaveLength(0)
+  it('lists each name once when a person holds several roles in a course', () => {
+    expect(roleLabelOf([
+      { type: 'TeacherEnrollment', role: 'TeacherEnrollment' },
+      { type: 'TeacherEnrollment', role: 'Course Administrator' },
+      { type: 'TeacherEnrollment', role: 'Course Administrator' },
+    ])).toBe('Teacher, Course Administrator')
   })
-})
-
-describe('custom roles such as "Course Administrator"', () => {
-  it('offers a role named for administering, whatever base type it is built on', () => {
-    expect(roleOf('ObserverEnrollment', 'Course Administrator')).toBe('admin')
-    expect(roleOf('StudentEnrollment', 'Course Administrator')).toBe('admin')
-    expect(roleOf('TeacherEnrollment', 'Course Administrator')).toBe('admin')
+  it('ignores student and observer enrollments', () => {
+    expect(roleLabelOf([{ type: 'StudentEnrollment', role: 'StudentEnrollment' }])).toBe('')
   })
-  it('still refuses student and observer enrollments with ordinary role names', () => {
-    expect(roleOf('StudentEnrollment', 'StudentEnrollment')).toBeNull()
-    expect(roleOf('ObserverEnrollment', 'Mentor')).toBeNull()
-  })
-  it('lists a course where the only enrollment is a Course Administrator role', () => {
-    const list = chooseCourses([course(1, { enrollments: [{ type: 'ObserverEnrollment', role: 'Course Administrator' }] })], NOW)
-    expect(list.map((c) => [c.id, c.role])).toEqual([['1', 'admin']])
-  })
-  it('prefers a real teacher enrollment over the custom role in the same course', () => {
-    const list = chooseCourses([course(1, { enrollments: [{ type: 'TeacherEnrollment', role: 'Course Administrator' }, { type: 'TeacherEnrollment', role: 'TeacherEnrollment' }] })], NOW)
-    expect(list[0].role).toBe('teacher')
+  it('reaches the course list', () => {
+    const list = chooseCourses([{ id: 7, name: 'Sandbox Copy', enrollments: [{ type: 'TeacherEnrollment', role: 'Course Administrator' }] }])
+    expect(list[0]).toMatchObject({ role: 'teacher', roleLabel: 'Course Administrator' })
   })
 })

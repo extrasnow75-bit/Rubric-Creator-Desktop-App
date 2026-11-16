@@ -1,20 +1,19 @@
-import React, { useId, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import React, { useEffect, useId, useRef, useState } from 'react'
+import { AlertCircle, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import type { CourseChoice } from '../types'
 import { countCourses, NO_TERM_GROUP, siteHost, visibleGroups } from './courseFilter'
 
-const ROLE_LABEL = { teacher: 'Teacher', ta: 'TA', designer: 'Designer', admin: 'Admin' } as const
+const ROLE_LABEL = { teacher: 'Teacher', ta: 'TA', designer: 'Designer' } as const
 const ROLE_STYLE = {
   teacher: 'bg-indigo-100 text-indigo-900',
   ta: 'bg-amber-100 text-amber-900',
   designer: 'bg-green-100 text-green-900',
-  admin: 'bg-purple-100 text-purple-900',
 } as const
 
 interface Props {
   /** Where to look first: the site of the course address already typed, else Boise State's. */
   defaultSite: string
-  /** Called with the chosen course's address, e.g. https://school.instructure.com/courses/123. */
+  /** Called with the chosen course's address. */
   onChoose(courseUrl: string): void
 }
 
@@ -28,12 +27,22 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
   const [editingSite, setEditingSite] = useState(false)
   const [siteInput, setSiteInput] = useState('')
   const [courses, setCourses] = useState<CourseChoice[] | null>(null)
-  const [truncated, setTruncated] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const latest = useRef(0)
   const id = useId()
+  // Focus has to be put somewhere deliberate whenever the control the person was on goes away,
+  // or it falls back to the top of the window and a keyboard or screen-reader user must start over.
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const siteInputRef = useRef<HTMLInputElement>(null)
+  const changeRef = useRef<HTMLButtonElement>(null)
+  const wasEditingSite = useRef(false)
+  useEffect(() => {
+    if (editingSite) siteInputRef.current?.focus()
+    else if (wasEditingSite.current) changeRef.current?.focus()
+    wasEditingSite.current = editingSite
+  }, [editingSite])
 
   const load = async (target: string) => {
     const mine = ++latest.current
@@ -46,7 +55,6 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
       if (res.ok) {
         setSite(res.site)
         setCourses(res.courses)
-        setTruncated(res.truncated === true)
       } else setError(res.message)
     } catch (err) {
       if (mine === latest.current) setError(err instanceof Error ? err.message : 'Could not load your courses.')
@@ -71,9 +79,10 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
   return (
     <div>
       <button
+        ref={toggleRef}
         onClick={toggle}
         aria-expanded={open}
-        aria-controls={`${id}-list`}
+        aria-controls={open ? `${id}-list` : undefined}
         className="w-full flex items-center justify-center gap-1.5 rounded-xl border-2 border-brand text-brand hover:bg-blue-50 font-black text-sm px-4 py-2.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         Choose from my courses
@@ -90,7 +99,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
               placeholder="Search by course name or code"
               aria-label="Search your courses"
               spellCheck={false}
-              className="flex-1 min-w-[10rem] border-2 border-gray-500 rounded-lg px-2.5 py-1.5 text-[13px] focus:outline-none focus:border-brand"
+              className="flex-1 min-w-[10rem] border-2 border-gray-500 rounded-lg px-2.5 py-1.5 text-[13px] focus:outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand"
             />
           </div>
 
@@ -99,6 +108,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
               <>
                 <label htmlFor={`${id}-site`}>Canvas site</label>
                 <input
+                  ref={siteInputRef}
                   id={`${id}-site`}
                   type="text"
                   value={siteInput}
@@ -107,11 +117,13 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
                     if (e.key === 'Enter') {
                       setEditingSite(false)
                       void load(siteInput)
+                    } else if (e.key === 'Escape') {
+                      setEditingSite(false)
                     }
                   }}
                   placeholder="yourschool.instructure.com"
                   spellCheck={false}
-                  className="flex-1 min-w-[10rem] border-2 border-gray-500 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-brand"
+                  className="flex-1 min-w-[10rem] border-2 border-gray-500 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand"
                 />
                 <button
                   onClick={() => {
@@ -129,6 +141,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
                   Canvas site: <b>{siteHost(site)}</b>
                 </span>
                 <button
+                  ref={changeRef}
                   onClick={() => {
                     setSiteInput(siteHost(site))
                     setEditingSite(true)
@@ -141,22 +154,29 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
             )}
           </div>
 
-          <div className="max-h-[290px] overflow-auto" role="region" aria-label="Your courses">
+          <div className="max-h-[290px] overflow-auto" role="region" aria-label="Your courses" tabIndex={groups.length === 0 ? 0 : undefined}>
             {loading && (
-              <p className="p-3.5 text-[13px] text-gray-700 flex items-center gap-2">
+              <p role="status" className="p-3.5 text-[13px] text-gray-700 flex items-center gap-2">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Loading your courses…
               </p>
             )}
-            {error && <p className="p-3.5 text-[13px] text-red-700">{error}</p>}
+            {error && (
+              <div className="p-3.5 flex items-start gap-2 text-[13px] text-red-800">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-700" aria-hidden="true" />
+                <p role="alert" className="min-w-0">{error}</p>
+              </div>
+            )}
             {courses && shown === 0 && (
               <p className="p-3.5 text-[13px] text-gray-700">
-                No courses match. Try fewer words.
+                {courses.length === 0
+                  ? 'No courses were found where you are a teacher, TA or designer on this site. Check the site above, or paste a course address.'
+                  : 'No courses match. Try fewer words.'}
               </p>
             )}
-            {groups.map((g) => (
-              <div key={g.term + g.ended}>
+            {groups.map((g, gi) => (
+              <div key={g.term + g.ended} role="group" aria-labelledby={`${id}-term-${gi}`}>
                 {/* Pale blue with navy text: 10.8 to 1 contrast, well over the 4.5 to 1 needed. */}
-                <div className="sticky top-0 z-10 bg-[#dbe7fb] text-[#0a2a6b] text-[12px] font-black uppercase tracking-wider px-3 py-1.5">
+                <div id={`${id}-term-${gi}`} className="sticky top-0 z-10 bg-[#dbe7fb] text-[#0a2a6b] text-[12px] font-black uppercase tracking-wider px-3 py-1.5">
                   {g.term}
                   <span className="ml-2 font-normal normal-case tracking-normal">
                     {g.term === NO_TERM_GROUP ? 'master and template courses · ' : g.ended ? 'ended · ' : ''}
@@ -169,6 +189,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
                     onClick={() => {
                       setOpen(false)
                       onChoose(`${site}/courses/${c.id}`)
+                      toggleRef.current?.focus()
                     }}
                     className="w-full flex items-center gap-2.5 text-left border-t border-gray-100 px-3 py-2 hover:bg-blue-50 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
                   >
@@ -180,7 +201,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
                       <span className="text-[11px] font-black rounded-full px-2 py-0.5 bg-gray-100 text-gray-800">Blueprint</span>
                     )}
                     <span className={`text-[11px] font-black rounded-full px-2 py-0.5 ${ROLE_STYLE[c.role]}`}>
-                      {ROLE_LABEL[c.role]}
+                      {c.roleLabel || ROLE_LABEL[c.role]}
                     </span>
                   </button>
                 ))}
@@ -191,7 +212,7 @@ export function CoursePicker({ defaultSite, onChoose }: Props) {
       )}
       <p className="text-xs text-gray-600 mt-2.5" role="status" aria-live="polite">
         {open && courses
-          ? `Showing ${shown} course${shown === 1 ? '' : 's'} where you are a teacher, TA, designer or administrator. Student courses are not listed.${truncated ? ' You administer more courses than fit here, so search is limited to the first part of the list; paste a course address for any that are missing.' : ''}`
+          ? `Showing ${shown} course${shown === 1 ? '' : 's'} where you are a teacher, TA or designer. Student courses are not listed.`
           : ''}
       </p>
     </div>
