@@ -45,7 +45,7 @@ export const StartOverDialog: React.FC<Props> = ({ isOpen, hasUnsavedWork, onCan
       TaskCompletionDialog records the same fix; this is the pattern, not a one-off.
     */
     <div
-      className="fixed inset-0 z-[110] flex overflow-y-auto overscroll-contain bg-black/40 p-4"
+      className="titlebar-no-drag fixed inset-0 z-[110] flex overflow-y-auto overscroll-contain bg-black/40 p-4"
       onClick={onCancel}
       role="presentation"
     >

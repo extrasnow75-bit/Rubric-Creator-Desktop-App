@@ -10,7 +10,8 @@ import {
   geminiKeyStatus,
   type CredentialStatus,
 } from './ipc/credentials'
-import { pushRubric, verifyToken, getCourseName } from './ipc/canvas'
+import { pushRubric, verifyToken, getCourseName, listCourses } from './ipc/canvas'
+import { normalizeSite } from './ipc/courseList'
 import { parseCourseUrl } from './ipc/canvasUtils'
 import { checkRepair } from './ipc/csvRepair'
 import { signIn, getStatus, clearTokens } from './ipc/googleAuth'
@@ -220,6 +221,8 @@ ipcMain.handle('app:resetZoom', (e) => {
 
 ipcMain.handle('credentials:setCanvasToken', (_e, token: string | null) => {
   setCanvasToken(token)
+  // An approval was for the person's previous token. A new one gets asked about again.
+  approvedHosts.clear()
 })
 
 ipcMain.handle('credentials:canvasTokenStatus', (): CredentialStatus => canvasTokenStatus())
@@ -233,6 +236,56 @@ ipcMain.handle('credentials:setGeminiApiKey', (_e, key: string | null) => {
 ipcMain.handle('credentials:geminiKeyStatus', (): CredentialStatus => geminiKeyStatus())
 
 // ─── Canvas ───────────────────────────────────────────────────────────────────
+
+/**
+ * Canvas hosts the user has approved in the native dialog during this run. Kept in memory only,
+ * so every launch asks again. Listing courses on a new site and then saving one of them there is
+ * one decision, not two, which is why both handlers share this set.
+ */
+const approvedHosts = new Set<string>()
+
+/** True while a confirmation is on screen, so a misbehaving window cannot stack dialogs. */
+let confirmOpen = false
+
+/**
+ * Ask, in a native dialog the renderer cannot click, whether the Canvas token may go to `host`.
+ * True means the user agreed (and the host is remembered for this run). `purpose` says what the
+ * token is for, so the dialog does not claim the person typed an address when they only opened
+ * the course list.
+ */
+async function confirmCanvasHost(
+  win: BrowserWindow | null,
+  host: string,
+  purpose: 'courses' | 'rubrics',
+): Promise<boolean> {
+  if (confirmOpen) return false
+  const what =
+    purpose === 'courses'
+      ? `The app will send your Canvas access token to ${host} to list the courses you can use there.`
+      : `The app will send your Canvas access token to ${host} to read and create rubrics there.`
+  const detail =
+    `${what}\n\nThat token can read your courses, enrolments and student records, so only ` +
+    'continue if this is your institution\u2019s Canvas address.'
+  confirmOpen = true
+  try {
+    const { response } = win
+      ? await dialog.showMessageBox(win, {
+          type: 'warning',
+          buttons: ['Cancel', `Use ${host}`],
+          defaultId: 0,
+          cancelId: 0,
+          title: 'Use a different Canvas site?',
+          message: `Send your Canvas token to ${host}?`,
+          detail,
+        })
+      : { response: 0 }
+    if (response !== 1) return false
+    approvedHosts.add(host)
+    return true
+  } finally {
+    confirmOpen = false
+  }
+}
 
 /**
  * Save the course URL, asking the user natively before moving to a different Canvas site.
@@ -268,26 +321,8 @@ ipcMain.handle('canvas:setCourseUrl', async (e, url: string | null) => {
   const currentUrl = readSettings().canvasCourseUrl
   const currentHost = currentUrl ? parseCourseUrl(currentUrl)?.host : undefined
 
-  if (ref.host !== currentHost) {
-    const win = BrowserWindow.fromWebContents(e.sender)
-    const detail =
-      `The app will send your Canvas access token to ${ref.host} to read and create rubrics ` +
-      'there.\n\nThat token can read your courses, enrolments and student records, so only ' +
-      'continue if this is your institution\u2019s Canvas address and you typed or pasted it ' +
-      'yourself.'
-    const { response } = win
-      ? await dialog.showMessageBox(win, {
-          type: 'warning',
-          buttons: ['Cancel', `Use ${ref.host}`],
-          defaultId: 0,
-          cancelId: 0,
-          title: 'Use a different Canvas site?',
-          message: `Send your Canvas token to ${ref.host}?`,
-          detail,
-        })
-      : { response: 0 }
-
-    if (response !== 1) {
+  if (ref.host !== currentHost && !approvedHosts.has(ref.host)) {
+    if (!(await confirmCanvasHost(BrowserWindow.fromWebContents(e.sender), ref.host, 'rubrics'))) {
       return { ok: false as const, message: 'Cancelled — the saved Canvas course was not changed.' }
     }
   }
@@ -303,6 +338,27 @@ ipcMain.handle('canvas:getCourseUrl', () => readSettings().canvasCourseUrl ?? nu
 // other host is refused in resolveCourse (see canvas.ts). Omitted, they use the saved course.
 ipcMain.handle('canvas:verifyToken', (_e, args?: { courseUrl?: string }) => verifyToken(args))
 ipcMain.handle('canvas:getCourseName', (_e, args?: { courseUrl?: string }) => getCourseName(args))
+
+// The courses for the "Choose from my courses" list. Sends the token to `site`, so it follows the
+// same rule as saving a course: only the saved host, or one the user has just approved natively.
+ipcMain.handle('canvas:listCourses', async (e, args: { site: string }) => {
+  const origin = normalizeSite(args?.site ?? '')
+  if (!origin) {
+    return {
+      ok: false as const,
+      message: 'That is not a Canvas site address. It should look like yourschool.instructure.com',
+    }
+  }
+  const host = new URL(origin).host
+  const currentUrl = readSettings().canvasCourseUrl
+  const currentHost = currentUrl ? parseCourseUrl(currentUrl)?.host : undefined
+  if (host !== currentHost && !approvedHosts.has(host)) {
+    if (!(await confirmCanvasHost(BrowserWindow.fromWebContents(e.sender), host, 'courses'))) {
+      return { ok: false as const, message: 'Cancelled — no courses were loaded.' }
+    }
+  }
+  return listCourses(origin)
+})
 ipcMain.handle(
   'canvas:pushRubric',
   (_e, args: { csvContent: string; courseUrl?: string; jobId?: string }) =>

@@ -9,6 +9,8 @@ import { Upload, Download, Loader2, Trash2, Image as ImageIcon, HardDrive, Folde
 import ErrorDisplay from './ErrorDisplay';
 import { getRecentImages, saveRecentImage, RecentImage } from '../utils/recentImages';
 import { HtmlCopyNotice } from './HtmlCopyNotice';
+import { CoursePicker } from './CoursePicker';
+import { siteOf } from './courseFilter';
 
 interface ScreenshotConverterProps {
   /**
@@ -927,8 +929,15 @@ export const ScreenshotConverter: React.FC<ScreenshotConverterProps> = ({
                     </svg>
                     <div>
                       <h3 className="text-lg font-bold text-gray-900">Target Canvas Course</h3>
-                      <p className="text-sm text-gray-600">Enter the homepage URL of the Canvas course you want to deploy rubrics to.</p>
+                      <p className="text-sm text-gray-600">Choose the Canvas course you want to deploy rubrics to.</p>
                     </div>
+                  </div>
+
+                  <CoursePicker defaultSite={siteOf(canvasUrl)} onChoose={setCanvasUrl} />
+                  <div className="flex items-center gap-3 my-3 text-xs text-gray-600" aria-hidden="true">
+                    <span className="flex-1 border-t border-gray-200" />
+                    or paste a course address
+                    <span className="flex-1 border-t border-gray-200" />
                   </div>
 
                   <input

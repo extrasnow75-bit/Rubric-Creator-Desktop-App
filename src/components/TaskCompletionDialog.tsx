@@ -119,7 +119,7 @@ const TaskCompletionDialog: React.FC<TaskCompletionDialogProps> = ({
      * margins centre the panel while it fits and collapse to zero when it does not, so the
      * overflow all lands at the bottom where `overflow-y-auto` can reach it.
      */
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex overflow-y-auto overscroll-contain p-4 z-40">
+    <div className="titlebar-no-drag fixed inset-0 bg-black bg-opacity-50 flex overflow-y-auto overscroll-contain p-4 z-40">
       <div
         ref={dialogRef as React.RefObject<HTMLDivElement>}
         role="dialog"

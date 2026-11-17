@@ -412,3 +412,21 @@ export interface RubricConfig {
   useProxy: boolean;
   proxyService: string;
 }
+
+/** One row of the "Choose from my courses" list. Mirrors electron/ipc/courseList.ts. */
+export interface CourseChoice {
+  id: string
+  name: string
+  code: string
+  role: 'teacher' | 'ta' | 'designer'
+  /** The role's name in Canvas, for the badge (a custom role such as "Course Administrator" is not "Teacher"). */
+  roleLabel: string
+  term: string
+  termStart: string | null
+  ended: boolean
+  blueprint: boolean
+}
+
+export type ListCoursesResult =
+  | { ok: true; site: string; courses: CourseChoice[] }
+  | { ok: false; message: string }

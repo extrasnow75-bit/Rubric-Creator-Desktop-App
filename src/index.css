@@ -119,6 +119,12 @@
 }
 
 /*
+ * Dialog backdrops carry `titlebar-no-drag` too. Electron decides what is draggable from the
+ * regions themselves, not from what is drawn on top, so a dialog whose header overlaps the blue
+ * banner (a short window, or a zoomed one) has its Close button swallowed by the drag region.
+ */
+
+/*
  * Respect a reduced-motion preference.
  *
  * The spinners stay: they are short, essential status indicators, and WCAG exempts them. What
