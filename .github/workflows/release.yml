@@ -5,6 +5,10 @@
 #
 #     git tag v1.0.0 && git push origin v1.0.0
 #
+# The walkthrough video on the release page predates the Canvas course picker, so the page carries a
+# note saying so (search this file for "recorded before the Canvas picker"). Delete that bullet once the
+# video has been re-recorded.
+#
 # Before tagging, rewrite RELEASE_NOTES.md as the "What's new in vX.Y.Z" list for that version;
 # the release job refuses to publish if the file does not name the tag.
 #
