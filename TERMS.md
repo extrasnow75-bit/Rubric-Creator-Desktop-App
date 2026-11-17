@@ -1,8 +1,8 @@
-# Terms of Service: Canvas Rubric Creator
+# Terms of Service: Canvas Rubric Creator Desktop App
 
 _Last updated: November 6, 2026_
 
-These terms apply to your use of Canvas Rubric Creator, a desktop app that helps you draft rubrics, convert them to files, and add them to a Canvas course. By installing or using the app, you agree to these terms.
+These terms apply to your use of Canvas Rubric Creator Desktop App, a desktop app that helps you draft rubrics, convert them to files, and add them to a Canvas course. By installing or using the app, you agree to these terms.
 
 ## What the app is
 
