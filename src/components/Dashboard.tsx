@@ -70,6 +70,7 @@ export const Dashboard: React.FC = () => {
     state,
     startGoogleAuth,
     signOutGoogle,
+    cancelGoogleAuth,
     setUserGeminiApiKey,
     setUserCanvasApiToken,
     setCourseUrl,
@@ -893,7 +894,10 @@ export const Dashboard: React.FC = () => {
                       <h3 className="font-black text-lg text-gray-900">Google Sign-In</h3>
                       <span className="ml-auto text-xs text-gray-600 font-bold uppercase tracking-wide">Optional</span>
                     </div>
-                    <p className="text-sm text-gray-600 mb-4">Sign in to select rubric documents directly from Google Drive.</p>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Sign in to select rubric documents directly from Google Drive. When Google asks what to
+                      allow, <strong>tick every Google Drive box</strong>.
+                    </p>
                     <button
                       onClick={() => startGoogleAuth()}
                       disabled={state.isAuthenticating}
@@ -901,6 +905,22 @@ export const Dashboard: React.FC = () => {
                     >
                       {state.isAuthenticating ? <><Loader2 className="w-5 h-5 animate-spin" /> Signing in...</> : <><GoogleIcon /> Sign In with Google</>}
                     </button>
+                    {state.isAuthenticating && (
+                      <div className="mt-3">
+                        <p role="status" className="text-xs text-gray-700 font-bold">
+                          Waiting for Google in your browser. When Google asks what to allow, tick every Google
+                          Drive box. If Google took you to Gmail or another page after you signed in, press
+                          Cancel sign-in, then choose Sign In with Google again. The app stops waiting after 3
+                          minutes.
+                        </p>
+                        <button
+                          onClick={cancelGoogleAuth}
+                          className="mt-2 py-1.5 px-3 rounded-lg border border-gray-400 bg-white text-xs font-bold text-gray-800 hover:bg-gray-50"
+                        >
+                          Cancel sign-in
+                        </button>
+                      </div>
+                    )}
                     {state.googleAuthError && (
                       <p className="text-xs text-red-600 mt-2 flex items-start gap-1">
                         <X className="w-3 h-3 mt-0.5 flex-shrink-0" /> {state.googleAuthError}

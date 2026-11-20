@@ -157,6 +157,8 @@ declare global {
       google: {
         signIn(options?: { useAnotherAccount?: boolean }): Promise<GoogleSignInStatus>
         signOut(): Promise<void>
+        /** Stops a sign-in that is waiting for the browser. */
+        cancelSignIn(): Promise<boolean>
         /** Identity only — there is no call that returns the Google access token. */
         status(): Promise<GoogleSignInStatus>
         /** Fires when a stored sign-in turns out to be dead. Returns an unsubscribe function. */

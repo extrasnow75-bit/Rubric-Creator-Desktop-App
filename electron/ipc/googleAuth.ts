@@ -10,6 +10,7 @@ import {
   isGoogleConfigured,
   isGoogleSecretConfigured,
 } from './googleConfig'
+import { MSG_DRIVE_NOT_ALLOWED, SIGN_IN_STOPPED, missingScopes } from './googleScopes'
 
 const TOKEN_PATH = join(app.getPath('userData'), 'google-tokens.enc')
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -29,6 +30,8 @@ interface TokenResponse {
   refresh_token?: string
   expires_in?: number
   id_token?: string
+  /** Space-separated scopes the person actually allowed. */
+  scope?: string
 }
 
 export interface GoogleStatus {
@@ -130,6 +133,14 @@ function focusAppWindow(): void {
   win.focus()
 }
 
+/** Stops the sign-in that is waiting for the browser, if there is one. */
+let cancelActiveSignIn: (() => void) | null = null
+export function cancelSignIn(): boolean {
+  if (!cancelActiveSignIn) return false
+  cancelActiveSignIn()
+  return true
+}
+
 /**
  * Interactive sign-in via the system browser + PKCE + a short-lived loopback listener.
  * The listener runs only for the duration of the auth window, then shuts down.
@@ -159,9 +170,21 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
       const finish = (fn: () => void): void => {
         if (!settled) {
           settled = true
+          cancelActiveSignIn = null
           fn()
         }
       }
+      // So the person can stop waiting. When Google lands on Gmail or another page instead of
+      // coming back (it can, after a university login), the only way out was the 3-minute timeout.
+      cancelActiveSignIn = () =>
+        finish(() => {
+          try {
+            server.close()
+          } catch {
+            /* never started, or already closed */
+          }
+          reject(new Error(SIGN_IN_STOPPED))
+        })
 
       const server = createServer((req, res) => {
         const url = new URL(req.url ?? '/', redirectUri || 'http://127.0.0.1')
@@ -271,6 +294,12 @@ export async function signIn(options?: { useAnotherAccount?: boolean }): Promise
   }
 
   const data = (await tokenRes.json()) as TokenResponse
+  // Checked before anything is saved, so the person is told now, on the sign-in screen, rather
+  // than when they first open or save a Drive file. Nothing is kept, and the next sign-in shows
+  // Google's boxes again.
+  if (missingScopes(data.scope, GOOGLE_SCOPES).length > 0) {
+    throw new Error(MSG_DRIVE_NOT_ALLOWED)
+  }
   if (!data.refresh_token) {
     throw new Error('Google did not return a refresh token. Try removing the app under your Google account permissions, then sign in again.')
   }
@@ -323,6 +352,24 @@ export async function getAccessToken(): Promise<string> {
   return refreshInFlight
 }
 
+/**
+ * A newer sign-in saved while a refresh of `t` was on its way, or null if there is none.
+ *
+ * The person may sign in again while an old sign-in is being refreshed. Then the old one failing
+ * must not clear the new one (the app said "expired" just after a sign-in that worked), and the
+ * old one succeeding must not overwrite it.
+ */
+function newerSignIn(t: StoredTokens): StoredTokens | null {
+  const now = loadTokens()
+  return now?.refreshToken && now.refreshToken !== t.refreshToken ? now : null
+}
+
+/** Use the newer sign-in: its access token if still good, otherwise refresh that one. */
+function useNewer(now: StoredTokens): Promise<string> {
+  if (now.accessToken && Date.now() < now.expiry - 60_000) return Promise.resolve(now.accessToken)
+  return refreshAccessToken(now)
+}
+
 async function refreshAccessToken(t: StoredTokens): Promise<string> {
 
   const res = await fetch(TOKEN_ENDPOINT, {
@@ -344,6 +391,8 @@ async function refreshAccessToken(t: StoredTokens): Promise<string> {
     // that a refreshToken string exists, so the panel kept showing the user signed in while
     // every Drive call failed.
     if (res.status === 400 || res.status === 401) {
+      const now = newerSignIn(t)
+      if (now) return useNewer(now)
       clearTokens()
       notifySignedOut()
     }
@@ -351,6 +400,8 @@ async function refreshAccessToken(t: StoredTokens): Promise<string> {
   }
 
   const data = (await res.json()) as TokenResponse
+  const now = newerSignIn(t)
+  if (now) return useNewer(now)
   const updated: StoredTokens = {
     ...t,
     accessToken: data.access_token,

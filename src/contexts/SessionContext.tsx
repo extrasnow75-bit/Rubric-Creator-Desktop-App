@@ -61,6 +61,7 @@ const SessionContext = createContext<{
   /** Opens the system browser. Pass true to force Google's account chooser. */
   startGoogleAuth: (useAnotherAccount?: boolean) => Promise<void>;
   signOutGoogle: () => Promise<void>;
+  cancelGoogleAuth: () => void;
   extractGoogleDocText: (docUrl: string) => Promise<string>;
   extractGoogleSheetCsv: (sheetUrl: string) => Promise<string>;
   downloadDriveFile: (fileId: string) => Promise<ArrayBuffer>;
@@ -539,6 +540,11 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   }, []);
 
+  // The pending signIn call rejects with "cancelled", which startGoogleAuth shows nothing for.
+  const cancelGoogleAuth = useCallback(() => {
+    void window.api.google.cancelSignIn().catch(() => undefined);
+  }, []);
+
   const signOutGoogle = useCallback(async () => {
     try {
       await window.api.google.signOut();
@@ -738,6 +744,7 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     setCourseUrl,
     startGoogleAuth,
     signOutGoogle,
+    cancelGoogleAuth,
     extractGoogleDocText,
     extractGoogleSheetCsv,
     downloadDriveFile,

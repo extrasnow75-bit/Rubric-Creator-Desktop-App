@@ -14,7 +14,7 @@ import { pushRubric, verifyToken, getCourseName, listCourses } from './ipc/canva
 import { normalizeSite } from './ipc/courseList'
 import { parseCourseUrl } from './ipc/canvasUtils'
 import { checkRepair } from './ipc/csvRepair'
-import { signIn, getStatus, clearTokens } from './ipc/googleAuth'
+import { signIn, getStatus, clearTokens, cancelSignIn } from './ipc/googleAuth'
 import { withJob, cancelJob } from './ipc/jobs'
 import * as gemini from './ipc/gemini'
 import {
@@ -375,6 +375,7 @@ ipcMain.handle(
 ipcMain.handle('google:signIn', (_e, options?: { useAnotherAccount?: boolean }) => signIn(options))
 ipcMain.handle('google:status', () => getStatus())
 ipcMain.handle('google:signOut', () => clearTokens())
+ipcMain.handle('google:cancelSignIn', () => cancelSignIn())
 
 // ─── Google Drive ─────────────────────────────────────────────────────────────
 
