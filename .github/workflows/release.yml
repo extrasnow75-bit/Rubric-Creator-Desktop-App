@@ -76,6 +76,14 @@ jobs:
         #
         # CSC_IDENTITY_AUTO_DISCOVERY=false stops electron-builder hunting the Mac runner's
         # keychain for a signing certificate it will not find; harmless on Windows.
+        #
+        # The Mac apps are still sealed "ad-hoc" (package.json: mac.identity "-"), which needs
+        # no Apple account. Apple Silicon Macs refuse to launch native code with no valid
+        # signature at all and report the app as "damaged" (the quarantine command in the notes
+        # does not help there), while Intel builds under Rosetta run unsigned. Without this the
+        # only Mac download that opened on an M-series Mac was the Intel one, which stops
+        # working when Apple removes Rosetta. hardenedRuntime is off because it exists for
+        # notarization, and with an ad-hoc seal it can block Electron's own frameworks.
         run: npm run build -- --publish never
         env:
           MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
